@@ -1,0 +1,30 @@
+algorithm:
+  name: VDN
+  gamma: 0.99
+  tau: 0.005
+  batch_size: 256
+  epsilon_start: 1.0
+  epsilon_end: 0.05
+  epsilon_decay: 50000
+network:
+  hidden_dim: 64
+training:
+  total_timesteps: 100000
+  rollout_steps: 2048
+  lr: 3.0e-4
+  seed: 42
+evaluation:
+  num_episodes: 10
+logging:
+  eval_interval: 5000
+  save_interval: 50000
+  checkpoint_dir: checkpoints/vdn
+  log_interval: 10
+game_theory:
+  enabled: true
+  use_shapley_credit: true
+  ctde_with_hints: true
+  warm_start_steps: 1000
+  warm_start_lr_scale: 0.5
+  shapley_samples: 128
+  reward_weights: [0.5, 0.3, 0.2]

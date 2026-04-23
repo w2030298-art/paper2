@@ -1,0 +1,52 @@
+# TD3 Configuration
+# Twin Delayed DDPG - 连续动作空间
+
+algorithm:
+  name: "TD3"
+  type: "off_policy"
+  gamma: 0.99
+  tau: 0.005
+  batch_size: 256
+  buffer_size: 1000000
+  update_interval: 1
+  explore_steps: 10000
+  noise_std: 0.2
+  noise_clip: 0.5
+  policy_delay: 2
+  action_scale: 1.0
+  action_bias: 0.0
+
+network:
+  hidden_dim: 256
+  activation: "relu"
+  discrete: false
+
+training:
+  total_timesteps: 500000
+  start_steps: 10000
+  lr: 3.0e-4
+  lr_schedule: false
+  seed: 42
+
+exploration:
+  noise_type: "gauss"
+  noise_std: 0.2
+
+logging:
+  log_interval: 10
+  eval_interval: 10000
+  save_interval: 50000
+  log_dir: "logs/td3"
+  checkpoint_dir: "checkpoints/td3"
+
+evaluation:
+  num_episodes: 10
+  deterministic: true
+game_theory:
+  enabled: true
+  use_shapley_credit: false
+  ctde_with_hints: false
+  warm_start_steps: 0
+  warm_start_lr_scale: 0.5
+  shapley_samples: 128
+  reward_weights: [0.5, 0.3, 0.2]

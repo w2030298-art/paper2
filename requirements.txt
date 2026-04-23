@@ -1,0 +1,27 @@
+# Core
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Deep Learning
+torch>=2.0.0
+
+# RL
+gymnasium>=0.29.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+tensorboard>=2.13.0
+
+# Utils
+tqdm>=4.65.0
+pyyaml>=6.0
+omegaconf>=2.3.0
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Dashboard
+fastapi>=0.100.0
+uvicorn>=0.23.0

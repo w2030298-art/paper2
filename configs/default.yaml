@@ -1,0 +1,55 @@
+# GRPO-MEC Configuration
+
+# Environment
+env:
+  name: "MEC-v0"
+  num_edge_servers: 3
+  num_tasks: 5
+  max_steps: 100
+  arrival_rate: 0.5
+
+# Algorithm
+algorithm:
+  name: "GRPO"
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_ratio: 0.2
+  entropy_coef: 0.01
+  value_coef: 0.5
+  group_size: 4
+  lr: 3.0e-4
+
+# Network
+network:
+  hidden_dims: [64, 64]
+  activation: "relu"
+  discrete: true
+
+# Training
+training:
+  total_timesteps: 100000
+  rollout_steps: 2048
+  batch_size: 64
+  num_epochs: 10
+  update_epochs: 10
+  target_kl: 0.01
+  max_grad_norm: 0.5
+
+# Exploration
+exploration:
+  initial_epsilon: 1.0
+  final_epsilon: 0.05
+  epsilon_decay_steps: 10000
+
+# Logging
+logging:
+  log_interval: 10
+  eval_interval: 5000
+  save_interval: 10000
+  log_dir: "logs"
+  checkpoint_dir: "checkpoints"
+
+# Evaluation
+evaluation:
+  num_episodes: 10
+  render: false

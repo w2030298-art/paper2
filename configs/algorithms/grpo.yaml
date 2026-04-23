@@ -1,0 +1,50 @@
+# GRPO Configuration
+# Group Relative Policy Optimization - 离散/连续均支持
+
+algorithm:
+  name: "GRPO"
+  type: "on_policy"
+  gamma: 0.99
+  eps_clip: 0.2
+  group_size: 4
+  num_epochs: 10
+  entropy_coef: 0.01
+  value_coef: 0.5
+  max_grad_norm: 0.5
+
+network:
+  hidden_dim: 256
+  activation: "relu"
+  discrete: true   # 由环境自动检测时可设为 null
+
+training:
+  total_timesteps: 500000
+  rollout_steps: 2048
+  batch_size: 64
+  lr: 3.0e-4
+  lr_schedule: false
+  seed: 42
+
+exploration:
+  initial_epsilon: 1.0
+  final_epsilon: 0.05
+  epsilon_decay_steps: 50000
+
+logging:
+  log_interval: 10
+  eval_interval: 10000
+  save_interval: 50000
+  log_dir: "logs/grpo"
+  checkpoint_dir: "checkpoints/grpo"
+
+evaluation:
+  num_episodes: 10
+  deterministic: true
+game_theory:
+  enabled: true
+  use_shapley_credit: true
+  ctde_with_hints: true
+  warm_start_steps: 1000
+  warm_start_lr_scale: 0.5
+  shapley_samples: 128
+  reward_weights: [0.5, 0.3, 0.2]
