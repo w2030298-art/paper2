@@ -12,6 +12,7 @@ import pytest
 import numpy as np
 import torch
 from unittest.mock import Mock, MagicMock
+from gymnasium import spaces
 
 from src.trainer.on_policy_trainer import OnPolicyTrainer
 from src.trainer.off_policy_trainer import OffPolicyTrainer
@@ -79,6 +80,60 @@ class DummyOffPolicyAgent:
 
     def state_dict(self):
         return {}
+
+
+class DummyEvalAgent:
+    def select_action(self, state, deterministic=False):
+        return 0, {}
+
+
+class DummyEvalEnv:
+    num_agents = 3
+    action_space = spaces.Discrete(2)
+
+    def __init__(self):
+        self.reset_count = 0
+
+    def reset(self, seed=None):
+        self.reset_count += 1
+        return [np.zeros(2, dtype=np.float32) for _ in range(3)], {}
+
+    def step(self, actions):
+        info = {
+            "latency_components": [
+                {"e2e_latency": 1.0, "deadline": 2.0},
+                {"e2e_latency": 2.0, "deadline": 2.0},
+                {"e2e_latency": 3.0, "deadline": 2.5},
+            ],
+            "individual_energies": [0.1, 0.2, 0.3],
+            "task_completed": 3,
+        }
+        return [np.zeros(2, dtype=np.float32) for _ in range(3)], [0.0, 0.0, 0.0], False, True, info
+
+
+class DummyBaseTrainer(BaseTrainer):
+    def _collect_rollout(self):
+        return {}
+
+    def _update_step(self, rollout_data):
+        return {}
+
+
+def test_evaluate_reports_e2e_latency_separately_from_total_latency():
+    trainer = DummyBaseTrainer(
+        env=DummyEvalEnv(),
+        agent=DummyEvalAgent(),
+        eval_episodes=2,
+        save_dir=str(Path(tempfile.gettempdir()) / f"eval_metrics_{uuid4().hex}"),
+    )
+
+    metrics = trainer.evaluate()
+
+    assert metrics["eval/e2e_latency_mean"] == pytest.approx(2.0)
+    assert metrics["eval/latency_mean"] == pytest.approx(2.0)
+    assert metrics["eval/latency_total_mean"] == pytest.approx(6.0)
+    assert metrics["eval/deadline_miss_rate"] == pytest.approx(1.0 / 3.0)
+    assert metrics["eval/throughput_tasks_per_step"] == pytest.approx(3.0)
 
 
 class TestOnPolicyTrainer:

@@ -76,6 +76,22 @@ def _build_agent_kwargs(algo_class, name, obs_dim, action_dim, num_agents):
     return kw
 
 
+def test_ippo_accepts_forward_compatible_ppo_kwargs():
+    """IPPO should not fail when the shared PPO base receives extra config flags."""
+    agent = IPPO(
+        state_dim=8,
+        action_dim=4,
+        hidden_dim=16,
+        device="cpu",
+        discrete=True,
+        use_game_theory=True,
+        future_game_theory_flag=True,
+    )
+
+    assert agent.use_game_theory is True
+    assert agent.extra_init_kwargs == {"future_game_theory_flag": True}
+
+
 # ---- Discrete algorithms on GameTheory discrete adapter ----
 
 @pytest.mark.parametrize("algo_class,name,agents", [

@@ -300,19 +300,23 @@ Dict({
 })
 ```
 
-**观测空间**：每个智能体观测维度 `(3K + 5,)`
+**观测空间**：每个智能体观测维度 `3K + 5 + M*K + (K+1) + M + 3K`（含价格历史/Shapley历史/动作频率/ΔSNR/ΔQ/ρ）
 
-| 索引范围 | 描述 |
-|----------|------|
-| `[0, K)` | 各基站队列长度（归一化） |
-| `[K, 2K)` | 各基站信道 SNR（归一化） |
-| `[2K, 3K)` | 各基站 CPU 负载 |
-| `[3K, 3K+5)` | 任务特征：能量/截止时间/数据量/CPU需求/移动速度 |
+| 特征组 | 描述 |
+|--------|------|
+| `queue/snr/load` | 各基站队列长度、信道SNR、CPU负载 |
+| `task_features(5)` | 电量/截止时间/数据量/CPU需求/移动强度 |
+| `price_history` | 最近 `M` 步均衡定价 |
+| `action_frequency` | 他方动作目标频率统计 |
+| `shapley_history` | 最近 `M` 步 Shapley |
+| `delta_snr/delta_q/rho` | 信道变化、拥塞导数、M/M/1 利用率 |
 
 **核心模块**：
-- **StackelbergGame**：领导者（基站）定价，跟随者（用户）响应
-- **ShapleyValueCalculator**：合作联盟 Shapley 值计算
-- **用户移动性**：随机游走模型，最大 50m 范围
+- `OptimalPricingMechanism` + `BilevelGameSolver`：凸优化定价 + Stackelberg/IBR 双层求解
+- `MonteCarloShapley`：Shapley 蒙特卡洛近似（含 antithetic）
+- `QueueingDelayModel`/`DVFSEnergyModel`/`Channel3GPP`：排队、非理想DVFS、3GPP+干扰
+- `ConstraintProjection` + `HierarchicalReward`：可微约束与分层奖励
+- `EFXFairAllocation` + `CPNetPreferenceModel`：公平修复与偏好建模
 
 ### 适配器层
 
@@ -419,6 +423,16 @@ training:
   total_timesteps: 100000
   rollout_steps: 2048
   seed: 42
+game_theory:
+  enabled: true
+  use_shapley_credit: true
+  ctde_with_hints: true
+  warm_start_steps: 1000
+  shapley_samples: 128
+  reward_weights: [0.5, 0.3, 0.2]
+  efx_enabled: true
+  cpnet_enabled: true
+  efx_transfer_rate: 0.5
 ```
 
 ### Benchmark 命令
@@ -435,6 +449,34 @@ python scripts/benchmark.py --algorithms GRPO --seeds 42 123 456
 
 # 指定设备
 python scripts/benchmark.py --all --device cpu
+
+# 可扩展实验矩阵 (small / medium / large)
+python scripts/benchmark.py --all --scale medium --timesteps 50000
+
+# 启发式基线一起跑 (Greedy/Random/Local-only/Full-offload)
+python scripts/benchmark.py --all --include-heuristics --episodes 10
+
+# 关闭 EFX/CP-net 消融
+python scripts/benchmark.py --algorithms GRPO MAPPO --efx-enabled false --cpnet-enabled false
+```
+
+实现状态矩阵与消融映射见 [docs/reporting/implementation_matrix.md](/C:/Users/22003/paper2/paper2/docs/reporting/implementation_matrix.md)。
+
+### GameTheory Integration Matrix
+
+| 算法 | 模式 | Shapley信用 | CTDE提示 | Warm-Start |
+|------|------|-------------|-----------|------------|
+| GRPO/MAPPO/QMIX/COMA/IPPO/VDN/MADDPG/IQL/MATD3 | 深度融合 | 开启 | 开启 | 开启 |
+| PPO/SAC/DDQN/DDPG/TD3/A3C/TRPO/SimPO | 兼容模式 | 可选 | 可选 | 可选 |
+
+### Pipeline with Game-Theory Signals
+
+```mermaid
+flowchart LR
+    A["env.step/reset"] --> B["info: game_hints/shapley/reward_terms/queue/constraint/fairness"]
+    B --> C["OnPolicy/OffPolicy Trainer"]
+    C --> D["batch_data: global_states/eq_actions/shapley_values/reward_terms"]
+    D --> E["算法 update() (按能力消费，未使用字段忽略)"]
 ```
 
 ### 结果可视化

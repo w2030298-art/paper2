@@ -24,6 +24,7 @@ from benchmark import (
     make_env,
     load_config,
     resolve_game_theory_config,
+    _resolve_env_overrides,
 )
 
 
@@ -58,6 +59,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ctde-with-hints", type=str, default=None, choices=["true", "false"])
     parser.add_argument("--game-theory-enabled", type=str, default=None, choices=["true", "false"])
     parser.add_argument("--reward-weights", type=float, nargs=3, default=None)
+    parser.add_argument("--efx-enabled", type=str, default=None, choices=["true", "false"])
+    parser.add_argument("--cpnet-enabled", type=str, default=None, choices=["true", "false"])
+    parser.add_argument("--efx-transfer-rate", type=float, default=None)
+    parser.add_argument("--scale", type=str, choices=["small", "medium", "large"], default=None)
+    parser.add_argument("--num-edge-servers", type=int, default=None)
+    parser.add_argument("--multi-agent-count", type=int, default=None)
+    parser.add_argument("--max-steps", type=int, default=None)
     return parser.parse_args()
 
 
@@ -104,7 +112,13 @@ def main() -> None:
     else:
         device = args.device
 
-    num_agents = 3 if algo in MULTI_AGENT_ALGOS else 1
+    env_overrides = _resolve_env_overrides(
+        scale=args.scale,
+        num_edge_servers=args.num_edge_servers,
+        multi_agent_count=args.multi_agent_count,
+        max_steps=args.max_steps,
+    )
+    num_agents = int(env_overrides.get("num_agents_multi", 3)) if algo in MULTI_AGENT_ALGOS else 1
     gt_overrides = {
         "warm_start_steps": args.warm_start_steps,
         "warm_start_lr_scale": args.warm_start_lr_scale,
@@ -112,9 +126,18 @@ def main() -> None:
         "ctde_with_hints": _parse_optional_bool(args.ctde_with_hints),
         "enabled": _parse_optional_bool(args.game_theory_enabled),
         "reward_weights": tuple(args.reward_weights) if args.reward_weights else None,
+        "efx_enabled": _parse_optional_bool(args.efx_enabled),
+        "cpnet_enabled": _parse_optional_bool(args.cpnet_enabled),
+        "efx_transfer_rate": args.efx_transfer_rate,
     }
     gt_cfg = resolve_game_theory_config(algo, cfg, gt_overrides)
-    env = make_env(env_name, seed=seed, num_agents=num_agents, game_theory_config=gt_cfg)
+    env = make_env(
+        env_name,
+        seed=seed,
+        num_agents=num_agents,
+        game_theory_config=gt_cfg,
+        env_overrides=env_overrides,
+    )
     agent = create_agent(algo, env, cfg, device, game_theory_overrides=gt_overrides)
 
     tc = cfg.get("training", {})

@@ -13,6 +13,7 @@
 
 - `status_snapshot.md`: 当前状态快照（统一事实来源）。
 - `mentor_report_template.md`: 面向导师的周报/月报模板。
+- `implementation_matrix.md`: 实现状态矩阵 + 消融映射 + 符号一致性清单。
 - `diagrams/system_architecture.md`: 系统结构图（模块关系）。
 - `diagrams/training_flow.md`: 训练主流程图。
 - `diagrams/benchmark_flow.md`: Benchmark 流程图（含 `--env` 分支）。

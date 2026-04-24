@@ -50,6 +50,7 @@ class PPOAgent(BaseAgent):
         ctde_with_hints=False,
         warm_start_steps=0,
         warm_start_lr_scale=0.5,
+        **extra_kwargs,
     ):
         """
         Args:
@@ -107,6 +108,7 @@ class PPOAgent(BaseAgent):
         self.ctde_with_hints = bool(ctde_with_hints)
         self.warm_start_steps = int(warm_start_steps)
         self.warm_start_lr_scale = float(warm_start_lr_scale)
+        self.extra_init_kwargs = dict(extra_kwargs)
 
     def select_action(self, state, deterministic=False):
         """

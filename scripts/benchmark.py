@@ -11,6 +11,7 @@ Benchmark — 多算法对比评测入口 (GameTheory 环境唯一)
 用法:
     python scripts/benchmark.py --all              # 全部 17 算法
     python scripts/benchmark.py --algorithms ppo sac --episodes 3 --timesteps 10000
+    python scripts/benchmark.py --all --include-heuristics --scale medium
 """
 
 import argparse
@@ -21,7 +22,7 @@ import json
 import time
 import yaml
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 
 import numpy as np
 import torch
@@ -74,11 +75,22 @@ ALGO_ENV_MAP = {
     "MADDPG": "MEC-v1-game-theory-continuous-ma",
     "MATD3": "MEC-v1-game-theory-continuous-ma",
     "MAPPO": "MEC-v1-game-theory-discrete-ma",
+    "Greedy": "MEC-v1-game-theory-continuous-ma",
+    "Random": "MEC-v1-game-theory-continuous-ma",
+    "Local-only": "MEC-v1-game-theory-continuous-ma",
+    "Full-offload": "MEC-v1-game-theory-continuous-ma",
 }
 
 CONTINUOUS_ALGOS = {"SAC", "DDPG", "TD3", "MADDPG", "MATD3"}
 MULTI_AGENT_ALGOS = {"MAPPO", "QMIX", "COMA", "IPPO", "VDN", "MADDPG", "IQL", "MATD3"}
 DEEP_FUSION_ALGOS = {"GRPO", "MAPPO", "QMIX", "COMA", "IPPO", "VDN", "MADDPG", "IQL", "MATD3"}
+HEURISTIC_ALGOS = ["Greedy", "Random", "Local-only", "Full-offload"]
+
+SCALE_PRESETS = {
+    "small": {"num_edge_servers": 3, "num_agents_multi": 3, "max_steps": 100},
+    "medium": {"num_edge_servers": 5, "num_agents_multi": 5, "max_steps": 120},
+    "large": {"num_edge_servers": 10, "num_agents_multi": 10, "max_steps": 150},
+}
 
 
 def _normalize_reward_weights(value):
@@ -102,7 +114,10 @@ def resolve_game_theory_config(name: str, cfg: Dict[str, Any], overrides: Option
         "warm_start_steps": 1000 if deep else 0,
         "warm_start_lr_scale": 0.5,
         "shapley_samples": 128,
-        "reward_weights": (0.5, 0.3, 0.2),
+        "reward_weights": (0.8, 0.1, 0.1),
+        "efx_enabled": True,
+        "cpnet_enabled": True,
+        "efx_transfer_rate": 0.5,
     }
     resolved = {**defaults, **gt_cfg}
     resolved["reward_weights"] = _normalize_reward_weights(resolved.get("reward_weights"))
@@ -125,7 +140,13 @@ def load_config(path):
         return yaml.safe_load(f)
 
 
-def make_env(name, seed=None, num_agents=3, game_theory_config: Optional[Dict[str, Any]] = None):
+def make_env(
+    name,
+    seed=None,
+    num_agents=3,
+    game_theory_config: Optional[Dict[str, Any]] = None,
+    env_overrides: Optional[Dict[str, Any]] = None,
+):
     from src.environments.mec_v3 import (
         GameTheoryMECEnv,
         GameTheoryDiscreteMAEnv,
@@ -138,10 +159,17 @@ def make_env(name, seed=None, num_agents=3, game_theory_config: Optional[Dict[st
     }
     env_cls = mec_v3_map.get(name, GameTheoryDiscreteMAEnv)
     env_kwargs: Dict[str, Any] = {"num_agents": num_agents, "num_edge_servers": 3, "max_steps": 100}
+    if env_overrides:
+        for k in ("num_edge_servers", "max_steps"):
+            if env_overrides.get(k) is not None:
+                env_kwargs[k] = int(env_overrides[k])
     gt_cfg = game_theory_config or {}
     if gt_cfg:
         env_kwargs["shapley_samples"] = int(gt_cfg.get("shapley_samples", 128))
         env_kwargs["reward_weights"] = _normalize_reward_weights(gt_cfg.get("reward_weights"))
+        env_kwargs["enable_efx"] = bool(gt_cfg.get("efx_enabled", True))
+        env_kwargs["enable_cp_nets"] = bool(gt_cfg.get("cpnet_enabled", True))
+        env_kwargs["efx_transfer_rate"] = float(gt_cfg.get("efx_transfer_rate", 0.5))
         if "enabled" in gt_cfg and not bool(gt_cfg.get("enabled")):
             env_kwargs["enable_game_init"] = False
             env_kwargs["enable_shapley"] = False
@@ -258,6 +286,233 @@ def create_agent(name, env, cfg, device, game_theory_overrides: Optional[Dict[st
     raise ValueError(name)
 
 
+def _resolve_num_agents(algo_name: str, env_overrides: Optional[Dict[str, Any]] = None) -> int:
+    if algo_name in MULTI_AGENT_ALGOS or algo_name in HEURISTIC_ALGOS:
+        if env_overrides and env_overrides.get("num_agents_multi") is not None:
+            return int(env_overrides["num_agents_multi"])
+        return 3
+    return 1
+
+
+def _parse_obs_core(obs: np.ndarray, k: int) -> Tuple[np.ndarray, np.ndarray]:
+    obs = np.asarray(obs, dtype=np.float32).reshape(-1)
+    queue = obs[:k]
+    snr = obs[k : 2 * k]
+    return queue, snr
+
+
+def _nearest_bin(value: float) -> int:
+    bins = np.array([-1.0, -0.5, 0.0, 0.5, 1.0], dtype=np.float32)
+    idx = int(np.argmin(np.abs(bins - float(np.clip(value, -1.0, 1.0)))))
+    return int(np.clip(idx, 0, len(bins) - 1))
+
+
+def _encode_discrete_action(target: int, ratio: np.ndarray, num_edge_servers: int) -> int:
+    target = int(np.clip(target, 0, num_edge_servers))
+    ratio = np.asarray(ratio, dtype=np.float32).reshape(-1)
+    if ratio.size < 3:
+        ratio = np.pad(ratio, (0, 3 - ratio.size), constant_values=0.0)
+    r0, r1, r2 = _nearest_bin(float(ratio[0])), _nearest_bin(float(ratio[1])), _nearest_bin(float(ratio[2]))
+    ratio_idx = r0 * 25 + r1 * 5 + r2
+    return target * 125 + ratio_idx
+
+
+def _build_heuristic_action(
+    policy_name: str,
+    obs: np.ndarray,
+    num_edge_servers: int,
+    action_space,
+    rng: np.random.Generator,
+):
+    queue, snr = _parse_obs_core(obs, num_edge_servers)
+    q_norm = queue / max(float(np.max(queue) + 1e-6), 1.0)
+    snr_norm = np.clip(snr, 0.0, 1.0)
+
+    if policy_name == "Random":
+        target = int(rng.integers(0, num_edge_servers + 1))
+    elif policy_name == "Local-only":
+        target = 0
+    elif policy_name == "Full-offload":
+        target = int(np.argmax(snr_norm)) + 1
+    else:
+        # Greedy: prefer higher SNR and lower queue; fallback to local if score weak.
+        server_scores = snr_norm - 0.6 * q_norm
+        best_idx = int(np.argmax(server_scores))
+        target = best_idx + 1 if float(server_scores[best_idx]) > 0.10 else 0
+
+    if policy_name == "Local-only":
+        ratio = np.array([-1.0, -1.0, -1.0], dtype=np.float32)
+    elif policy_name == "Full-offload":
+        ratio = np.array([1.0, 0.0, 0.2], dtype=np.float32)
+    elif policy_name == "Random":
+        ratio = rng.uniform(low=-1.0, high=1.0, size=(3,)).astype(np.float32)
+    else:
+        # Greedy ratio: more offload with better channel and lighter queue.
+        if target == 0:
+            ratio = np.array([-0.6, -0.2, -0.6], dtype=np.float32)
+        else:
+            idx = target - 1
+            off = np.clip(0.2 + 0.8 * snr_norm[idx] * (1.0 - q_norm[idx]), 0.1, 0.95)
+            ratio = np.array([2.0 * off - 1.0, 0.0, -0.2], dtype=np.float32)
+
+    if hasattr(action_space, "n"):
+        return _encode_discrete_action(target=target, ratio=ratio, num_edge_servers=num_edge_servers)
+
+    target_selector = -1.0 + 2.0 * target / max(1, num_edge_servers)
+    action = np.array([target_selector, ratio[0], ratio[1], ratio[2]], dtype=np.float32)
+    return np.clip(action, -1.0, 1.0)
+
+
+def _extract_step_metrics(info: Dict[str, Any]) -> Dict[str, Any]:
+    lat = 0.0
+    eng = 0.0
+    task_count = 0
+    deadline_misses = 0
+    latency_samples = np.asarray([], dtype=np.float64)
+    energy_samples = np.asarray([], dtype=np.float64)
+    if "latency_components" in info:
+        components = info.get("latency_components") or []
+        latency_samples = np.asarray([float(c.get("e2e_latency", 0.0)) for c in components], dtype=np.float64)
+        deadline_misses = int(
+            sum(float(c.get("e2e_latency", 0.0)) > float(c.get("deadline", np.inf)) for c in components)
+        )
+        lat = float(np.sum(latency_samples))
+        task_count = max(task_count, int(latency_samples.size))
+    elif "individual_latencies" in info:
+        latency_samples = np.asarray(info["individual_latencies"], dtype=np.float64).reshape(-1)
+        lat = float(np.sum(latency_samples))
+        task_count = max(task_count, int(latency_samples.size))
+    elif "latency" in info:
+        lat = float(info["latency"])
+        latency_samples = np.asarray([lat], dtype=np.float64)
+        task_count = max(task_count, 1)
+    if "individual_energies" in info:
+        energy_samples = np.asarray(info["individual_energies"], dtype=np.float64).reshape(-1)
+        eng = float(np.sum(energy_samples))
+        task_count = max(task_count, int(energy_samples.size))
+    elif "energy" in info:
+        eng = float(info["energy"])
+        energy_samples = np.asarray([eng], dtype=np.float64)
+        task_count = max(task_count, 1)
+    return {
+        "latency_total": lat,
+        "energy_total": eng,
+        "latency_samples": latency_samples,
+        "energy_samples": energy_samples,
+        "deadline_misses": deadline_misses,
+        "task_count": task_count,
+    }
+
+
+def benchmark_heuristic(
+    name: str,
+    seed: int = 42,
+    device: str = "cpu",
+    verbose: bool = True,
+    override_ep: Optional[int] = None,
+    env_name: Optional[str] = None,
+    game_theory_overrides: Optional[Dict[str, Any]] = None,
+    env_overrides: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    if device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    rng = np.random.default_rng(seed)
+    correct_env_name = env_name if env_name is not None else ALGO_ENV_MAP.get(name, "MEC-v1-game-theory-continuous-ma")
+    num_agents = _resolve_num_agents(name, env_overrides)
+    gt_cfg = resolve_game_theory_config("GRPO", {"game_theory": {}}, game_theory_overrides)
+    env = make_env(
+        correct_env_name,
+        seed=seed,
+        num_agents=num_agents,
+        game_theory_config=gt_cfg,
+        env_overrides=env_overrides,
+    )
+
+    episodes = int(override_ep if override_ep is not None else 10)
+    ep_rewards: List[float] = []
+    ep_latencies: List[float] = []
+    ep_energies: List[float] = []
+    e2e_latency_samples: List[float] = []
+    e2e_energy_samples: List[float] = []
+    deadline_misses = 0
+    total_tasks = 0
+    total_steps = 0
+
+    start = time.time()
+    for ep in range(episodes):
+        obs, _ = env.reset(seed=seed + ep)
+        done = False
+        r_total = 0.0
+        l_total = 0.0
+        e_total = 0.0
+        while not done:
+            if isinstance(obs, list):
+                actions = [
+                    _build_heuristic_action(name, o, getattr(env, "num_edge_servers", 3), env.action_space, rng)
+                    for o in obs
+                ]
+                obs, reward, terminated, truncated, info = env.step(actions)
+                if isinstance(reward, (list, np.ndarray)):
+                    r_total += float(np.sum(np.asarray(reward, dtype=np.float64)))
+                else:
+                    r_total += float(reward)
+            else:
+                action = _build_heuristic_action(name, obs, getattr(env, "num_edge_servers", 3), env.action_space, rng)
+                obs, reward, terminated, truncated, info = env.step(action)
+                r_total += float(reward)
+            metrics = _extract_step_metrics(info)
+            l_total += metrics["latency_total"]
+            e_total += metrics["energy_total"]
+            e2e_latency_samples.extend(metrics["latency_samples"].tolist())
+            e2e_energy_samples.extend(metrics["energy_samples"].tolist())
+            deadline_misses += int(metrics["deadline_misses"])
+            total_tasks += int(metrics["task_count"])
+            total_steps += 1
+            done = bool(terminated) or bool(truncated)
+        ep_rewards.append(r_total)
+        ep_latencies.append(l_total)
+        ep_energies.append(e_total)
+    elapsed = time.time() - start
+    e2e_arr = np.asarray(e2e_latency_samples, dtype=np.float64)
+    energy_arr = np.asarray(e2e_energy_samples, dtype=np.float64)
+    e2e_mean = float(np.mean(e2e_arr)) if e2e_arr.size else float(np.mean(ep_latencies))
+    e2e_p95 = float(np.percentile(e2e_arr, 95)) if e2e_arr.size else e2e_mean
+    energy_per_task = float(np.mean(energy_arr)) if energy_arr.size else float(np.mean(ep_energies))
+    deadline_miss_rate = float(deadline_misses / max(total_tasks, 1))
+    throughput = float(total_tasks / max(total_steps, 1))
+    comm_score = float(100.0 * throughput * max(0.0, 1.0 - deadline_miss_rate) / (1.0 + e2e_p95 + 0.1 * energy_per_task))
+    avg_steps_per_episode = float(total_steps / max(episodes, 1))
+
+    result = {
+        "algorithm": name,
+        "environment": correct_env_name,
+        "seed": seed,
+        "device": device,
+        "train_timesteps": 0,
+        "train_time_seconds": round(elapsed, 2),
+        "final_reward_mean": round(float(np.mean(ep_rewards)), 4),
+        "final_reward_std": round(float(np.std(ep_rewards)), 4),
+        "final_latency_mean": round(e2e_mean, 4),
+        "final_e2e_latency_mean": round(e2e_mean, 4),
+        "final_e2e_latency_p95": round(e2e_p95, 4),
+        "final_deadline_miss_rate": round(deadline_miss_rate, 4),
+        "final_throughput_tasks_per_step": round(throughput, 4),
+        "final_comm_score": round(comm_score, 4),
+        "final_energy_mean": round(float(np.mean(ep_energies)), 4),
+        "final_latency_total_mean": round(float(np.mean(ep_latencies)), 4),
+        "final_energy_total_mean": round(float(np.mean(ep_energies)), 4),
+        "final_latency_per_step_mean": round(float(np.mean(ep_latencies)) / max(avg_steps_per_episode, 1.0), 4),
+        "final_energy_per_step_mean": round(float(np.mean(ep_energies)) / max(avg_steps_per_episode, 1.0), 4),
+        "final_latency_per_task_mean": round(e2e_mean, 4),
+        "final_energy_per_task_mean": round(energy_per_task, 4),
+        "total_episodes": episodes,
+        "total_updates": 0,
+    }
+    if verbose:
+        print(f"[{name}] reward={result['final_reward_mean']:.4f}+/-{result['final_reward_std']:.4f}  eval_time={elapsed:.1f}s")
+    return result
+
+
 def benchmark_single(
     name,
     cfg,
@@ -268,6 +523,7 @@ def benchmark_single(
     override_ep=None,
     env_name=None,
     game_theory_overrides: Optional[Dict[str, Any]] = None,
+    env_overrides: Optional[Dict[str, Any]] = None,
 ):
     """
     运行单算法评测。
@@ -281,13 +537,14 @@ def benchmark_single(
 
     # 自动选择正确环境 (修复: 每个算法在其适配的环境上评测)
     correct_env_name = env_name if env_name is not None else ALGO_ENV_MAP.get(name, "MEC-v1-game-theory-discrete-ma")
-    num_agents = 3 if name in MULTI_AGENT_ALGOS else 1
+    num_agents = _resolve_num_agents(name, env_overrides)
     gt_cfg = resolve_game_theory_config(name, cfg, game_theory_overrides)
     env = make_env(
         correct_env_name,
         seed=seed,
         num_agents=num_agents,
         game_theory_config=gt_cfg,
+        env_overrides=env_overrides,
     )
     agent = create_agent(name, env, cfg, device, game_theory_overrides=game_theory_overrides)
     TrainerCls = OnPolicyTrainer if name in ON_POLICY else OffPolicyTrainer
@@ -319,7 +576,12 @@ def benchmark_single(
     trainer.train()
     elapsed = time.time() - start
     fe = trainer.evaluate()
-    latency_total = fe.get("eval/latency_total_mean", fe.get("eval/latency_mean", 0.0))
+    latency_e2e = fe.get("eval/e2e_latency_mean", fe.get("eval/latency_per_task_mean", fe.get("eval/latency_mean", 0.0)))
+    latency_p95 = fe.get("eval/e2e_latency_p95", latency_e2e)
+    deadline_miss_rate = fe.get("eval/deadline_miss_rate", None)
+    throughput = fe.get("eval/throughput_tasks_per_step", None)
+    comm_score = fe.get("eval/comm_score", None)
+    latency_total = fe.get("eval/latency_total_mean", 0.0)
     energy_total = fe.get("eval/energy_total_mean", fe.get("eval/energy_mean", 0.0))
     latency_per_step = fe.get("eval/latency_per_step_mean", None)
     energy_per_step = fe.get("eval/energy_per_step_mean", None)
@@ -330,7 +592,12 @@ def benchmark_single(
         "train_timesteps": trainer.total_steps, "train_time_seconds": round(elapsed, 2),
         "final_reward_mean": round(fe["eval/reward_mean"], 4),
         "final_reward_std": round(fe["eval/reward_std"], 4),
-        "final_latency_mean": round(latency_total, 4),
+        "final_latency_mean": round(latency_e2e, 4),
+        "final_e2e_latency_mean": round(latency_e2e, 4),
+        "final_e2e_latency_p95": round(latency_p95, 4),
+        "final_deadline_miss_rate": None if deadline_miss_rate is None else round(deadline_miss_rate, 4),
+        "final_throughput_tasks_per_step": None if throughput is None else round(throughput, 4),
+        "final_comm_score": None if comm_score is None else round(comm_score, 4),
         "final_energy_mean": round(energy_total, 4),
         "final_latency_total_mean": round(latency_total, 4),
         "final_energy_total_mean": round(energy_total, 4),
@@ -374,9 +641,31 @@ def _parse_optional_bool(value: Optional[str]) -> Optional[bool]:
     raise ValueError(f"Invalid boolean value: {value}")
 
 
+def _resolve_env_overrides(
+    scale: Optional[str],
+    num_edge_servers: Optional[int],
+    multi_agent_count: Optional[int],
+    max_steps: Optional[int],
+) -> Dict[str, Any]:
+    resolved: Dict[str, Any] = {}
+    if scale:
+        preset = SCALE_PRESETS[str(scale).lower()]
+        resolved["num_edge_servers"] = int(preset["num_edge_servers"])
+        resolved["num_agents_multi"] = int(preset["num_agents_multi"])
+        resolved["max_steps"] = int(preset["max_steps"])
+    if num_edge_servers is not None:
+        resolved["num_edge_servers"] = int(num_edge_servers)
+    if multi_agent_count is not None:
+        resolved["num_agents_multi"] = int(multi_agent_count)
+    if max_steps is not None:
+        resolved["max_steps"] = int(max_steps)
+    return resolved
+
+
 def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                  timesteps=None, episodes=None, device="auto",
-                 output_file=None, verbose=True, game_theory_overrides: Optional[Dict[str, Any]] = None):
+                 output_file=None, verbose=True, game_theory_overrides: Optional[Dict[str, Any]] = None,
+                 env_overrides: Optional[Dict[str, Any]] = None):
     """
     运行多算法对比评测 (GameTheory 环境唯一)。
 
@@ -399,7 +688,7 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
         # 分组: 每个算法在其正确环境上
         env_groups = {}  # env_name -> list of algos
         for algo in algorithms:
-            correct_env = ALGO_ENV_MAP.get(algo, "MEC-v0-discrete")
+            correct_env = ALGO_ENV_MAP.get(algo, "MEC-v1-game-theory-discrete-ma")
             env_groups.setdefault(correct_env, []).append(algo)
         run_all_groups = True
     else:
@@ -414,23 +703,36 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
             algo_results = []
             algo_errors = []
             for seed in seeds:
-                cp = Path(configs_dir) / (algo.lower() + ".yaml")
-                cfg = load_config(str(cp)) if cp.exists() else {
-                    "algorithm": {}, "network": {}, "training": {},
-                    "evaluation": {}, "logging": {}
-                }
                 try:
-                    r = benchmark_single(
-                        algo,
-                        cfg,
-                        seed,
-                        device,
-                        verbose,
-                        timesteps,
-                        episodes,
-                        env_name=group_env,
-                        game_theory_overrides=game_theory_overrides,
-                    )
+                    if algo in HEURISTIC_ALGOS:
+                        r = benchmark_heuristic(
+                            name=algo,
+                            seed=seed,
+                            device=device,
+                            verbose=verbose,
+                            override_ep=episodes,
+                            env_name=group_env,
+                            game_theory_overrides=game_theory_overrides,
+                            env_overrides=env_overrides,
+                        )
+                    else:
+                        cp = Path(configs_dir) / (algo.lower() + ".yaml")
+                        cfg = load_config(str(cp)) if cp.exists() else {
+                            "algorithm": {}, "network": {}, "training": {},
+                            "evaluation": {}, "logging": {}
+                        }
+                        r = benchmark_single(
+                            algo,
+                            cfg,
+                            seed,
+                            device,
+                            verbose,
+                            timesteps,
+                            episodes,
+                            env_name=group_env,
+                            game_theory_overrides=game_theory_overrides,
+                            env_overrides=env_overrides,
+                        )
                     algo_results.append(r)
                 except Exception as e:
                     algo_errors.append({"seed": seed, "error": str(e)})
@@ -453,6 +755,11 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                             avg[key + "_std"] = round(np.std(vals), 4)
                 avg.setdefault("final_reward_mean_mean", None)
                 avg.setdefault("final_latency_mean_mean", None)
+                avg.setdefault("final_e2e_latency_mean_mean", avg.get("final_latency_mean_mean"))
+                avg.setdefault("final_e2e_latency_p95_mean", None)
+                avg.setdefault("final_deadline_miss_rate_mean", None)
+                avg.setdefault("final_throughput_tasks_per_step_mean", None)
+                avg.setdefault("final_comm_score_mean", None)
                 avg.setdefault("final_energy_mean_mean", None)
                 avg.setdefault("final_latency_total_mean_mean", None)
                 avg.setdefault("final_energy_total_mean_mean", None)
@@ -476,6 +783,11 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                     "status": "failed",
                     "final_reward_mean_mean": None,
                     "final_latency_mean_mean": None,
+                    "final_e2e_latency_mean_mean": None,
+                    "final_e2e_latency_p95_mean": None,
+                    "final_deadline_miss_rate_mean": None,
+                    "final_throughput_tasks_per_step_mean": None,
+                    "final_comm_score_mean": None,
                     "final_energy_mean_mean": None,
                     "final_latency_total_mean_mean": None,
                     "final_energy_total_mean_mean": None,
@@ -518,8 +830,9 @@ def main():
     p = argparse.ArgumentParser(description="GRPO_MEC Benchmark")
     p.add_argument("--algorithms", type=str, nargs="+", default=None)
     p.add_argument("--all", action="store_true")
+    p.add_argument("--include-heuristics", action="store_true")
     p.add_argument("--env", type=str, default="auto",
-                   help="环境 (auto=每算法自动选择正确环境, 或指定 MEC-v0-discrete/continuous/multi-agent)")
+                   help="环境 (auto=每算法自动选择正确环境, 或指定 MEC-v1-game-theory-* )")
     p.add_argument("--configs-dir", type=str, default=None)
     p.add_argument("--episodes", type=int, default=None)
     p.add_argument("--timesteps", type=int, default=None)
@@ -527,23 +840,35 @@ def main():
     p.add_argument("--device", type=str, default="auto")
     p.add_argument("--output", type=str, default="results/benchmark.json")
     p.add_argument("--quiet", action="store_true")
+    p.add_argument("--scale", type=str, choices=["small", "medium", "large"], default=None)
+    p.add_argument("--num-edge-servers", type=int, default=None)
+    p.add_argument("--multi-agent-count", type=int, default=None)
+    p.add_argument("--max-steps", type=int, default=None)
     p.add_argument("--warm-start-steps", type=int, default=None)
     p.add_argument("--warm-start-lr-scale", type=float, default=None)
     p.add_argument("--shapley-samples", type=int, default=None)
     p.add_argument("--ctde-with-hints", type=str, default=None, choices=["true", "false"])
     p.add_argument("--game-theory-enabled", type=str, default=None, choices=["true", "false"])
     p.add_argument("--reward-weights", type=float, nargs=3, default=None)
+    p.add_argument("--efx-enabled", type=str, default=None, choices=["true", "false"])
+    p.add_argument("--cpnet-enabled", type=str, default=None, choices=["true", "false"])
+    p.add_argument("--efx-transfer-rate", type=float, default=None)
     args = p.parse_args()
     if args.all:
-        algorithms = ALL_ALGOS
+        algorithms = list(ALL_ALGOS)
     elif args.algorithms:
         algorithms = args.algorithms
     else:
         p.print_help()
         print("\nSpecify --algorithms or --all")
         sys.exit(1)
+    if args.include_heuristics:
+        for h in HEURISTIC_ALGOS:
+            if h not in algorithms:
+                algorithms.append(h)
+    valid_algos = set(ALL_ALGOS) | set(HEURISTIC_ALGOS)
     for a in algorithms:
-        if a not in ALL_ALGOS:
+        if a not in valid_algos:
             print(f"Unknown: {a}")
             sys.exit(1)
     env_to_use = None if args.env == "auto" else args.env
@@ -554,10 +879,20 @@ def main():
         "ctde_with_hints": _parse_optional_bool(args.ctde_with_hints),
         "enabled": _parse_optional_bool(args.game_theory_enabled),
         "reward_weights": tuple(args.reward_weights) if args.reward_weights else None,
+        "efx_enabled": _parse_optional_bool(args.efx_enabled),
+        "cpnet_enabled": _parse_optional_bool(args.cpnet_enabled),
+        "efx_transfer_rate": args.efx_transfer_rate,
     }
+    env_overrides = _resolve_env_overrides(
+        scale=args.scale,
+        num_edge_servers=args.num_edge_servers,
+        multi_agent_count=args.multi_agent_count,
+        max_steps=args.max_steps,
+    )
     run_benchmark(algorithms, env_to_use, args.configs_dir, args.seeds, args.timesteps,
                   args.episodes, args.device, args.output, not args.quiet,
-                  game_theory_overrides=gt_overrides)
+                  game_theory_overrides=gt_overrides,
+                  env_overrides=env_overrides)
 
 
 if __name__ == "__main__":

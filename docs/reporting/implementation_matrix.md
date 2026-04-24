@@ -1,6 +1,6 @@
 # GameTheory MEC Implementation Matrix
 
-Date: 2026-04-23
+Date: 2026-04-24
 
 ## 1. Algorithm Implementation Status Matrix
 
@@ -41,6 +41,8 @@ Notes:
 | A6 | Constraint projection barrier | `enable_action_projection=false` or `barrier_coeff=0` |
 | A7 | Enhanced observation history | reduce to legacy base obs (env-level fallback) |
 | A8 | Bilevel pricing solver | threshold pricing fallback (env-level fallback) |
+| A9 | EFX fairness repair | `game_theory.efx_enabled=false` |
+| A10 | CP-nets preference valuation | `game_theory.cpnet_enabled=false` |
 
 ## 3. Paper Notation Consistency Checklist
 
@@ -55,3 +57,17 @@ Notes:
 | `T_queue` | queue delay | `QueueingDelayModel.compute_delay` | Yes |
 | `E_i` | energy term | `DVFSEnergyModel.compute_energy` + env energy outputs | Yes |
 | `L_barrier` | barrier penalty | `constraint_metrics.barrier_mean` | Yes |
+| `tau_i` | EFX transfer payment | `fairness_metrics.efx_transfers`, `reward_terms.r_fair` | Yes |
+| `u_i^CP` | CP-net preference utility | `fairness_metrics.cpnet_scores`, `reward_terms.cp_pref` | Yes |
+
+## 4. Scalability and Baseline Matrix
+
+| Item | Entry | Status |
+|---|---|---|
+| Scale preset | `small` (`K=3`, `U_multi=3`, `max_steps=100`) | Implemented (`scripts/benchmark.py --scale small`) |
+| Scale preset | `medium` (`K=5`, `U_multi=5`, `max_steps=120`) | Implemented (`scripts/benchmark.py --scale medium`) |
+| Scale preset | `large` (`K=10`, `U_multi=10`, `max_steps=150`) | Implemented (`scripts/benchmark.py --scale large`) |
+| Heuristic baseline | `Greedy` | Implemented (`--include-heuristics`) |
+| Heuristic baseline | `Random` | Implemented (`--include-heuristics`) |
+| Heuristic baseline | `Local-only` | Implemented (`--include-heuristics`) |
+| Heuristic baseline | `Full-offload` | Implemented (`--include-heuristics`) |

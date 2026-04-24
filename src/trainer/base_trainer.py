@@ -214,29 +214,56 @@ class BaseTrainer(ABC):
         eval_energy_per_task = []
         eval_episode_steps = []
         eval_episode_tasks = []
+        e2e_latency_samples = []
+        e2e_energy_samples = []
+        deadline_misses = 0
+        total_eval_tasks = 0
+        total_eval_steps = 0
 
         def _extract_step_metrics(
             info: Dict[str, Any], prev_task_completed: int
-        ) -> tuple[float, float, int, int]:
+        ) -> tuple[float, float, int, int, np.ndarray, np.ndarray, int]:
             """Extract latency/energy for one env step with robust task counting."""
             step_latency = 0.0
             step_energy = 0.0
             task_count = 0
+            latency_samples = np.asarray([], dtype=np.float64)
+            energy_samples = np.asarray([], dtype=np.float64)
+            deadline_miss_count = 0
 
-            if "individual_latencies" in info:
+            if "latency_components" in info:
+                components = info.get("latency_components") or []
+                latency_samples = np.asarray(
+                    [float(c.get("e2e_latency", 0.0)) for c in components],
+                    dtype=np.float64,
+                )
+                deadline_miss_count = int(
+                    sum(
+                        float(c.get("e2e_latency", 0.0))
+                        > float(c.get("deadline", np.inf))
+                        for c in components
+                    )
+                )
+                step_latency = float(np.sum(latency_samples))
+                task_count = max(task_count, int(latency_samples.size))
+            elif "individual_latencies" in info:
                 latencies = np.asarray(info["individual_latencies"], dtype=np.float64).reshape(-1)
-                step_latency = float(np.sum(latencies))
-                task_count = max(task_count, int(latencies.size))
+                latency_samples = latencies
+                step_latency = float(np.sum(latency_samples))
+                task_count = max(task_count, int(latency_samples.size))
             elif "latency" in info:
                 step_latency = float(info["latency"])
+                latency_samples = np.asarray([step_latency], dtype=np.float64)
                 task_count = max(task_count, 1)
 
             if "individual_energies" in info:
                 energies = np.asarray(info["individual_energies"], dtype=np.float64).reshape(-1)
-                step_energy = float(np.sum(energies))
-                task_count = max(task_count, int(energies.size))
+                energy_samples = energies
+                step_energy = float(np.sum(energy_samples))
+                task_count = max(task_count, int(energy_samples.size))
             elif "energy" in info:
                 step_energy = float(info["energy"])
+                energy_samples = np.asarray([step_energy], dtype=np.float64)
                 task_count = max(task_count, 1)
 
             current_task_completed = info.get("task_completed", prev_task_completed)
@@ -247,7 +274,20 @@ class BaseTrainer(ABC):
                     task_count = task_delta
                 prev_task_completed = current_task_completed
 
-            return step_latency, step_energy, task_count, prev_task_completed
+            if latency_samples.size == 0 and task_count > 0:
+                latency_samples = np.full(task_count, step_latency / max(task_count, 1), dtype=np.float64)
+            if energy_samples.size == 0 and task_count > 0:
+                energy_samples = np.full(task_count, step_energy / max(task_count, 1), dtype=np.float64)
+
+            return (
+                step_latency,
+                step_energy,
+                task_count,
+                prev_task_completed,
+                latency_samples,
+                energy_samples,
+                deadline_miss_count,
+            )
 
         for _ in range(self.eval_episodes):
             obs, _ = self.env.reset(seed=None)
@@ -327,13 +367,28 @@ class BaseTrainer(ABC):
                 # 统一 done 检测
                 done = is_done(terminated, truncated)
 
-                step_latency, step_energy, step_tasks, prev_task_completed = _extract_step_metrics(
+                (
+                    step_latency,
+                    step_energy,
+                    step_tasks,
+                    prev_task_completed,
+                    step_latency_samples,
+                    step_energy_samples,
+                    step_deadline_misses,
+                ) = _extract_step_metrics(
                     info, prev_task_completed
                 )
                 episode_latency += step_latency
                 episode_energy += step_energy
                 episode_steps += 1
                 episode_tasks += step_tasks
+                total_eval_steps += 1
+                total_eval_tasks += step_tasks
+                deadline_misses += step_deadline_misses
+                if step_latency_samples.size:
+                    e2e_latency_samples.extend(step_latency_samples.tolist())
+                if step_energy_samples.size:
+                    e2e_energy_samples.extend(step_energy_samples.tolist())
 
             eval_rewards.append(episode_reward)
             eval_latency_totals.append(episode_latency)
@@ -350,13 +405,39 @@ class BaseTrainer(ABC):
 
         latency_total_mean = float(np.mean(eval_latency_totals))
         energy_total_mean = float(np.mean(eval_energy_totals))
+        e2e_arr = np.asarray(e2e_latency_samples, dtype=np.float64)
+        e2e_energy_arr = np.asarray(e2e_energy_samples, dtype=np.float64)
+        if e2e_arr.size:
+            e2e_latency_mean = float(np.mean(e2e_arr))
+            e2e_latency_p95 = float(np.percentile(e2e_arr, 95))
+        else:
+            e2e_latency_mean = float(np.mean(eval_latency_per_task)) if eval_latency_per_task else 0.0
+            e2e_latency_p95 = e2e_latency_mean
+        e2e_energy_mean = (
+            float(np.mean(e2e_energy_arr))
+            if e2e_energy_arr.size
+            else float(np.mean(eval_energy_per_task)) if eval_energy_per_task else 0.0
+        )
+        deadline_miss_rate = float(deadline_misses / max(total_eval_tasks, 1))
+        throughput_tasks_per_step = float(total_eval_tasks / max(total_eval_steps, 1))
+        comm_score = float(
+            100.0
+            * throughput_tasks_per_step
+            * max(0.0, 1.0 - deadline_miss_rate)
+            / (1.0 + e2e_latency_p95 + 0.1 * e2e_energy_mean)
+        )
 
         return {
             "eval/reward_mean": float(np.mean(eval_rewards)),
             "eval/reward_std": float(np.std(eval_rewards)),
-            # Backward-compatible aliases (historically episode totals).
-            "eval/latency_mean": latency_total_mean,
+            # Communication-experience aliases: latency_mean is now per-task E2E latency.
+            "eval/latency_mean": e2e_latency_mean,
             "eval/energy_mean": energy_total_mean,
+            "eval/e2e_latency_mean": e2e_latency_mean,
+            "eval/e2e_latency_p95": e2e_latency_p95,
+            "eval/deadline_miss_rate": deadline_miss_rate,
+            "eval/throughput_tasks_per_step": throughput_tasks_per_step,
+            "eval/comm_score": comm_score,
             # Explicit latency/energy definitions.
             "eval/latency_total_mean": latency_total_mean,
             "eval/energy_total_mean": energy_total_mean,

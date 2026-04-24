@@ -1,5 +1,5 @@
 # SAC Configuration
-# Soft Actor-Critic - 杩炵画鍔ㄤ綔绌洪棿
+# Soft Actor-Critic - 连续动作空间
 
 algorithm:
   name: "SAC"
@@ -47,5 +47,9 @@ game_theory:
   ctde_with_hints: false
   warm_start_steps: 0
   warm_start_lr_scale: 0.5
-  shapley_samples: 128
-  reward_weights: [0.5, 0.3, 0.2]
+
+  reward_weights: [0.8, 0.1, 0.1]
+  efx_enabled: true
+  cpnet_enabled: true
+  efx_transfer_rate: 0.5
+

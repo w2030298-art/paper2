@@ -24,6 +24,7 @@ from benchmark import (
     make_env,
     load_config,
     resolve_game_theory_config,
+    _resolve_env_overrides,
 )
 
 
@@ -58,6 +59,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ctde-with-hints", type=str, default=None, choices=["true", "false"])
     parser.add_argument("--game-theory-enabled", type=str, default=None, choices=["true", "false"])
     parser.add_argument("--reward-weights", type=float, nargs=3, default=None)
+    parser.add_argument("--efx-enabled", type=str, default=None, choices=["true", "false"])
+    parser.add_argument("--cpnet-enabled", type=str, default=None, choices=["true", "false"])
+    parser.add_argument("--efx-transfer-rate", type=float, default=None)
+    parser.add_argument("--scale", type=str, choices=["small", "medium", "large"], default=None)
+    parser.add_argument("--num-edge-servers", type=int, default=None)
+    parser.add_argument("--multi-agent-count", type=int, default=None)
+    parser.add_argument("--max-steps", type=int, default=None)
     return parser.parse_args()
 
 
@@ -118,26 +126,39 @@ def _load_agent_checkpoint(agent, checkpoint_path: str, device: str) -> None:
     agent.load_state_dict(state_dict)
 
 
-def _extract_step_metrics(info: dict, prev_task_completed: int) -> tuple[float, float, int, int]:
+def _extract_step_metrics(info: dict, prev_task_completed: int) -> tuple[float, float, int, int, np.ndarray, np.ndarray, int]:
     """Extract latency/energy from one env step and estimate task count."""
     step_latency = 0.0
     step_energy = 0.0
     task_count = 0
+    latency_samples = np.asarray([], dtype=np.float64)
+    energy_samples = np.asarray([], dtype=np.float64)
+    deadline_miss_count = 0
 
-    if "individual_latencies" in info:
-        latencies = np.asarray(info["individual_latencies"], dtype=np.float64).reshape(-1)
-        step_latency = float(np.sum(latencies))
-        task_count = max(task_count, int(latencies.size))
+    if "latency_components" in info:
+        components = info.get("latency_components") or []
+        latency_samples = np.asarray([float(c.get("e2e_latency", 0.0)) for c in components], dtype=np.float64)
+        deadline_miss_count = int(
+            sum(float(c.get("e2e_latency", 0.0)) > float(c.get("deadline", np.inf)) for c in components)
+        )
+        step_latency = float(np.sum(latency_samples))
+        task_count = max(task_count, int(latency_samples.size))
+    elif "individual_latencies" in info:
+        latency_samples = np.asarray(info["individual_latencies"], dtype=np.float64).reshape(-1)
+        step_latency = float(np.sum(latency_samples))
+        task_count = max(task_count, int(latency_samples.size))
     elif "latency" in info:
         step_latency = float(info["latency"])
+        latency_samples = np.asarray([step_latency], dtype=np.float64)
         task_count = max(task_count, 1)
 
     if "individual_energies" in info:
-        energies = np.asarray(info["individual_energies"], dtype=np.float64).reshape(-1)
-        step_energy = float(np.sum(energies))
-        task_count = max(task_count, int(energies.size))
+        energy_samples = np.asarray(info["individual_energies"], dtype=np.float64).reshape(-1)
+        step_energy = float(np.sum(energy_samples))
+        task_count = max(task_count, int(energy_samples.size))
     elif "energy" in info:
         step_energy = float(info["energy"])
+        energy_samples = np.asarray([step_energy], dtype=np.float64)
         task_count = max(task_count, 1)
 
     current_task_completed = info.get("task_completed", prev_task_completed)
@@ -148,7 +169,12 @@ def _extract_step_metrics(info: dict, prev_task_completed: int) -> tuple[float, 
             task_count = task_delta
         prev_task_completed = current_task_completed
 
-    return step_latency, step_energy, task_count, prev_task_completed
+    if latency_samples.size == 0 and task_count > 0:
+        latency_samples = np.full(task_count, step_latency / max(task_count, 1), dtype=np.float64)
+    if energy_samples.size == 0 and task_count > 0:
+        energy_samples = np.full(task_count, step_energy / max(task_count, 1), dtype=np.float64)
+
+    return step_latency, step_energy, task_count, prev_task_completed, latency_samples, energy_samples, deadline_miss_count
 
 
 def main() -> None:
@@ -167,7 +193,13 @@ def main() -> None:
     else:
         device = args.device
 
-    num_agents = 3 if algo in MULTI_AGENT_ALGOS else 1
+    env_overrides = _resolve_env_overrides(
+        scale=args.scale,
+        num_edge_servers=args.num_edge_servers,
+        multi_agent_count=args.multi_agent_count,
+        max_steps=args.max_steps,
+    )
+    num_agents = int(env_overrides.get("num_agents_multi", 3)) if algo in MULTI_AGENT_ALGOS else 1
     gt_overrides = {
         "warm_start_steps": args.warm_start_steps,
         "warm_start_lr_scale": args.warm_start_lr_scale,
@@ -175,9 +207,18 @@ def main() -> None:
         "ctde_with_hints": _parse_optional_bool(args.ctde_with_hints),
         "enabled": _parse_optional_bool(args.game_theory_enabled),
         "reward_weights": tuple(args.reward_weights) if args.reward_weights else None,
+        "efx_enabled": _parse_optional_bool(args.efx_enabled),
+        "cpnet_enabled": _parse_optional_bool(args.cpnet_enabled),
+        "efx_transfer_rate": args.efx_transfer_rate,
     }
     gt_cfg = resolve_game_theory_config(algo, cfg, gt_overrides)
-    env = make_env(env_name, seed=args.seed, num_agents=num_agents, game_theory_config=gt_cfg)
+    env = make_env(
+        env_name,
+        seed=args.seed,
+        num_agents=num_agents,
+        game_theory_config=gt_cfg,
+        env_overrides=env_overrides,
+    )
     agent = create_agent(algo, env, cfg, device, game_theory_overrides=gt_overrides)
     _load_agent_checkpoint(agent, args.checkpoint, device)
 
@@ -190,6 +231,11 @@ def main() -> None:
     energy_per_task = []
     episode_steps = []
     episode_tasks = []
+    e2e_latency_samples = []
+    e2e_energy_samples = []
+    deadline_misses = 0
+    total_eval_tasks = 0
+    total_eval_steps = 0
 
     for ep in range(args.num_episodes):
         obs, _ = env.reset(seed=args.seed + ep)
@@ -216,13 +262,28 @@ def main() -> None:
                 ep_reward += float(reward)
 
             done = is_done(terminated, truncated)
-            step_latency, step_energy, step_tasks, prev_task_completed = _extract_step_metrics(
+            (
+                step_latency,
+                step_energy,
+                step_tasks,
+                prev_task_completed,
+                step_latency_samples,
+                step_energy_samples,
+                step_deadline_misses,
+            ) = _extract_step_metrics(
                 info, prev_task_completed
             )
             ep_latency_total += step_latency
             ep_energy_total += step_energy
             ep_steps += 1
             ep_tasks += step_tasks
+            total_eval_steps += 1
+            total_eval_tasks += step_tasks
+            deadline_misses += step_deadline_misses
+            if step_latency_samples.size:
+                e2e_latency_samples.extend(step_latency_samples.tolist())
+            if step_energy_samples.size:
+                e2e_energy_samples.extend(step_energy_samples.tolist())
 
         rewards.append(ep_reward)
         latency_totals.append(ep_latency_total)
@@ -239,6 +300,19 @@ def main() -> None:
 
     latency_total_mean = float(np.mean(latency_totals))
     energy_total_mean = float(np.mean(energy_totals))
+    e2e_arr = np.asarray(e2e_latency_samples, dtype=np.float64)
+    e2e_energy_arr = np.asarray(e2e_energy_samples, dtype=np.float64)
+    e2e_latency_mean = float(np.mean(e2e_arr)) if e2e_arr.size else float(np.mean(latency_per_task))
+    e2e_latency_p95 = float(np.percentile(e2e_arr, 95)) if e2e_arr.size else e2e_latency_mean
+    e2e_energy_mean = float(np.mean(e2e_energy_arr)) if e2e_energy_arr.size else float(np.mean(energy_per_task))
+    deadline_miss_rate = float(deadline_misses / max(total_eval_tasks, 1))
+    throughput_tasks_per_step = float(total_eval_tasks / max(total_eval_steps, 1))
+    comm_score = float(
+        100.0
+        * throughput_tasks_per_step
+        * max(0.0, 1.0 - deadline_miss_rate)
+        / (1.0 + e2e_latency_p95 + 0.1 * e2e_energy_mean)
+    )
 
     summary = {
         "algorithm": algo,
@@ -246,9 +320,14 @@ def main() -> None:
         "episodes": args.num_episodes,
         "reward_mean": float(np.mean(rewards)),
         "reward_std": float(np.std(rewards)),
-        # Backward-compatible aliases (historically episode totals).
-        "latency_mean": latency_total_mean,
+        # Communication-experience alias: latency_mean is per-task E2E latency.
+        "latency_mean": e2e_latency_mean,
         "energy_mean": energy_total_mean,
+        "e2e_latency_mean": e2e_latency_mean,
+        "e2e_latency_p95": e2e_latency_p95,
+        "deadline_miss_rate": deadline_miss_rate,
+        "throughput_tasks_per_step": throughput_tasks_per_step,
+        "comm_score": comm_score,
         # Explicit latency/energy definitions.
         "latency_total_mean": latency_total_mean,
         "energy_total_mean": energy_total_mean,

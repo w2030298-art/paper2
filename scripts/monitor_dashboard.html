@@ -9,56 +9,63 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; padding: 20px; color: #fff; }
         .container { max-width: 1440px; margin: 0 auto; }
-        h1 { text-align: center; font-size: 2.2em; margin-bottom: 30px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        h1 { text-align: center; font-size: 2.2em; margin-bottom: 24px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
 
-        .status-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
-        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 12px; padding: 18px; border: 1px solid rgba(255,255,255,0.2); transition: border-color 0.3s; }
+        .run-selector { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 18px; }
+        .run-selector label { font-size: 0.9em; opacity: 0.8; white-space: nowrap; }
+        .run-selector select { flex: 1; max-width: 400px; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.3); color: #fff; font-size: 0.9em; }
+        .run-selector select option { background: #1a1a2e; color: #fff; }
+        .run-info { font-size: 0.8em; opacity: 0.6; }
+
+        .status-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 22px; }
+        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.2); transition: border-color 0.3s; }
         .card.highlight { border-color: #667eea; }
-        .card h3 { font-size: 0.85em; opacity: 0.8; margin-bottom: 8px; }
-        .card .value { font-size: 1.6em; font-weight: bold; }
-        .card .sub { font-size: 0.72em; opacity: 0.7; margin-top: 4px; }
+        .card h3 { font-size: 0.82em; opacity: 0.8; margin-bottom: 6px; }
+        .card .value { font-size: 1.5em; font-weight: bold; }
+        .card .sub { font-size: 0.7em; opacity: 0.7; margin-top: 4px; }
         .status-idle { color: #95a5a6; }
         .status-running { color: #3498db; }
         .status-finished { color: #27ae60; }
         .status-stalled { color: #e74c3c; }
         .status-degraded { color: #f39c12; }
 
-        .progress-section { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 22px; margin-bottom: 24px; }
-        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .progress-header h2 { font-size: 1.2em; }
-        .algo-badge { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 6px 18px; border-radius: 20px; font-weight: bold; font-size: 0.95em; }
-        .progress-bar-wrap { background: rgba(255,255,255,0.2); border-radius: 10px; height: 28px; overflow: hidden; margin-bottom: 10px; }
-        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.5s ease; border-radius: 10px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; font-weight: bold; font-size: 0.85em; min-width: 40px; }
+        .progress-section { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 22px; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .progress-header h2 { font-size: 1.1em; }
+        .algo-badge { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 5px 16px; border-radius: 20px; font-weight: bold; font-size: 0.9em; }
+        .progress-bar-wrap { background: rgba(255,255,255,0.2); border-radius: 10px; height: 26px; overflow: hidden; margin-bottom: 8px; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.5s ease; border-radius: 10px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; font-weight: bold; font-size: 0.82em; min-width: 40px; }
         .overall-bar-fill { background: linear-gradient(90deg, #27ae60 0%, #2ecc71 100%); }
-        .progress-stats { display: flex; justify-content: space-between; font-size: 0.85em; opacity: 0.9; }
+        .progress-stats { display: flex; justify-content: space-between; font-size: 0.82em; opacity: 0.9; }
 
-        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
-        .chart-section { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; }
-        .chart-section h2 { font-size: 1.1em; margin-bottom: 12px; }
-        .chart-container { position: relative; height: 280px; }
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 22px; }
+        .chart-section { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 18px; }
+        .chart-section h2 { font-size: 1.05em; margin-bottom: 10px; }
+        .chart-container { position: relative; height: 260px; }
 
-        .results-section { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 22px; margin-bottom: 24px; }
-        .results-section h2 { margin-bottom: 16px; font-size: 1.2em; }
+        .results-section { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 22px; }
+        .results-section h2 { margin-bottom: 14px; font-size: 1.15em; }
         .results-table { width: 100%; border-collapse: collapse; }
-        .results-table th { background: rgba(255,255,255,0.2); padding: 10px; text-align: left; font-size: 0.82em; }
-        .results-table td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 0.85em; }
+        .results-table th { background: rgba(255,255,255,0.2); padding: 9px; text-align: left; font-size: 0.8em; }
+        .results-table td { padding: 9px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 0.82em; }
         .results-table tr:hover { background: rgba(255,255,255,0.08); }
-        .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.78em; font-weight: 600; }
+        .badge { display: inline-block; padding: 2px 9px; border-radius: 12px; font-size: 0.75em; font-weight: 600; }
         .badge-ok { background: #27ae60; }
         .badge-running { background: #3498db; }
         .badge-finished { background: #9b59b6; }
         .badge-stalled { background: #e74c3c; }
         .badge-degraded { background: #f39c12; }
+        .badge-historical { background: #7f8c8d; }
 
-        .log-section { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 22px; }
-        .log-section h2 { margin-bottom: 12px; font-size: 1.2em; }
-        .log-window { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 14px; height: 280px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.82em; line-height: 1.5; }
-        .log-line { margin-bottom: 3px; word-break: break-all; }
+        .log-section { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; }
+        .log-section h2 { margin-bottom: 10px; font-size: 1.15em; }
+        .log-window { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 12px; height: 260px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.78em; line-height: 1.5; }
+        .log-line { margin-bottom: 2px; word-break: break-all; }
         .log-error { color: #e74c3c; }
         .log-warn { color: #f39c12; }
         .log-info { color: #3498db; }
 
-        .reconnect-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 10px 22px; border-radius: 8px; cursor: pointer; font-size: 0.95em; margin-top: 16px; }
+        .reconnect-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 9px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9em; margin-top: 14px; }
         .reconnect-btn:hover { opacity: 0.9; }
 
         @media (max-width: 1100px) { .status-bar { grid-template-columns: repeat(3, 1fr); } .charts-grid { grid-template-columns: 1fr; } }
@@ -68,6 +75,12 @@
 <body>
     <div class="container">
         <h1>RL-MEC Training Dashboard</h1>
+
+        <div class="run-selector">
+            <label>Log Run:</label>
+            <select id="run-select" onchange="switchRun(this.value)"></select>
+            <span class="run-info" id="run-info">-</span>
+        </div>
 
         <div class="status-bar">
             <div class="card" id="card-status">
@@ -110,10 +123,10 @@
                 <span id="update-count">Updates: -</span>
                 <span id="elapsed-stat">-</span>
             </div>
-            <div style="margin-top: 14px;">
+            <div style="margin-top: 12px;">
                 <div class="progress-header">
                     <h2 style="font-size:1em;">Overall Benchmark Progress</h2>
-                    <span id="overall-badge" style="font-size:0.85em;opacity:0.8;">0 of 17</span>
+                    <span id="overall-badge" style="font-size:0.82em;opacity:0.8;">0 of 17</span>
                 </div>
                 <div class="progress-bar-wrap">
                     <div class="progress-bar-fill overall-bar-fill" id="overall-bar" style="width: 0%">0%</div>
@@ -171,6 +184,8 @@
         let reconnectTimer = null;
         let rewardChart = null;
         let timeChart = null;
+        let currentRunId = null;
+        let availableRuns = [];
         let lastLogHash = "";
 
         const ALGO_COLORS = {
@@ -203,7 +218,7 @@
         }
 
         function getStatusBadge(status) {
-            const map = { running:"badge-running", finished:"badge-finished", stalled:"badge-stalled", idle:"badge-ok", degraded:"badge-degraded" };
+            const map = { running:"badge-running", finished:"badge-finished", stalled:"badge-stalled", idle:"badge-ok", degraded:"badge-degraded", historical:"badge-historical" };
             return '<span class="badge ' + (map[status] || "badge-ok") + '">' + status.toUpperCase() + '</span>';
         }
 
@@ -224,7 +239,7 @@
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { ticks: { color: '#ccc', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                    x: { ticks: { color: '#ccc', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.1)' } },
                     y: { ticks: { color: '#ccc' }, grid: { color: 'rgba(255,255,255,0.1)' } },
                 },
             };
@@ -234,21 +249,18 @@
 
         function updateCharts(results) {
             if (!rewardChart || !results || results.length === 0) return;
-            const sorted = [...results].sort((a, b) => (b.reward || 0) - (a.reward || 0));
-            const labels = sorted.map(r => r.algorithm);
-            const colors = labels.map(a => ALGO_COLORS[a] || '#667eea');
-
-            rewardChart.data.labels = labels;
+            const currentRun = results.filter(r => r.source === "current_run");
+            if (currentRun.length === 0) return;
+            const sorted = [...currentRun].sort((a, b) => (b.reward || 0) - (a.reward || 0));
+            rewardChart.data.labels = sorted.map(r => r.algorithm);
             rewardChart.data.datasets[0].data = sorted.map(r => r.reward || 0);
-            rewardChart.data.datasets[0].backgroundColor = colors;
+            rewardChart.data.datasets[0].backgroundColor = sorted.map(r => ALGO_COLORS[r.algorithm] || '#667eea');
             rewardChart.update('none');
 
-            const sortedT = [...results].sort((a, b) => (a.train_time || 0) - (b.train_time || 0));
-            const labelsT = sortedT.map(r => r.algorithm);
-            const colorsT = labelsT.map(a => ALGO_COLORS[a] || '#667eea');
-            timeChart.data.labels = labelsT;
+            const sortedT = [...currentRun].sort((a, b) => (a.train_time || 0) - (b.train_time || 0));
+            timeChart.data.labels = sortedT.map(r => r.algorithm);
             timeChart.data.datasets[0].data = sortedT.map(r => r.train_time || 0);
-            timeChart.data.datasets[0].backgroundColor = colorsT;
+            timeChart.data.datasets[0].backgroundColor = sortedT.map(r => ALGO_COLORS[r.algorithm] || '#667eea');
             timeChart.update('none');
         }
 
@@ -261,22 +273,25 @@
 
             document.getElementById("current-algo").textContent = state.current_algorithm || "-";
             const nComp = (state.completed_algorithms || []).length;
+            const overallProg = state.overall_progress || 0;
+            const nCompletedInt = Math.floor(overallProg);
             document.getElementById("algo-sub").textContent = nComp > 0 ? nComp + " completed" : "Waiting...";
 
             document.getElementById("progress-pct").textContent = (state.progress_pct || 0).toFixed(1) + "%";
             document.getElementById("progress-sub").textContent = formatNumber(state.current_step) + " / " + formatNumber(state.total_step) + " steps";
 
-            document.getElementById("progress-bar").style.width = Math.min(state.progress_pct || 0, 100) + "%";
-            document.getElementById("progress-bar").textContent = (state.progress_pct || 0).toFixed(1) + "%";
+            const pctClamped = Math.min(state.progress_pct || 0, 100);
+            document.getElementById("progress-bar").style.width = pctClamped + "%";
+            document.getElementById("progress-bar").textContent = pctClamped.toFixed(1) + "%";
 
             document.getElementById("algo-badge").textContent = state.current_algorithm || "-";
 
-            const overallPct = Math.round(nComp / 17 * 100);
-            document.getElementById("overall-progress").textContent = nComp + "/17";
+            const overallPct = Math.round(overallProg / 17 * 100);
+            document.getElementById("overall-progress").textContent = nCompletedInt + "/17";
             document.getElementById("overall-pct").textContent = overallPct + "% complete";
             document.getElementById("overall-bar").style.width = overallPct + "%";
             document.getElementById("overall-bar").textContent = overallPct + "%";
-            document.getElementById("overall-badge").textContent = nComp + " of 17";
+            document.getElementById("overall-badge").textContent = nCompletedInt + " of 17";
 
             document.getElementById("eta").textContent = formatTime(state.eta_seconds);
             document.getElementById("elapsed").textContent = "Elapsed: " + formatTime(state.elapsed_seconds);
@@ -284,16 +299,25 @@
             document.getElementById("it-per-sec").textContent = (state.it_per_sec || 0).toFixed(2) + " it/s";
             document.getElementById("update-count").textContent = "Updates: " + formatNumber(state.update_count);
 
+            if (state.stderr_file) {
+                const fname = state.stderr_file.split(/[/\\]/).pop();
+                document.getElementById("run-info").textContent = fname;
+            }
+
             const tbody = document.getElementById("results-body");
             if (state.results && state.results.length > 0) {
+                const currentRunAlgos = new Set(state.results.filter(r => r.source === "current_run").map(r => r.algorithm));
                 tbody.innerHTML = state.results.map((r, i) => {
+                    const isHistorical = r.source === "historical";
                     const algoCompleted = (state.completed_algorithms || []).includes(r.algorithm || "");
-                    const rowStatus = state.status === "finished" ? "finished" : (algoCompleted ? "finished" : "running");
-                    return '<tr>' +
+                    const rowStatus = isHistorical ? "historical" : (state.status === "finished" ? "finished" : (algoCompleted ? "finished" : "running"));
+                    const opacity = isHistorical ? 'opacity:0.5;' : '';
+                    const srcTag = isHistorical ? ' <span style="font-size:0.7em;opacity:0.6;">(hist)</span>' : '';
+                    return '<tr style="' + opacity + '">' +
                         '<td>' + (i + 1) + '</td>' +
-                        '<td>' + (r.algorithm || "-") + '</td>' +
-                        '<td style="font-size:0.8em;opacity:0.8;">' + (r.environment || "-") + '</td>' +
-                        '<td>' + fmtVal(r.reward) + '</td>' +
+                        '<td>' + (r.algorithm || "-") + srcTag + '</td>' +
+                        '<td style="font-size:0.78em;opacity:0.7;">' + (r.environment || "-") + '</td>' +
+                        '<td>' + fmtVal(r.reward) + (r.reward_std ? ' ± ' + fmtVal(r.reward_std) : '') + '</td>' +
                         '<td>' + fmtVal(r.latency) + '</td>' +
                         '<td>' + fmtVal(r.energy) + '</td>' +
                         '<td>' + fmtVal(r.train_time, 1) + 's</td>' +
@@ -322,11 +346,42 @@
             updateCharts(state.results);
         }
 
+        async function loadRuns() {
+            try {
+                const res = await fetch("/api/runs");
+                if (res.ok) {
+                    const data = await res.json();
+                    availableRuns = data.runs || [];
+                    const sel = document.getElementById("run-select");
+                    sel.innerHTML = "";
+                    for (const run of availableRuns) {
+                        const opt = document.createElement("option");
+                        opt.value = run.run_id;
+                        const fname = (run.stderr || run.stdout || "").split(/[/\\]/).pop().replace(".err.log", "").replace(".log", "");
+                        opt.textContent = run.run_id + (fname ? " (" + fname + ")" : "");
+                        sel.appendChild(opt);
+                    }
+                    if (availableRuns.length > 0 && !currentRunId) {
+                        currentRunId = availableRuns[0].run_id;
+                        sel.value = currentRunId;
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load runs:", e);
+            }
+        }
+
+        function switchRun(runId) {
+            currentRunId = runId;
+            initSSE();
+            fetchInitialState();
+        }
+
         function initSSE() {
             if (es) es.close();
             if (reconnectTimer) clearTimeout(reconnectTimer);
-
-            es = new EventSource("/api/runs/latest/events");
+            const rid = currentRunId || "latest";
+            es = new EventSource("/api/runs/" + rid + "/events");
             es.onmessage = function(e) {
                 try {
                     const state = JSON.parse(e.data);
@@ -343,7 +398,8 @@
 
         async function fetchInitialState() {
             try {
-                const res = await fetch("/api/runs/latest");
+                const rid = currentRunId || "latest";
+                const res = await fetch("/api/runs/" + rid);
                 if (res.ok) {
                     const state = await res.json();
                     updateDashboard(state);
@@ -355,8 +411,10 @@
 
         document.addEventListener("DOMContentLoaded", function() {
             initCharts();
-            fetchInitialState();
-            initSSE();
+            loadRuns().then(function() {
+                fetchInitialState();
+                initSSE();
+            });
         });
     </script>
 </body>

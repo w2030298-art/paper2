@@ -43,6 +43,8 @@ SCAN_INTERVAL = 1.0
 
 _run_states: dict[str, "RunState"] = {}
 _state_lock = threading.Lock()
+_log_dir_ref: Path = LOG_DIR
+_json_ref: Path = BENCHMARK_JSON
 
 
 class RunState:
@@ -51,13 +53,15 @@ class RunState:
         self.status = "idle"
         self.current_algorithm = ""
         self.current_step = 0
-        self.total_step = 100000
+        self.total_step = 500000
         self.progress_pct = 0.0
         self.it_per_sec = 0.0
         self.eta_seconds = 0
         self.elapsed_seconds = 0
         self.update_count = 0
         self.completed_algorithms: list[str] = []
+        self.log_results: list[dict] = []
+        self.historical_results: list[dict] = []
         self.results: list[dict] = []
         self.last_error = ""
         self.updated_at = time.time()
@@ -66,8 +70,20 @@ class RunState:
         self.process_alive = False
         self.recent_logs: list[dict] = []
         self.overall_progress = 0
-        self.scan_error_count = 0
         self.degraded = False
+        self.stderr_file = ""
+        self.stdout_file = ""
+
+    def _merge_results(self) -> list[dict]:
+        merged = []
+        log_algos = {r["algorithm"] for r in self.log_results}
+        for r in self.log_results:
+            merged.append({**r, "source": "current_run"})
+        for r in self.historical_results:
+            if r["algorithm"] not in log_algos:
+                merged.append({**r, "source": "historical"})
+        merged.sort(key=lambda x: x.get("train_time", 0) if x.get("train_time") else 0)
+        return merged
 
     def to_dict(self) -> dict:
         return {
@@ -82,14 +98,35 @@ class RunState:
             "elapsed_seconds": self.elapsed_seconds,
             "update_count": self.update_count,
             "completed_algorithms": self.completed_algorithms,
-            "results": self.results,
+            "results": self._merge_results(),
             "last_error": self.last_error,
             "updated_at": self.updated_at,
             "process_alive": self.process_alive,
             "recent_logs": self.recent_logs[-50:],
             "overall_progress": self.overall_progress,
             "degraded": self.degraded,
+            "stderr_file": self.stderr_file,
+            "stdout_file": self.stdout_file,
         }
+
+
+def discover_runs(log_dir: Path) -> dict[str, dict]:
+    runs = {}
+    if not log_dir.exists():
+        return runs
+    for f in sorted(log_dir.glob("benchmark*.log")):
+        base = f.stem
+        if base.endswith(".err"):
+            continue
+        err_counterpart = f.parent / (base + ".err.log")
+        run_id = base.replace("benchmark_", "").replace("full_", "")
+        runs[run_id] = {
+            "id": run_id,
+            "stdout": str(f),
+            "stderr": str(err_counterpart) if err_counterpart.exists() else "",
+            "mtime": f.stat().st_mtime,
+        }
+    return runs
 
 
 def is_benchmark_process_alive() -> bool:
@@ -107,41 +144,59 @@ def is_benchmark_process_alive() -> bool:
         return False
 
 
-def parse_elapsed_from_tqdm(line: str) -> float:
-    m = re.search(r"(\d+)s[,\s]", line)
+def parse_step_from_tqdm(line: str) -> Optional[tuple]:
+    m = re.search(
+        r"Training\s+(\w+Agent):\s+\d+%\|[^|]*\|\s+(\d+)/(\d+)\s+\[[^]]*,\s+([\d.]+)it/s",
+        line,
+    )
     if m:
-        return float(m.group(1))
-    m2 = re.search(r"^.*?(\d+)s\s", line)
+        return int(m.group(2)), int(m.group(3)), float(m.group(4))
+
+    m2 = re.search(r"Training\s+\w+Agent:\s+\d+%.*?(\d+)/(\d+).*?([\d.]+)\s*it/s", line)
     if m2:
-        prefix = line[:m2.start()]
-        if "it/s" not in prefix and "step" not in prefix.lower():
-            return float(m2.group(1))
+        return int(m2.group(1)), int(m2.group(2)), float(m2.group(3))
+
+    m3 = re.search(r"Training\s+\w+Agent:\s+(\d+)it\s+\[([^]]+),\s+([\d.]+)it/s", line)
+    if m3:
+        elapsed_str = m3.group(2)
+        h = m = s = 0
+        hm = re.match(r"(\d+):(\d+):(\d+)", elapsed_str)
+        if hm:
+            h, m, s = int(hm.group(1)), int(hm.group(2)), int(hm.group(3))
+        else:
+            sm = re.match(r"(\d+):(\d+)", elapsed_str)
+            if sm:
+                m, s = int(sm.group(1)), int(sm.group(2))
+            else:
+                sm2 = re.match(r"(\d+)s", elapsed_str)
+                if sm2:
+                    s = int(sm2.group(1))
+        return int(m3.group(1)), 0, float(m3.group(3))
+
+    return None
+
+
+def parse_elapsed_from_tqdm(line: str) -> float:
+    m = re.search(r"\[(\d+):(\d+):(\d+)<", line)
+    if m:
+        return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
+    m2 = re.search(r"\[(\d+):(\d+)<", line)
+    if m2:
+        return int(m2.group(1)) * 60 + int(m2.group(2))
     return 0.0
 
 
 def parse_eta_from_tqdm(line: str) -> int:
     m = re.search(r"<(\d+):(\d+):(\d+)", line)
     if m:
-        h, mn, s = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        return h * 3600 + mn * 60 + s
+        return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
     m2 = re.search(r"<(\d+):(\d+)", line)
     if m2:
-        mn, s = int(m2.group(1)), int(m2.group(2))
-        return mn * 60 + s
+        return int(m2.group(1)) * 60 + int(m2.group(2))
+    m3 = re.search(r"<(\d+)s", line)
+    if m3:
+        return int(m3.group(1))
     return 0
-
-
-def parse_step_from_tqdm(line: str) -> Optional[tuple]:
-    m = re.search(r"Training \w+Agent: .*?(\d+)/(\d+).*?([\d.]+)\sit/s", line)
-    if m:
-        cur = int(m.group(1))
-        tot = int(m.group(2))
-        ips = float(m.group(3))
-        return cur, tot, ips
-    m2 = re.search(r"(\d+)/(\d+)\s\[.*?([\d.]+)\sit/s", line)
-    if m2:
-        return int(m2.group(1)), int(m2.group(2)), float(m2.group(3))
-    return None
 
 
 def parse_algo_switch(line: str) -> Optional[str]:
@@ -150,31 +205,48 @@ def parse_algo_switch(line: str) -> Optional[str]:
 
 
 def parse_result(line: str) -> Optional[dict]:
-    m = re.search(r"\[(\w+)\].*?reward=([-\d.]+).*?time=([\d.]+)s", line, re.IGNORECASE)
+    m = re.search(r"\[(\w+)\]\s+reward=([-\d.]+)\+/-([-\d.]+)\s+time=([\d.]+)s", line, re.IGNORECASE)
     if m:
         return {
             "algorithm": m.group(1),
             "reward": float(m.group(2)),
-            "train_time": float(m.group(3)),
+            "reward_std": float(m.group(3)),
+            "train_time": float(m.group(4)),
+            "source": "log",
+        }
+    m2 = re.search(r"\[(\w+)\].*?reward=([-\d.]+).*?time=([\d.]+)s", line, re.IGNORECASE)
+    if m2:
+        return {
+            "algorithm": m2.group(1),
+            "reward": float(m2.group(2)),
+            "reward_std": 0,
+            "train_time": float(m2.group(3)),
+            "source": "log",
         }
     return None
 
 
 def parse_update_count(line: str) -> Optional[int]:
-    m = re.search(r"update_count[=:]?\s*(\d+)", line, re.IGNORECASE)
-    return int(m.group(1)) if m else None
+    m = re.search(r"update_count=([\d.]+)", line, re.IGNORECASE)
+    if m:
+        return int(float(m.group(1)))
+    return None
+
+
+def parse_env_from_algo_header(line: str) -> Optional[str]:
+    m = re.search(r"Env:\s*(\S+)", line, re.IGNORECASE)
+    return m.group(1) if m else None
 
 
 def parse_benchmark_summary(line: str) -> bool:
-    markers = ["Benchmark Summary", "benchmark summary", "=" * 40, "FINAL RESULTS"]
-    return any(mk in line for mk in markers)
+    return "ALL ALGORITHMS COMPLETE" in line or "Benchmark finished" in line
 
 
 def classify_log_line(line: str) -> Optional[str]:
     lower = line.lower()
-    if any(kw in lower for kw in ["error", "exception", "traceback", "failed"]):
+    if any(kw in lower for kw in ["error ", "exception", "traceback", "failed"]):
         return "error"
-    if any(kw in lower for kw in ["warning", "warn"]):
+    if any(kw in lower for kw in ["warning", "warn:"]):
         return "warn"
     if any(kw in lower for kw in ["algorithm:", "reward=", "benchmark", "finished", "complete"]):
         return "info"
@@ -189,49 +261,59 @@ def load_benchmark_json(json_path: Path, state: RunState):
             data = json.load(f)
         if not isinstance(data, list):
             return
+        log_algos = {r["algorithm"] for r in state.log_results}
+        json_lookup = {}
         for entry in data:
             if not isinstance(entry, dict):
                 continue
             algo = entry.get("algorithm", "")
-            if not algo:
+            if algo:
+                json_lookup[algo] = entry
+        state.historical_results = []
+        for algo, entry in json_lookup.items():
+            if algo in log_algos:
                 continue
-            existing = [r for r in state.results if r.get("algorithm") == algo]
-            if not existing:
-                result = {
-                    "algorithm": algo,
-                    "reward": entry.get("final_reward_mean_mean", 0),
-                    "train_time": entry.get("train_time_seconds_mean", 0),
-                    "latency": entry.get("final_latency_mean_mean"),
-                    "energy": entry.get("final_energy_mean_mean"),
-                    "environment": entry.get("environment", ""),
-                    "source": "benchmark.json",
-                }
-                state.results.append(result)
-                if algo not in state.completed_algorithms:
-                    state.completed_algorithms.append(algo)
+            state.historical_results.append({
+                "algorithm": algo,
+                "reward": entry.get("final_reward_mean_mean", 0),
+                "reward_std": entry.get("final_reward_mean_std", 0),
+                "train_time": entry.get("train_time_seconds_mean", 0),
+                "latency": entry.get("final_latency_mean_mean"),
+                "energy": entry.get("final_energy_mean_mean"),
+                "environment": entry.get("environment", ""),
+            })
+        for r in state.log_results:
+            if r.get("algorithm") in json_lookup and (r.get("latency") is None or r.get("energy") is None):
+                entry = json_lookup[r["algorithm"]]
+                if r.get("latency") is None and entry.get("final_latency_mean_mean") is not None:
+                    r["latency"] = entry["final_latency_mean_mean"]
+                if r.get("energy") is None and entry.get("final_energy_mean_mean") is not None:
+                    r["energy"] = entry["final_energy_mean_mean"]
+                if not r.get("environment") and entry.get("environment"):
+                    r["environment"] = entry["environment"]
     except Exception as e:
         state.last_error = f"Failed to load benchmark.json: {e}"
         state.degraded = True
 
 
-def scan_logs(log_dir: Path, state: RunState):
-    if not log_dir.exists():
+def scan_log_file(filepath: str, state: RunState, is_stderr: bool):
+    if not filepath or not Path(filepath).exists():
         return
-
-    stdout_files = sorted(log_dir.glob("benchmark*.log"))
-    stderr_files = sorted(log_dir.glob("benchmark*.err.log"))
-
-    for lf in stderr_files:
-        try:
-            with open(lf, "r", encoding="utf-8", errors="replace") as f:
-                f.seek(state.log_offsets.get(str(lf), 0))
-                for line in f:
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            f.seek(state.log_offsets.get(filepath, 0))
+            for line in f:
+                if is_stderr:
                     step_info = parse_step_from_tqdm(line)
                     if step_info:
-                        state.current_step, state.total_step, state.it_per_sec = step_info
-                        if state.it_per_sec > 0:
-                            remaining = state.total_step - state.current_step
-                            state.eta_seconds = int(remaining / state.it_per_sec)
+                        cur, tot, ips = step_info
+                        state.current_step = cur
+                        if tot > 0:
+                            state.total_step = tot
+                        state.it_per_sec = ips
+                        if ips > 0 and tot > 0:
+                            remaining = tot - cur
+                            state.eta_seconds = int(remaining / ips)
                         state.last_log_time = time.time()
 
                     eta = parse_eta_from_tqdm(line)
@@ -245,71 +327,68 @@ def scan_logs(log_dir: Path, state: RunState):
                     uc = parse_update_count(line)
                     if uc is not None:
                         state.update_count = uc
-
-                    algo = parse_algo_switch(line)
-                    if algo:
-                        if state.current_algorithm and state.current_algorithm != algo:
-                            if state.current_algorithm not in state.completed_algorithms:
-                                state.completed_algorithms.append(state.current_algorithm)
-                        state.current_algorithm = algo
-
-                    log_type = classify_log_line(line)
-                    if log_type:
-                        state.recent_logs.append({
-                            "time": datetime.now().strftime("%H:%M:%S"),
-                            "level": log_type,
-                            "text": line.strip()[:200],
-                        })
-                        if len(state.recent_logs) > 100:
-                            state.recent_logs = state.recent_logs[-100:]
-
-                state.log_offsets[str(lf)] = f.tell()
-        except Exception as e:
-            state.scan_error_count += 1
-            state.last_error = f"Parse error ({lf.name}): {e}"
-            state.degraded = True
-
-    for lf in stdout_files:
-        try:
-            with open(lf, "r", encoding="utf-8", errors="replace") as f:
-                f.seek(state.log_offsets.get(str(lf), 0))
-                for line in f:
+                else:
                     result = parse_result(line)
                     if result:
-                        existing = [r for r in state.results if r.get("algorithm") == result["algorithm"]]
+                        existing = [r for r in state.log_results if r.get("algorithm") == result["algorithm"]]
                         if not existing:
-                            state.results.append(result)
+                            state.log_results.append(result)
                         if result["algorithm"] not in state.completed_algorithms:
                             state.completed_algorithms.append(result["algorithm"])
 
-                    algo = parse_algo_switch(line)
-                    if algo:
-                        if state.current_algorithm and state.current_algorithm != algo:
-                            if state.current_algorithm not in state.completed_algorithms:
-                                state.completed_algorithms.append(state.current_algorithm)
-                        state.current_algorithm = algo
-                        state.last_log_time = time.time()
+                    env_name = parse_env_from_algo_header(line)
+                    if env_name and state.current_algorithm:
+                        for r in state.log_results:
+                            if r.get("algorithm") == state.current_algorithm and not r.get("environment"):
+                                r["environment"] = env_name
 
                     if parse_benchmark_summary(line):
                         if state.current_algorithm and state.current_algorithm not in state.completed_algorithms:
                             state.completed_algorithms.append(state.current_algorithm)
                         state.status = "finished"
 
-                    log_type = classify_log_line(line)
-                    if log_type:
-                        state.recent_logs.append({
-                            "time": datetime.now().strftime("%H:%M:%S"),
-                            "level": log_type,
-                            "text": line.strip()[:200],
-                        })
-                        if len(state.recent_logs) > 100:
-                            state.recent_logs = state.recent_logs[-100:]
+                algo = parse_algo_switch(line)
+                if algo:
+                    if state.current_algorithm and state.current_algorithm != algo:
+                        if state.current_algorithm not in state.completed_algorithms:
+                            state.completed_algorithms.append(state.current_algorithm)
+                    state.current_algorithm = algo
+                    state.last_log_time = time.time()
 
-                state.log_offsets[str(lf)] = f.tell()
-        except Exception as e:
-            state.scan_error_count += 1
-            state.last_error = f"Parse error ({lf.name}): {e}"
-            state.degraded = True
+                log_type = classify_log_line(line)
+                if log_type:
+                    state.recent_logs.append({
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "level": log_type,
+                        "text": line.strip()[:300],
+                    })
+                    if len(state.recent_logs) > 100:
+                        state.recent_logs = state.recent_logs[-100:]
+
+            state.log_offsets[filepath] = f.tell()
+    except Exception as e:
+        state.last_error = f"Parse error ({Path(filepath).name}): {e}"
+        state.degraded = True
+
+
+def scan_logs(log_dir: Path, state: RunState):
+    if not log_dir.exists():
+        return
+
+    stderr_file = state.stderr_file
+    stdout_file = state.stdout_file
+
+    if not stderr_file and not stdout_file:
+        runs = discover_runs(log_dir)
+        if runs:
+            latest = max(runs.values(), key=lambda x: x["mtime"])
+            state.stderr_file = latest.get("stderr", "")
+            state.stdout_file = latest.get("stdout", "")
+            stderr_file = state.stderr_file
+            stdout_file = state.stdout_file
+
+    scan_log_file(stderr_file, state, is_stderr=True)
+    scan_log_file(stdout_file, state, is_stderr=False)
 
     now = time.time()
     if state.current_step > 0 and state.total_step > 0:
@@ -318,16 +397,25 @@ def scan_logs(log_dir: Path, state: RunState):
     state.process_alive = is_benchmark_process_alive()
 
     n_completed = len(state.completed_algorithms)
-    state.overall_progress = n_completed
+    current_frac = 0.0
+    if state.current_step > 0 and state.total_step > 0 and state.status != "finished":
+        current_frac = state.current_step / state.total_step
+    state.overall_progress = n_completed + round(current_frac, 2)
 
     if state.status == "finished":
         pass
-    elif state.current_step >= state.total_step and state.total_step > 0:
-        if n_completed >= TOTAL_ALGORITHMS or not state.process_alive:
+    elif n_completed >= TOTAL_ALGORITHMS:
+        state.status = "finished"
+    elif not state.process_alive and state.current_step > 0:
+        if state.current_step >= state.total_step and state.current_algorithm in state.completed_algorithms:
             state.status = "finished"
+        elif now - state.last_log_time > STALL_THRESHOLD_SEC:
+            state.status = "stalled"
         else:
             state.status = "running"
-    elif now - state.last_log_time > STALL_THRESHOLD_SEC:
+    elif state.current_step >= state.total_step and state.total_step > 0 and state.current_step > 0:
+        state.status = "running"
+    elif now - state.last_log_time > STALL_THRESHOLD_SEC and state.current_step > 0:
         state.status = "stalled"
     elif state.current_step > 0:
         state.status = "running"
@@ -362,10 +450,25 @@ async def root():
 
 @app.get("/api/runs")
 async def list_runs():
+    runs_info = discover_runs(_log_dir_ref)
+    result = []
+    for rid, info in runs_info.items():
+        result.append({
+            "run_id": rid,
+            "stdout": info["stdout"],
+            "stderr": info["stderr"],
+            "mtime": info["mtime"],
+        })
+    result.sort(key=lambda x: x["mtime"], reverse=True)
     with _state_lock:
-        runs = [{"run_id": k, "updated_at": v.updated_at} for k, v in _run_states.items()]
-    runs.sort(key=lambda x: x["updated_at"], reverse=True)
-    return {"runs": runs}
+        for r in result:
+            if r["run_id"] not in _run_states:
+                state = RunState(r["run_id"])
+                state.stdout_file = r["stdout"]
+                state.stderr_file = r["stderr"]
+                load_benchmark_json(_json_ref, state)
+                _run_states[r["run_id"]] = state
+    return {"runs": result}
 
 
 @app.get("/api/runs/{run_id}")
@@ -379,35 +482,29 @@ async def get_run(run_id: str):
 @app.get("/api/runs/{run_id}/events")
 async def stream_events(run_id: str, request: Request):
     async def event_generator():
-        last_snapshot = ""
+        import asyncio
         while True:
             if await request.is_disconnected():
                 break
             with _state_lock:
                 if run_id not in _run_states:
                     break
-                state = _run_states[run_id]
-                current_snapshot = json.dumps(state.to_dict(), sort_keys=True)
-            yield f"event: snapshot\ndata: {current_snapshot}\n\n"
-            last_snapshot = current_snapshot
-            await asyncio_sleep(1)
-
+                snapshot = json.dumps(_run_states[run_id].to_dict(), sort_keys=True)
+            yield f"event: snapshot\ndata: {snapshot}\n\n"
+            await asyncio.sleep(1)
     return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-
-async def asyncio_sleep(seconds: float):
-    import asyncio
-    await asyncio.sleep(seconds)
 
 
 @app.on_event("startup")
 async def startup():
-    run_id = "latest"
-    with _state_lock:
-        state = RunState(run_id)
-        load_benchmark_json(BENCHMARK_JSON, state)
-        _run_states[run_id] = state
-    background_scan(LOG_DIR, BENCHMARK_JSON)
+    await list_runs()
+    if _run_states:
+        latest_id = max(_run_states.keys(), key=lambda k: _run_states[k].updated_at)
+    else:
+        latest_id = "latest"
+        with _state_lock:
+            _run_states[latest_id] = RunState(latest_id)
+    background_scan(_log_dir_ref, _json_ref)
 
 
 def parse_args():
@@ -425,6 +522,7 @@ if __name__ == "__main__":
     BENCHMARK_JSON = Path(args.benchmark_json)
     HOST = args.host
     PORT = args.port
+    _log_dir_ref = LOG_DIR
+    _json_ref = BENCHMARK_JSON
     import uvicorn
-
     uvicorn.run(app, host=HOST, port=PORT)
