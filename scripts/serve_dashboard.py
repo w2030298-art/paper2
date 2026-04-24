@@ -120,10 +120,11 @@ def discover_runs(log_dir: Path) -> dict[str, dict]:
             continue
         err_counterpart = f.parent / (base + ".err.log")
         run_id = base.replace("benchmark_", "").replace("full_", "")
+        has_err = err_counterpart.exists()
         runs[run_id] = {
             "id": run_id,
             "stdout": str(f),
-            "stderr": str(err_counterpart) if err_counterpart.exists() else "",
+            "stderr": str(err_counterpart) if has_err else str(f),
             "mtime": f.stat().st_mtime,
         }
     return runs
@@ -145,18 +146,19 @@ def is_benchmark_process_alive() -> bool:
 
 
 def parse_step_from_tqdm(line: str) -> Optional[tuple]:
+    content = strip_log_prefix(line)
     m = re.search(
         r"Training\s+(\w+Agent):\s+\d+%\|[^|]*\|\s+(\d+)/(\d+)\s+\[[^]]*,\s+([\d.]+)it/s",
-        line,
+        content,
     )
     if m:
         return int(m.group(2)), int(m.group(3)), float(m.group(4))
 
-    m2 = re.search(r"Training\s+\w+Agent:\s+\d+%.*?(\d+)/(\d+).*?([\d.]+)\s*it/s", line)
+    m2 = re.search(r"Training\s+\w+Agent:\s+\d+%.*?(\d+)/(\d+).*?([\d.]+)\s*it/s", content)
     if m2:
         return int(m2.group(1)), int(m2.group(2)), float(m2.group(3))
 
-    m3 = re.search(r"Training\s+\w+Agent:\s+(\d+)it\s+\[([^]]+),\s+([\d.]+)it/s", line)
+    m3 = re.search(r"Training\s+\w+Agent:\s+(\d+)it\s+\[([^]]+),\s+([\d.]+)it/s", content)
     if m3:
         elapsed_str = m3.group(2)
         h = m = s = 0
@@ -177,35 +179,44 @@ def parse_step_from_tqdm(line: str) -> Optional[tuple]:
 
 
 def parse_elapsed_from_tqdm(line: str) -> float:
-    m = re.search(r"\[(\d+):(\d+):(\d+)<", line)
+    content = strip_log_prefix(line)
+    m = re.search(r"\[(\d+):(\d+):(\d+)<", content)
     if m:
         return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
-    m2 = re.search(r"\[(\d+):(\d+)<", line)
+    m2 = re.search(r"\[(\d+):(\d+)<", content)
     if m2:
         return int(m2.group(1)) * 60 + int(m2.group(2))
     return 0.0
 
 
 def parse_eta_from_tqdm(line: str) -> int:
-    m = re.search(r"<(\d+):(\d+):(\d+)", line)
+    content = strip_log_prefix(line)
+    m = re.search(r"<(\d+):(\d+):(\d+)", content)
     if m:
         return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
-    m2 = re.search(r"<(\d+):(\d+)", line)
+    m2 = re.search(r"<(\d+):(\d+)", content)
     if m2:
         return int(m2.group(1)) * 60 + int(m2.group(2))
-    m3 = re.search(r"<(\d+)s", line)
+    m3 = re.search(r"<(\d+)s", content)
     if m3:
         return int(m3.group(1))
     return 0
 
 
+def strip_log_prefix(line: str) -> str:
+    m = re.search(r"^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+\s+-\s+\w+\s+-\s+(.*)$", line)
+    return m.group(1) if m else line
+
+
 def parse_algo_switch(line: str) -> Optional[str]:
-    m = re.search(r"Algorithm:\s*(\w+)", line, re.IGNORECASE)
+    content = strip_log_prefix(line)
+    m = re.search(r"Algorithm:\s*(\w+)", content, re.IGNORECASE)
     return m.group(1) if m else None
 
 
 def parse_result(line: str) -> Optional[dict]:
-    m = re.search(r"\[(\w+)\]\s+reward=([-\d.]+)\+/-([-\d.]+)\s+time=([\d.]+)s", line, re.IGNORECASE)
+    content = strip_log_prefix(line)
+    m = re.search(r"\[(\w+)\]\s+reward=([-\d.]+)\+/-([-\d.]+)\s+time=([\d.]+)s", content, re.IGNORECASE)
     if m:
         return {
             "algorithm": m.group(1),
@@ -214,7 +225,7 @@ def parse_result(line: str) -> Optional[dict]:
             "train_time": float(m.group(4)),
             "source": "log",
         }
-    m2 = re.search(r"\[(\w+)\].*?reward=([-\d.]+).*?time=([\d.]+)s", line, re.IGNORECASE)
+    m2 = re.search(r"\[(\w+)\].*?reward=([-\d.]+).*?time=([\d.]+)s", content, re.IGNORECASE)
     if m2:
         return {
             "algorithm": m2.group(1),
@@ -227,14 +238,16 @@ def parse_result(line: str) -> Optional[dict]:
 
 
 def parse_update_count(line: str) -> Optional[int]:
-    m = re.search(r"update_count=([\d.]+)", line, re.IGNORECASE)
+    content = strip_log_prefix(line)
+    m = re.search(r"update_count=([\d.]+)", content, re.IGNORECASE)
     if m:
         return int(float(m.group(1)))
     return None
 
 
 def parse_env_from_algo_header(line: str) -> Optional[str]:
-    m = re.search(r"Env:\s*(\S+)", line, re.IGNORECASE)
+    content = strip_log_prefix(line)
+    m = re.search(r"Env:\s*(\S+)", content, re.IGNORECASE)
     return m.group(1) if m else None
 
 
@@ -303,49 +316,48 @@ def scan_log_file(filepath: str, state: RunState, is_stderr: bool):
         with open(filepath, "r", encoding="utf-8", errors="replace") as f:
             f.seek(state.log_offsets.get(filepath, 0))
             for line in f:
-                if is_stderr:
-                    step_info = parse_step_from_tqdm(line)
-                    if step_info:
-                        cur, tot, ips = step_info
-                        state.current_step = cur
-                        if tot > 0:
-                            state.total_step = tot
-                        state.it_per_sec = ips
-                        if ips > 0 and tot > 0:
-                            remaining = tot - cur
-                            state.eta_seconds = int(remaining / ips)
-                        state.last_log_time = time.time()
+                step_info = parse_step_from_tqdm(line)
+                if step_info:
+                    cur, tot, ips = step_info
+                    state.current_step = cur
+                    if tot > 0:
+                        state.total_step = tot
+                    state.it_per_sec = ips
+                    if ips > 0 and tot > 0:
+                        remaining = tot - cur
+                        state.eta_seconds = int(remaining / ips)
+                    state.last_log_time = time.time()
 
-                    eta = parse_eta_from_tqdm(line)
-                    if eta > 0:
-                        state.eta_seconds = eta
+                eta = parse_eta_from_tqdm(line)
+                if eta > 0:
+                    state.eta_seconds = eta
 
-                    elapsed = parse_elapsed_from_tqdm(line)
-                    if elapsed > 0:
-                        state.elapsed_seconds = elapsed
+                elapsed = parse_elapsed_from_tqdm(line)
+                if elapsed > 0:
+                    state.elapsed_seconds = elapsed
 
-                    uc = parse_update_count(line)
-                    if uc is not None:
-                        state.update_count = uc
-                else:
-                    result = parse_result(line)
-                    if result:
-                        existing = [r for r in state.log_results if r.get("algorithm") == result["algorithm"]]
-                        if not existing:
-                            state.log_results.append(result)
-                        if result["algorithm"] not in state.completed_algorithms:
-                            state.completed_algorithms.append(result["algorithm"])
+                uc = parse_update_count(line)
+                if uc is not None:
+                    state.update_count = uc
 
-                    env_name = parse_env_from_algo_header(line)
-                    if env_name and state.current_algorithm:
-                        for r in state.log_results:
-                            if r.get("algorithm") == state.current_algorithm and not r.get("environment"):
-                                r["environment"] = env_name
+                result = parse_result(line)
+                if result:
+                    existing = [r for r in state.log_results if r.get("algorithm") == result["algorithm"]]
+                    if not existing:
+                        state.log_results.append(result)
+                    if result["algorithm"] not in state.completed_algorithms:
+                        state.completed_algorithms.append(result["algorithm"])
 
-                    if parse_benchmark_summary(line):
-                        if state.current_algorithm and state.current_algorithm not in state.completed_algorithms:
-                            state.completed_algorithms.append(state.current_algorithm)
-                        state.status = "finished"
+                env_name = parse_env_from_algo_header(line)
+                if env_name and state.current_algorithm:
+                    for r in state.log_results:
+                        if r.get("algorithm") == state.current_algorithm and not r.get("environment"):
+                            r["environment"] = env_name
+
+                if parse_benchmark_summary(line):
+                    if state.current_algorithm and state.current_algorithm not in state.completed_algorithms:
+                        state.completed_algorithms.append(state.current_algorithm)
+                    state.status = "finished"
 
                 algo = parse_algo_switch(line)
                 if algo:
