@@ -1,0 +1,391 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "🟢 Train GRPO",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.train",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--config", "configs/algorithms/grpo.yaml",
+                "--algorithm", "grpo",
+                "--timesteps", "5000",
+                "--seed", "42"
+            ]
+        },
+        {
+            "name": "🟢 Train PPO",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.train",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--config", "configs/algorithms/ppo.yaml",
+                "--algorithm", "ppo",
+                "--timesteps", "5000",
+                "--seed", "42"
+            ]
+        },
+        {
+            "name": "🟢 Train SAC",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.train",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--config", "configs/algorithms/sac.yaml",
+                "--algorithm", "sac",
+                "--timesteps", "5000",
+                "--seed", "42"
+            ]
+        },
+        {
+            "name": "🟢 Train IPPO",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.train",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--config", "configs/algorithms/ippo.yaml",
+                "--algorithm", "ippo",
+                "--timesteps", "5000",
+                "--seed", "42"
+            ]
+        },
+        {
+            "name": "🟢 Train QMIX",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.train",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--config", "configs/algorithms/qmix.yaml",
+                "--algorithm", "qmix",
+                "--timesteps", "5000",
+                "--seed", "42"
+            ]
+        },
+        {
+            "name": "🟢 Train MAPPO",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.train",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--config", "configs/algorithms/mappo.yaml",
+                "--algorithm", "mappo",
+                "--timesteps", "5000",
+                "--seed", "42"
+            ]
+        },
+        {
+            "name": "🟡 Benchmark All (Quick)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.benchmark",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--algorithms", "grpo", "ppo", "sac",
+                "--episodes", "2",
+                "--timesteps", "1000",
+                "--output", "results/benchmark_debug.json",
+                "--quiet"
+            ]
+        },
+        {
+            "name": "🟡 Benchmark Full (正式500k)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.benchmark",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--all",
+                "--episodes", "3",
+                "--timesteps", "500000",
+                "--seeds", "42",
+                "--game-theory-enabled", "true",
+                "--reward-weights", "0.8", "0.1", "0.1",
+                "--shapley-samples", "128",
+                "--warm-start-steps", "5000",
+                "--warm-start-lr-scale", "0.5",
+                "--ctde-with-hints", "true",
+                "--efx-enabled", "true",
+                "--cpnet-enabled", "true",
+                "--efx-transfer-rate", "0.5"
+            ]
+        },
+        {
+            "name": "🟡 Benchmark Quick (快速调试)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.benchmark",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--algorithms", "grpo", "ppo", "sac",
+                "--episodes", "2",
+                "--timesteps", "5000",
+                "--seeds", "42",
+                "--reward-weights", "0.8", "0.1", "0.1",
+                "--shapley-samples", "32",
+                "--warm-start-steps", "500",
+                "--game-theory-enabled", "true",
+                "--efx-enabled", "true",
+                "--cpnet-enabled", "true",
+                "--quiet"
+            ]
+        },
+        {
+            "name": "🟡 Ablation (纯通信性能)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.benchmark",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--all",
+                "--episodes", "3",
+                "--timesteps", "500000",
+                "--seeds", "42",
+                "--game-theory-enabled", "true",
+                "--reward-weights", "1.0", "0.0", "0.0",
+                "--efx-enabled", "false",
+                "--cpnet-enabled", "false"
+            ]
+        },
+        {
+            "name": "🟡 Ablation (无Shapley/公平)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.benchmark",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--all",
+                "--episodes", "3",
+                "--timesteps", "500000",
+                "--seeds", "42",
+                "--shapley-samples", "0",
+                "--efx-enabled", "false",
+                "--cpnet-enabled", "false",
+                "--reward-weights", "0.8", "0.1", "0.1"
+            ]
+        },
+        {
+            "name": "🟡 Ablation (高公平压力)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.benchmark",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--all",
+                "--episodes", "3",
+                "--timesteps", "500000",
+                "--seeds", "42",
+                "--reward-weights", "0.6", "0.2", "0.2",
+                "--efx-enabled", "true",
+                "--cpnet-enabled", "true",
+                "--efx-transfer-rate", "0.8"
+            ]
+        },
+        {
+            "name": "🟡 Benchmark Single",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.benchmark",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--algorithms", "grpo",
+                "--episodes", "3",
+                "--timesteps", "500000",
+                "--seeds", "42",
+                "--game-theory-enabled", "true",
+                "--reward-weights", "0.8", "0.1", "0.1",
+                "--shapley-samples", "128",
+                "--ctde-with-hints", "true",
+                "--efx-enabled", "true",
+                "--cpnet-enabled", "true"
+            ]
+        },
+        {
+            "name": "🔵 Evaluate Checkpoint",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.evaluate",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--checkpoint", "checkpoints/grpo/checkpoint_latest.pt",
+                "--config", "configs/algorithms/grpo.yaml",
+                "--algorithm", "grpo",
+                "--num-episodes", "10",
+                "--seed", "42",
+                "--save-results", "results/eval_result.json"
+            ]
+        },
+        {
+            "name": "🟣 Plot Results",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.plot_results",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--input", "results/benchmark.json",
+                "--output", "figures",
+                "--format", "png"
+            ]
+        },
+        {
+            "name": "🟣 Plot Quick Results",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.plot_results",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "--input", "results/benchmark_quick_run.json",
+                "--output", "figures_quick",
+                "--format", "pdf"
+            ]
+        },
+        {
+            "name": "🧪 Pytest (Current File)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "${file}",
+                "-v",
+                "-s"
+            ]
+        },
+        {
+            "name": "🧪 Pytest (All Tests)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "tests/",
+                "-v",
+                "-s"
+            ]
+        },
+        {
+            "name": "🧪 Pytest (MEC Envs)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            },
+            "args": [
+                "tests/test_mec_envs.py",
+                "-v",
+                "-s"
+            ]
+        },
+        {
+            "name": "🔴 Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+            }
+        }
+    ]
+}
