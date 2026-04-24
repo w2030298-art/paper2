@@ -1,51 +1,44 @@
-# TRPO Configuration
-# Trust Region Policy Optimization - 离散/连续均支持
-
 algorithm:
-  name: "TRPO"
-  type: "on_policy"
-  gamma: 0.99
-  gae_lambda: 0.95
-  max_kl: 0.01
-  num_epochs: 5
   batch_size: 2048
-  cg_iterations: 10
   cg_damping: 0.001
+  cg_iterations: 10
   discrete: true
-
-network:
-  hidden_dim: 256
-  activation: "relu"
-
-training:
-  total_timesteps: 500000
-  rollout_steps: 2048
-  lr: 3.0e-4
-  lr_schedule: false
-  seed: 42
-
+  gae_lambda: 0.95
+  gamma: 0.99
+  max_kl: 0.01
+  name: TRPO
+  num_epochs: 5
+  type: on_policy
+evaluation:
+  deterministic: true
+  num_episodes: 10
 exploration:
   entropy_coef: 0.01
-
-logging:
-  log_interval: 10
-  eval_interval: 10000
-  save_interval: 50000
-  log_dir: "logs/trpo"
-  checkpoint_dir: "checkpoints/trpo"
-
-evaluation:
-  num_episodes: 10
-  deterministic: true
 game_theory:
-  enabled: true
-  use_shapley_credit: false
-  ctde_with_hints: false
-  warm_start_steps: 0
-  warm_start_lr_scale: 0.5
-
-  reward_weights: [0.8, 0.1, 0.1]
-  efx_enabled: true
   cpnet_enabled: true
+  ctde_with_hints: false
+  efx_enabled: true
   efx_transfer_rate: 0.5
-
+  enabled: true
+  reward_weights:
+  - 0.8
+  - 0.1
+  - 0.1
+  use_shapley_credit: false
+  warm_start_lr_scale: 0.5
+  warm_start_steps: 0
+logging:
+  checkpoint_dir: checkpoints/trpo
+  eval_interval: 10000
+  log_dir: logs/trpo
+  log_interval: 10
+  save_interval: 50000
+network:
+  activation: relu
+  hidden_dim: 256
+training:
+  lr: 0.0003
+  lr_schedule: false
+  rollout_steps: 2048
+  seed: 42
+  total_timesteps: 500000

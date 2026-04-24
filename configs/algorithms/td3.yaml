@@ -1,56 +1,49 @@
-# TD3 Configuration
-# Twin Delayed DDPG - 连续动作空间
-
 algorithm:
-  name: "TD3"
-  type: "off_policy"
-  gamma: 0.99
-  tau: 0.005
+  action_bias: 0.0
+  action_scale: 1.0
   batch_size: 256
   buffer_size: 1000000
-  update_interval: 1
   explore_steps: 10000
-  noise_std: 0.2
+  gamma: 0.99
+  name: TD3
   noise_clip: 0.5
+  noise_std: 0.2
   policy_delay: 2
-  action_scale: 1.0
-  action_bias: 0.0
-
+  tau: 0.005
+  type: off_policy
+  update_interval: 1
+evaluation:
+  deterministic: true
+  num_episodes: 10
+exploration:
+  noise_std: 0.2
+  noise_type: gauss
+game_theory:
+  cpnet_enabled: true
+  ctde_with_hints: false
+  efx_enabled: true
+  efx_transfer_rate: 0.5
+  enabled: true
+  reward_weights:
+  - 0.8
+  - 0.1
+  - 0.1
+  use_shapley_credit: false
+  warm_start_lr_scale: 0.5
+  warm_start_steps: 0
+logging:
+  checkpoint_dir: checkpoints/td3
+  eval_interval: 10000
+  log_dir: logs/td3
+  log_interval: 10
+  save_interval: 50000
 network:
-  hidden_dim: 256
-  activation: "relu"
+  activation: relu
   discrete: false
-
+  hidden_dim: 256
 training:
-  total_timesteps: 500000
-  start_steps: 10000
-  lr: 3.0e-4
+  lr: 0.0003
   lr_schedule: false
   seed: 42
-
-exploration:
-  noise_type: "gauss"
-  noise_std: 0.2
-
-logging:
-  log_interval: 10
-  eval_interval: 10000
-  save_interval: 50000
-  log_dir: "logs/td3"
-  checkpoint_dir: "checkpoints/td3"
-
-evaluation:
-  num_episodes: 10
-  deterministic: true
-game_theory:
-  enabled: true
-  use_shapley_credit: false
-  ctde_with_hints: false
-  warm_start_steps: 0
-  warm_start_lr_scale: 0.5
-
-  reward_weights: [0.8, 0.1, 0.1]
-  efx_enabled: true
-  cpnet_enabled: true
-  efx_transfer_rate: 0.5
-
+  start_steps: 10000
+  total_timesteps: 500000

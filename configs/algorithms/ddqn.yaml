@@ -1,52 +1,45 @@
-# DDQN Configuration
-# Double DQN - ÀëÉ¢¶¯×÷¿Õ¼ä
-
 algorithm:
-  name: "DDQN"
-  type: "off_policy"
-  gamma: 0.99
-  tau: 0.005
   batch_size: 256
   buffer_size: 1000000
-  update_interval: 1
+  gamma: 0.99
+  name: DDQN
   target_update_interval: 500
-
+  tau: 0.005
+  type: off_policy
+  update_interval: 1
+evaluation:
+  deterministic: true
+  num_episodes: 10
+exploration:
+  epsilon_decay: 50000
+  epsilon_end: 0.05
+  epsilon_start: 1.0
+game_theory:
+  cpnet_enabled: true
+  ctde_with_hints: false
+  efx_enabled: true
+  efx_transfer_rate: 0.5
+  enabled: true
+  reward_weights:
+  - 0.8
+  - 0.1
+  - 0.1
+  use_shapley_credit: false
+  warm_start_lr_scale: 0.5
+  warm_start_steps: 0
+logging:
+  checkpoint_dir: checkpoints/ddqn
+  eval_interval: 10000
+  log_dir: logs/ddqn
+  log_interval: 10
+  save_interval: 50000
 network:
-  hidden_dim: 256
-  activation: "relu"
+  activation: relu
   discrete: true
-
+  hidden_dim: 256
 training:
-  total_timesteps: 500000
-  start_steps: 10000
-  lr: 3.0e-4
+  lr: 0.0003
   lr_schedule: false
   seed: 42
-
-exploration:
-  epsilon_start: 1.0
-  epsilon_end: 0.05
-  epsilon_decay: 50000
-
-logging:
-  log_interval: 10
-  eval_interval: 10000
-  save_interval: 50000
-  log_dir: "logs/ddqn"
-  checkpoint_dir: "checkpoints/ddqn"
-
-evaluation:
-  num_episodes: 10
-  deterministic: true
-game_theory:
-  enabled: true
-  use_shapley_credit: false
-  ctde_with_hints: false
-  warm_start_steps: 0
-  warm_start_lr_scale: 0.5
-
-  reward_weights: [0.8, 0.1, 0.1]
-  efx_enabled: true
-  cpnet_enabled: true
-  efx_transfer_rate: 0.5
-
+  start_steps: 10000
+  total_timesteps: 500000

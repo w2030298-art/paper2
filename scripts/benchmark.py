@@ -16,11 +16,13 @@ Benchmark — 多算法对比评测入口 (GameTheory 环境唯一)
 
 import argparse
 import importlib
+import logging
 import os
 import sys
 import json
 import time
 import yaml
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
@@ -135,9 +137,27 @@ def load_algo_class(name):
     return getattr(importlib.import_module(mpath), cname)
 
 
+def _read_text_with_encoding_fallback(path, encodings=("utf-8-sig", "utf-8", "gb18030", "cp936")):
+    path = Path(path)
+    errors = []
+    for encoding in encodings:
+        try:
+            return path.read_text(encoding=encoding)
+        except UnicodeDecodeError as exc:
+            errors.append(f"{encoding}: byte {exc.start} ({exc.reason})")
+    joined = "; ".join(errors)
+    raise UnicodeDecodeError(
+        "utf-8",
+        path.read_bytes(),
+        0,
+        1,
+        f"Unable to decode {path} with supported encodings: {joined}",
+    )
+
+
 def load_config(path):
-    with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
+    text = _read_text_with_encoding_fallback(path)
+    return yaml.safe_load(text) or {}
 
 
 def make_env(
@@ -736,6 +756,7 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                     algo_results.append(r)
                 except Exception as e:
                     algo_errors.append({"seed": seed, "error": str(e)})
+                    logging.getLogger(__name__).exception("Error %s seed=%s", algo, seed)
                     if verbose:
                         print(f"Error {algo} seed={seed}: {e}")
             if algo_results:
@@ -819,8 +840,8 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
     if output_file:
         op = Path(output_file)
         op.parent.mkdir(parents=True, exist_ok=True)
-        with open(op, "w") as f:
-            json.dump(all_results, f, indent=2)
+        with open(op, "w", encoding="utf-8") as f:
+            json.dump(all_results, f, indent=2, ensure_ascii=False)
         if verbose:
             print(f"\nResults saved to: {op}")
     return all_results
@@ -838,7 +859,7 @@ def main():
     p.add_argument("--timesteps", type=int, default=None)
     p.add_argument("--seeds", type=int, nargs="+", default=[42])
     p.add_argument("--device", type=str, default="auto")
-    p.add_argument("--output", type=str, default="results/benchmark.json")
+    p.add_argument("--output", type=str, default=None)  # 自动生成带时间戳的文件名
     p.add_argument("--quiet", action="store_true")
     p.add_argument("--scale", type=str, choices=["small", "medium", "large"], default=None)
     p.add_argument("--num-edge-servers", type=int, default=None)
@@ -854,10 +875,38 @@ def main():
     p.add_argument("--cpnet-enabled", type=str, default=None, choices=["true", "false"])
     p.add_argument("--efx-transfer-rate", type=float, default=None)
     args = p.parse_args()
+    
+    # 自动生成输出文件名（带时间戳）
+    if args.output is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        args.output = f"results/benchmark_{timestamp}.json"
+    
+    # 创建日志目录
+    log_dir = project_root / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    
+    # 配置日志
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Benchmark started")
+    logger.info(f"Output file: {args.output}")
+    logger.info(f"Log file: {log_file}")
+    
     if args.all:
         algorithms = list(ALL_ALGOS)
+        logger.info(f"Running all {len(algorithms)} algorithms")
     elif args.algorithms:
         algorithms = args.algorithms
+        logger.info(f"Running algorithms: {algorithms}")
     else:
         p.print_help()
         print("\nSpecify --algorithms or --all")
@@ -869,9 +918,13 @@ def main():
     valid_algos = set(ALL_ALGOS) | set(HEURISTIC_ALGOS)
     for a in algorithms:
         if a not in valid_algos:
+            logger.error(f"Unknown algorithm: {a}")
             print(f"Unknown: {a}")
             sys.exit(1)
+    
     env_to_use = None if args.env == "auto" else args.env
+    logger.info(f"Environment: {env_to_use or 'auto'}")
+    
     gt_overrides = {
         "warm_start_steps": args.warm_start_steps,
         "warm_start_lr_scale": args.warm_start_lr_scale,
@@ -883,17 +936,25 @@ def main():
         "cpnet_enabled": _parse_optional_bool(args.cpnet_enabled),
         "efx_transfer_rate": args.efx_transfer_rate,
     }
+    logger.info(f"Game theory config: {gt_overrides}")
+    
     env_overrides = _resolve_env_overrides(
         scale=args.scale,
         num_edge_servers=args.num_edge_servers,
         multi_agent_count=args.multi_agent_count,
         max_steps=args.max_steps,
     )
-    run_benchmark(algorithms, env_to_use, args.configs_dir, args.seeds, args.timesteps,
-                  args.episodes, args.device, args.output, not args.quiet,
-                  game_theory_overrides=gt_overrides,
-                  env_overrides=env_overrides)
-
+    
+    try:
+        run_benchmark(algorithms, env_to_use, args.configs_dir, args.seeds, args.timesteps,
+                      args.episodes, args.device, args.output, not args.quiet,
+                      game_theory_overrides=gt_overrides,
+                      env_overrides=env_overrides)
+        logger.info(f"Benchmark completed successfully. Results saved to: {args.output}")
+        logger.info(f"Log file: {log_file}")
+    except Exception as e:
+        logger.exception(f"Benchmark failed: {e}")
+        raise
 
 if __name__ == "__main__":
     main()

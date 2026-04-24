@@ -1,54 +1,47 @@
-# GRPO Configuration
-# Group Relative Policy Optimization - 离散/连续均支持
-
 algorithm:
-  name: "GRPO"
-  type: "on_policy"
-  gamma: 0.99
-  eps_clip: 0.2
-  group_size: 4
-  num_epochs: 10
   entropy_coef: 0.01
-  value_coef: 0.5
+  eps_clip: 0.2
+  gamma: 0.99
+  group_size: 4
   max_grad_norm: 0.5
-
-network:
-  hidden_dim: 256
-  activation: "relu"
-  discrete: true   # 由环境自动检测时可设为 null
-
-training:
-  total_timesteps: 500000
-  rollout_steps: 2048
-  batch_size: 64
-  lr: 3.0e-4
-  lr_schedule: false
-  seed: 42
-
-exploration:
-  initial_epsilon: 1.0
-  final_epsilon: 0.05
-  epsilon_decay_steps: 50000
-
-logging:
-  log_interval: 10
-  eval_interval: 10000
-  save_interval: 50000
-  log_dir: "logs/grpo"
-  checkpoint_dir: "checkpoints/grpo"
-
+  name: GRPO
+  num_epochs: 10
+  type: on_policy
+  value_coef: 0.5
 evaluation:
-  num_episodes: 10
   deterministic: true
+  num_episodes: 10
+exploration:
+  epsilon_decay_steps: 50000
+  final_epsilon: 0.05
+  initial_epsilon: 1.0
 game_theory:
-  enabled: true
-  use_shapley_credit: true
-  ctde_with_hints: true
-  warm_start_steps: 1000
-  warm_start_lr_scale: 0.5
-
-  reward_weights: [0.8, 0.1, 0.1]
-  efx_enabled: true
   cpnet_enabled: true
+  ctde_with_hints: true
+  efx_enabled: true
   efx_transfer_rate: 0.5
-
+  enabled: true
+  reward_weights:
+  - 0.8
+  - 0.1
+  - 0.1
+  use_shapley_credit: true
+  warm_start_lr_scale: 0.5
+  warm_start_steps: 1000
+logging:
+  checkpoint_dir: checkpoints/grpo
+  eval_interval: 10000
+  log_dir: logs/grpo
+  log_interval: 10
+  save_interval: 50000
+network:
+  activation: relu
+  discrete: true
+  hidden_dim: 256
+training:
+  batch_size: 64
+  lr: 0.0003
+  lr_schedule: false
+  rollout_steps: 2048
+  seed: 42
+  total_timesteps: 500000
