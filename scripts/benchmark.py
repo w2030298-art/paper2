@@ -96,6 +96,13 @@ SCALE_PRESETS = {
 }
 
 
+def _canonical_algorithm_name(name: str) -> str:
+    """Return the registered algorithm name, accepting case-insensitive input."""
+    lookup = {algo.lower(): algo for algo in ALL_ALGOS}
+    lookup.update({algo.lower(): algo for algo in HEURISTIC_ALGOS})
+    return lookup.get(str(name).lower(), name)
+
+
 def _normalize_reward_weights(value):
     if value is None:
         return (0.5, 0.3, 0.2)
@@ -776,6 +783,7 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
         configs_dir = project_root / "configs" / "algorithms"
     if env_name is None:
         env_name = "auto"  # 自动选择正确环境
+    algorithms = [_canonical_algorithm_name(a) for a in algorithms]
 
     # 按环境分组，相同环境的算法一起评测
     if env_name == "auto":
@@ -983,7 +991,7 @@ def main():
             algorithms = list(ALL_ALGOS)
             logger.info("Running all %s algorithms", len(algorithms))
         elif args.algorithms:
-            algorithms = args.algorithms
+            algorithms = [_canonical_algorithm_name(a) for a in args.algorithms]
             logger.info("Running algorithms: %s", algorithms)
         else:
             p.print_help()

@@ -1,6 +1,6 @@
 # VSCode 调试配置教程
 
-本文档说明如何使用 VSCode 调试本项目（GRPO-MEC 对比算法项目）的所有功能。
+本文档说明如何使用 VSCode 调试本项目（GRPO-MEC 对比算法项目）的核心功能。
 
 ## 📁 配置文件位置
 
@@ -47,8 +47,8 @@ code .
 | 配置名称 | 说明 | 适用场景 |
 |---------|------|---------|
 | 🟢 Train GRPO | 训练 GRPO 算法 | 调试 GRPO 算法核心逻辑 |
-| 🟢 Train PPO | 训练 PPO 算法 | 调试 PPO 算法 |
-| 🟢 Train SAC | 训练 SAC 算法 | 调试 SAC 算法 |
+
+> 需要调试其他算法时，复制 `🟢 Train GRPO` 配置并替换 `--config` 与 `--algorithm` 参数即可。
 
 **使用方法：**
 1. 打开 `scripts/train.py`
@@ -82,7 +82,6 @@ code .
 | 配置名称 | 说明 | 适用场景 |
 |---------|------|---------|
 | 🟣 Plot Results | 生成 PNG 图表 | 常规结果可视化 |
-| 🟣 Plot Quick Results | 生成 PDF 图表 | 论文图表 |
 
 ### 🧪 测试模块 (Pytest)
 
@@ -90,7 +89,6 @@ code .
 |---------|------|---------|
 | 🧪 Pytest (Current File) | 运行当前文件测试 | 调试单个测试文件 |
 | 🧪 Pytest (All Tests) | 运行所有测试 | 完整测试套件 |
-| 🧪 Pytest (MEC Envs) | 运行环境测试 | 调试 MEC 环境 |
 
 ### 🔴 通用调试
 
@@ -166,7 +164,7 @@ code .
    ```
 
 2. **启动调试**
-   - 选择配置：`🟡 Benchmark Single Algorithm`
+   - 选择配置：`🟡 Benchmark Single`
    - 按 `F5` 开始
 
 ## 🎨 自定义调试配置
@@ -271,7 +269,7 @@ code .
 ```
 --algorithms   算法列表 (如: grpo ppo sac)
 --all          运行所有 17 个算法
---env          环境名称 (auto/离散/连续)
+--env          环境名称 (auto 或 MEC-v1-game-theory-*)
 --episodes     评估 episode 数
 --timesteps    训练步数
 --seeds        随机种子列表
