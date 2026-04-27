@@ -22,6 +22,7 @@ import sys
 import json
 import time
 import yaml
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
@@ -158,6 +159,79 @@ def _read_text_with_encoding_fallback(path, encodings=("utf-8-sig", "utf-8", "gb
 def load_config(path):
     text = _read_text_with_encoding_fallback(path)
     return yaml.safe_load(text) or {}
+
+
+class _TeeWriter:
+    """Mirror stream writes to terminal and file."""
+
+    def __init__(self, stream, mirror_file):
+        self._stream = stream
+        self._mirror_file = mirror_file
+
+    def write(self, data):
+        if not isinstance(data, str):
+            data = str(data)
+        written = self._stream.write(data)
+        self._mirror_file.write(data)
+        return written
+
+    def flush(self):
+        self._stream.flush()
+        self._mirror_file.flush()
+
+    def isatty(self):
+        isatty = getattr(self._stream, "isatty", None)
+        return bool(isatty()) if callable(isatty) else False
+
+    def fileno(self):
+        fileno = getattr(self._stream, "fileno", None)
+        if callable(fileno):
+            return fileno()
+        raise OSError("Underlying stream does not expose fileno()")
+
+    @property
+    def encoding(self):
+        return getattr(self._stream, "encoding", "utf-8")
+
+
+@contextmanager
+def _tee_streams(stdout_log_path: Path, stderr_log_path: Path):
+    stdout_log_path.parent.mkdir(parents=True, exist_ok=True)
+    stderr_log_path.parent.mkdir(parents=True, exist_ok=True)
+    orig_stdout = sys.stdout
+    orig_stderr = sys.stderr
+    with open(stdout_log_path, "w", encoding="utf-8", buffering=1) as stdout_log, open(
+        stderr_log_path, "w", encoding="utf-8", buffering=1
+    ) as stderr_log:
+        sys.stdout = _TeeWriter(orig_stdout, stdout_log)
+        sys.stderr = _TeeWriter(orig_stderr, stderr_log)
+        try:
+            yield
+        finally:
+            try:
+                sys.stdout.flush()
+                sys.stderr.flush()
+            finally:
+                sys.stdout = orig_stdout
+                sys.stderr = orig_stderr
+
+
+def _write_results_json(path: Path, payload: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+    os.replace(tmp_path, path)
+
+
+def _sync_latest_results_alias(output_path: Path, payload: list[dict]) -> None:
+    latest_path = project_root / "results" / "benchmark.json"
+    try:
+        same_target = output_path.resolve() == latest_path.resolve()
+    except OSError:
+        same_target = output_path == latest_path
+    if not same_target:
+        _write_results_json(latest_path, payload)
 
 
 def make_env(
@@ -839,11 +913,12 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
 
     if output_file:
         op = Path(output_file)
-        op.parent.mkdir(parents=True, exist_ok=True)
-        with open(op, "w", encoding="utf-8") as f:
-            json.dump(all_results, f, indent=2, ensure_ascii=False)
+        _write_results_json(op, all_results)
+        _sync_latest_results_alias(op, all_results)
         if verbose:
             print(f"\nResults saved to: {op}")
+            print(f"Latest alias updated: {project_root / 'results' / 'benchmark.json'}")
+    print("Benchmark finished")
     return all_results
 
 
@@ -875,86 +950,100 @@ def main():
     p.add_argument("--cpnet-enabled", type=str, default=None, choices=["true", "false"])
     p.add_argument("--efx-transfer-rate", type=float, default=None)
     args = p.parse_args()
-    
+
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+
     # 自动生成输出文件名（带时间戳）
     if args.output is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        args.output = f"results/benchmark_{timestamp}.json"
-    
-    # 创建日志目录
+        args.output = f"results/benchmark_{run_id}.json"
+
+    # 创建日志目录与分离日志文件
     log_dir = project_root / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / f"benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    
-    # 配置日志
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file, encoding='utf-8'),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-    logger = logging.getLogger(__name__)
-    
-    logger.info(f"Benchmark started")
-    logger.info(f"Output file: {args.output}")
-    logger.info(f"Log file: {log_file}")
-    
-    if args.all:
-        algorithms = list(ALL_ALGOS)
-        logger.info(f"Running all {len(algorithms)} algorithms")
-    elif args.algorithms:
-        algorithms = args.algorithms
-        logger.info(f"Running algorithms: {algorithms}")
-    else:
-        p.print_help()
-        print("\nSpecify --algorithms or --all")
-        sys.exit(1)
-    if args.include_heuristics:
-        for h in HEURISTIC_ALGOS:
-            if h not in algorithms:
-                algorithms.append(h)
-    valid_algos = set(ALL_ALGOS) | set(HEURISTIC_ALGOS)
-    for a in algorithms:
-        if a not in valid_algos:
-            logger.error(f"Unknown algorithm: {a}")
-            print(f"Unknown: {a}")
+    stdout_log_file = log_dir / f"benchmark_{run_id}.log"
+    stderr_log_file = log_dir / f"benchmark_{run_id}.err.log"
+
+    with _tee_streams(stdout_log_file, stderr_log_file):
+        # 配置日志：只输出到 stdout，由 tee 负责同步到 log 文件
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            handlers=[logging.StreamHandler(sys.stdout)],
+            force=True,
+        )
+        logger = logging.getLogger(__name__)
+
+        logger.info("Benchmark started")
+        logger.info("Run id: %s", run_id)
+        logger.info("Output file: %s", args.output)
+        logger.info("Stdout log file: %s", stdout_log_file)
+        logger.info("Stderr log file: %s", stderr_log_file)
+
+        if args.all:
+            algorithms = list(ALL_ALGOS)
+            logger.info("Running all %s algorithms", len(algorithms))
+        elif args.algorithms:
+            algorithms = args.algorithms
+            logger.info("Running algorithms: %s", algorithms)
+        else:
+            p.print_help()
+            print("\nSpecify --algorithms or --all")
             sys.exit(1)
-    
-    env_to_use = None if args.env == "auto" else args.env
-    logger.info(f"Environment: {env_to_use or 'auto'}")
-    
-    gt_overrides = {
-        "warm_start_steps": args.warm_start_steps,
-        "warm_start_lr_scale": args.warm_start_lr_scale,
-        "shapley_samples": args.shapley_samples,
-        "ctde_with_hints": _parse_optional_bool(args.ctde_with_hints),
-        "enabled": _parse_optional_bool(args.game_theory_enabled),
-        "reward_weights": tuple(args.reward_weights) if args.reward_weights else None,
-        "efx_enabled": _parse_optional_bool(args.efx_enabled),
-        "cpnet_enabled": _parse_optional_bool(args.cpnet_enabled),
-        "efx_transfer_rate": args.efx_transfer_rate,
-    }
-    logger.info(f"Game theory config: {gt_overrides}")
-    
-    env_overrides = _resolve_env_overrides(
-        scale=args.scale,
-        num_edge_servers=args.num_edge_servers,
-        multi_agent_count=args.multi_agent_count,
-        max_steps=args.max_steps,
-    )
-    
-    try:
-        run_benchmark(algorithms, env_to_use, args.configs_dir, args.seeds, args.timesteps,
-                      args.episodes, args.device, args.output, not args.quiet,
-                      game_theory_overrides=gt_overrides,
-                      env_overrides=env_overrides)
-        logger.info(f"Benchmark completed successfully. Results saved to: {args.output}")
-        logger.info(f"Log file: {log_file}")
-    except Exception as e:
-        logger.exception(f"Benchmark failed: {e}")
-        raise
+        if args.include_heuristics:
+            for h in HEURISTIC_ALGOS:
+                if h not in algorithms:
+                    algorithms.append(h)
+        valid_algos = set(ALL_ALGOS) | set(HEURISTIC_ALGOS)
+        for a in algorithms:
+            if a not in valid_algos:
+                logger.error("Unknown algorithm: %s", a)
+                print(f"Unknown: {a}")
+                sys.exit(1)
+
+        env_to_use = None if args.env == "auto" else args.env
+        logger.info("Environment: %s", env_to_use or "auto")
+
+        gt_overrides = {
+            "warm_start_steps": args.warm_start_steps,
+            "warm_start_lr_scale": args.warm_start_lr_scale,
+            "shapley_samples": args.shapley_samples,
+            "ctde_with_hints": _parse_optional_bool(args.ctde_with_hints),
+            "enabled": _parse_optional_bool(args.game_theory_enabled),
+            "reward_weights": tuple(args.reward_weights) if args.reward_weights else None,
+            "efx_enabled": _parse_optional_bool(args.efx_enabled),
+            "cpnet_enabled": _parse_optional_bool(args.cpnet_enabled),
+            "efx_transfer_rate": args.efx_transfer_rate,
+        }
+        logger.info("Game theory config: %s", gt_overrides)
+
+        env_overrides = _resolve_env_overrides(
+            scale=args.scale,
+            num_edge_servers=args.num_edge_servers,
+            multi_agent_count=args.multi_agent_count,
+            max_steps=args.max_steps,
+        )
+
+        try:
+            run_benchmark(
+                algorithms,
+                env_to_use,
+                args.configs_dir,
+                args.seeds,
+                args.timesteps,
+                args.episodes,
+                args.device,
+                args.output,
+                not args.quiet,
+                game_theory_overrides=gt_overrides,
+                env_overrides=env_overrides,
+            )
+            logger.info("Benchmark finished")
+            logger.info("Benchmark completed successfully. Results saved to: %s", args.output)
+            logger.info("Log files: stdout=%s stderr=%s", stdout_log_file, stderr_log_file)
+        except Exception as e:
+            logger.exception("Benchmark failed: %s", e)
+            logger.info("Benchmark finished")
+            raise
 
 if __name__ == "__main__":
     main()
