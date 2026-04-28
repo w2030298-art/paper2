@@ -109,6 +109,67 @@ def test_run_algorithm_success_with_fake_subprocess(tmp_path, monkeypatch) -> No
     assert result.succeeded() is True
 
 
+def test_run_algorithm_missing_result_json_reports_diagnostics(tmp_path, monkeypatch) -> None:
+    class FakeProcess:
+        def __init__(self, *args, **kwargs) -> None:
+            self.pid = 3456
+            self.returncode = 0
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self):
+            return self.returncode
+
+    monkeypatch.setattr("src.experiment.process_runner.subprocess.Popen", FakeProcess)
+
+    store = JsonStateStore(root_dir=tmp_path / "experiments")
+    runner = ProcessRunner(store=store, command_builder=TrainCommandBuilder(project_root=tmp_path))
+    spec = AlgorithmSpec(
+        name="GRPO",
+        config_path="configs/algorithms/grpo.yaml",
+        timesteps=5000,
+        seed=42,
+    )
+
+    result = runner.run_algorithm(run_id="demo", spec=spec)
+    assert result.error is not None
+    assert "algorithm GRPO" in result.error
+    assert "expected=" in result.error
+    assert "stdout=" in result.error
+    assert "stderr=" in result.error
+
+
+def test_run_algorithm_failed_process_reports_log_paths(tmp_path, monkeypatch) -> None:
+    class FakeProcess:
+        def __init__(self, *args, **kwargs) -> None:
+            self.pid = 4567
+            self.returncode = 1
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self):
+            return self.returncode
+
+    monkeypatch.setattr("src.experiment.process_runner.subprocess.Popen", FakeProcess)
+
+    store = JsonStateStore(root_dir=tmp_path / "experiments")
+    runner = ProcessRunner(store=store, command_builder=TrainCommandBuilder(project_root=tmp_path))
+    spec = AlgorithmSpec(
+        name="GRPO",
+        config_path="configs/algorithms/grpo.yaml",
+        timesteps=5000,
+        seed=42,
+    )
+
+    result = runner.run_algorithm(run_id="demo", spec=spec)
+    assert result.error is not None
+    assert "Process failed for algorithm GRPO with exit code 1" in result.error
+    assert "stdout=" in result.error
+    assert "stderr=" in result.error
+
+
 def test_run_algorithm_interrupted_when_stop_requested(tmp_path, monkeypatch) -> None:
     class FakeProcess:
         def __init__(self, *args, **kwargs) -> None:

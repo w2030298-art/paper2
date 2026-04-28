@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import time
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
@@ -145,6 +146,14 @@ class JsonStateStore:
 
     def exists(self, run_id: str) -> bool:
         return self.manifest_path(run_id).exists() and self.state_path(run_id).exists()
+
+    def delete(self, run_id: str) -> None:
+        experiment_dir = self.root_dir / run_id
+        if not experiment_dir.exists():
+            return
+        if (experiment_dir / "process.json").exists():
+            raise ExperimentStateError(f"Cannot delete running experiment: {run_id}")
+        shutil.rmtree(experiment_dir)
 
     def list_run_ids(self) -> list[str]:
         if not self.root_dir.exists():

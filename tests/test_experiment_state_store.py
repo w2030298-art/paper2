@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.experiment.errors import ExperimentLockError
+from src.experiment.errors import ExperimentLockError, ExperimentStateError
 from src.experiment.models import (
     AlgorithmRunRecord,
     AlgorithmSpec,
@@ -86,3 +86,30 @@ def test_json_state_store_create_load_update(tmp_path) -> None:
 
     updated_state = store.load_state("demo")
     assert updated_state.status == ExperimentStatus.RUNNING
+
+
+def test_state_store_delete_missing_run_is_noop(tmp_path) -> None:
+    store = JsonStateStore(root_dir=tmp_path / "experiments")
+    store.delete("missing")
+    assert not store.experiment_dir("missing").exists()
+
+
+def test_state_store_delete_existing_run_removes_directory(tmp_path) -> None:
+    store = JsonStateStore(root_dir=tmp_path / "experiments")
+    run_dir = store.experiment_dir("demo")
+    run_dir.mkdir(parents=True)
+    (run_dir / "state.json").write_text("{}", encoding="utf-8")
+
+    store.delete("demo")
+    assert not run_dir.exists()
+
+
+def test_state_store_delete_refuses_running_experiment_with_process_json(tmp_path) -> None:
+    store = JsonStateStore(root_dir=tmp_path / "experiments")
+    run_dir = store.experiment_dir("demo")
+    run_dir.mkdir(parents=True)
+    (run_dir / "process.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ExperimentStateError, match="Cannot delete running experiment: demo"):
+        store.delete("demo")
+    assert run_dir.exists()

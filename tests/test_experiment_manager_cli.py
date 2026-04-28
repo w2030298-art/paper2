@@ -66,6 +66,134 @@ def test_cli_start_resumes_when_existing(monkeypatch) -> None:
     assert fake.start_called is True
 
 
+def test_cli_start_fresh_deletes_existing_before_create(monkeypatch) -> None:
+    events: list[str] = []
+
+    class FakeStore:
+        def exists(self, _run_id: str) -> bool:
+            return True
+
+    class FakeManager:
+        def __init__(self) -> None:
+            self.store = FakeStore()
+
+        def delete_experiment(self, run_id: str) -> None:
+            assert run_id == "vscode_quick"
+            events.append("delete")
+
+        def create_experiment(self, **kwargs):
+            assert kwargs["run_id"] == "vscode_quick"
+            events.append("create")
+
+        def start_or_resume(self, run_id: str):
+            assert run_id == "vscode_quick"
+            events.append("start")
+
+        def get_status(self, _run_id: str):
+            return {"status": "ok"}
+
+    monkeypatch.setattr(cli, "ExperimentManager", lambda: FakeManager())
+    cli.main(["start", "--preset", "quick", "--fresh"])
+    assert events == ["delete", "create", "start"]
+
+
+def test_cli_start_quick_preset_uses_quick_defaults(monkeypatch) -> None:
+    captured: dict = {}
+
+    class FakeStore:
+        def exists(self, _run_id: str) -> bool:
+            return False
+
+    class FakeManager:
+        def __init__(self) -> None:
+            self.store = FakeStore()
+
+        def create_experiment(self, **kwargs):
+            captured.update(kwargs)
+
+        def start_or_resume(self, _run_id: str):
+            return None
+
+        def get_status(self, _run_id: str):
+            return {"status": "ok"}
+
+    monkeypatch.setattr(cli, "ExperimentManager", lambda: FakeManager())
+    cli.main(["start", "--preset", "quick"])
+    assert captured["run_id"] == "vscode_quick"
+    assert captured["name"] == "VSCode Quick Benchmark"
+    assert captured["algorithms"] == ["GRPO", "PPO", "SAC"]
+    assert captured["timesteps"] == 5000
+    assert captured["eval_episodes"] == 3
+
+
+def test_cli_start_full17_preset_uses_full17_defaults(monkeypatch) -> None:
+    captured: dict = {}
+
+    class FakeStore:
+        def exists(self, _run_id: str) -> bool:
+            return False
+
+    class FakeManager:
+        def __init__(self) -> None:
+            self.store = FakeStore()
+
+        def create_experiment(self, **kwargs):
+            captured.update(kwargs)
+
+        def start_or_resume(self, _run_id: str):
+            return None
+
+        def get_status(self, _run_id: str):
+            return {"status": "ok"}
+
+    monkeypatch.setattr(cli, "ExperimentManager", lambda: FakeManager())
+    cli.main(["start", "--preset", "full17"])
+    assert captured["run_id"] == "paper2_full_17_vscode"
+    assert len(captured["algorithms"]) == 17
+    assert "MATD3" in captured["algorithms"]
+    assert captured["timesteps"] == 100000
+    assert captured["eval_episodes"] == 10
+
+
+def test_cli_start_preset_allows_explicit_run_id_override(monkeypatch) -> None:
+    captured: dict = {}
+
+    class FakeStore:
+        def exists(self, _run_id: str) -> bool:
+            return False
+
+    class FakeManager:
+        def __init__(self) -> None:
+            self.store = FakeStore()
+
+        def create_experiment(self, **kwargs):
+            captured.update(kwargs)
+
+        def start_or_resume(self, run_id: str):
+            assert run_id == "custom_run"
+
+        def get_status(self, _run_id: str):
+            return {"status": "ok"}
+
+    monkeypatch.setattr(cli, "ExperimentManager", lambda: FakeManager())
+    cli.main(["start", "--preset", "quick", "--run-id", "custom_run"])
+    assert captured["run_id"] == "custom_run"
+    assert captured["algorithms"] == ["GRPO", "PPO", "SAC"]
+
+
+def test_cli_start_requires_run_id_without_preset(monkeypatch, capsys) -> None:
+    class FakeManager:
+        def __init__(self) -> None:
+            pass
+
+    monkeypatch.setattr(cli, "ExperimentManager", lambda: FakeManager())
+    code = cli.main(["start"])
+    stderr = capsys.readouterr().err.strip()
+    parsed = json.loads(stderr)
+    assert code != 0
+    assert parsed["error"] == "start requires --run-id or --preset"
+
+
 def test_cli_stop_calls_request_stop(monkeypatch) -> None:
     class FakeState:
         def to_dict(self):

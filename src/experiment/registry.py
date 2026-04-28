@@ -7,30 +7,13 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .models import AlgorithmSpec
+from .presets import FULL_17_ALGORITHMS
 
 
 class AlgorithmRegistry:
     """Canonical algorithm registry used by experiment orchestration."""
 
-    SUPPORTED_ALGORITHMS = [
-        "GRPO",
-        "PPO",
-        "SAC",
-        "DDQN",
-        "DDPG",
-        "TD3",
-        "A3C",
-        "TRPO",
-        "SimPO",
-        "MAPPO",
-        "QMIX",
-        "COMA",
-        "IPPO",
-        "VDN",
-        "MADDPG",
-        "IQL",
-        "MATD3",
-    ]
+    SUPPORTED_ALGORITHMS = list(FULL_17_ALGORITHMS)
 
     def __init__(self) -> None:
         self._normalized_map = {name.upper(): name for name in self.SUPPORTED_ALGORITHMS}

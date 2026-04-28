@@ -232,6 +232,11 @@ class ExperimentManager:
         runs = self.index.list_runs()
         return sorted(runs, key=lambda item: item["updated_at"], reverse=True)
 
+    def delete_experiment(self, run_id: str) -> None:
+        self.store.delete(run_id)
+        self.index.initialize()
+        self.index.rebuild_from_store(self.store)
+
     def reset_failed_algorithm(self, run_id: str, algorithm_name: str) -> ExperimentState:
         with self.store.with_lock(run_id):
             manifest = self.store.load_manifest(run_id)

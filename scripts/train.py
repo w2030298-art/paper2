@@ -11,7 +11,15 @@ from typing import Any
 import numpy as np
 
 project_root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(project_root))
+for path in [
+    project_root,
+    project_root / "scripts",
+    project_root / "src",
+    project_root / "rl_algorithms",
+]:
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train one RL algorithm on MEC")

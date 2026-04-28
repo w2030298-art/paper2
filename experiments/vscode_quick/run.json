@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "run_id": "vscode_quick",
+  "name": "VSCode Quick Benchmark",
+  "created_at": "2026-04-28T10:41:59Z",
+  "updated_at": "2026-04-28T10:41:59Z",
+  "algorithms": [
+    {
+      "name": "GRPO",
+      "config_path": "configs/algorithms/grpo.yaml",
+      "timesteps": 5000,
+      "seed": 42,
+      "device": "auto",
+      "env": "auto",
+      "eval_episodes": 3,
+      "extra_args": []
+    },
+    {
+      "name": "PPO",
+      "config_path": "configs/algorithms/ppo.yaml",
+      "timesteps": 5000,
+      "seed": 42,
+      "device": "auto",
+      "env": "auto",
+      "eval_episodes": 3,
+      "extra_args": []
+    },
+    {
+      "name": "SAC",
+      "config_path": "configs/algorithms/sac.yaml",
+      "timesteps": 5000,
+      "seed": 42,
+      "device": "auto",
+      "env": "auto",
+      "eval_episodes": 3,
+      "extra_args": []
+    }
+  ],
+  "project_root": ".",
+  "output_dir": "results",
+  "experiment_dir": "experiments/vscode_quick",
+  "metadata": {}
+}

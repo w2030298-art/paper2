@@ -17,8 +17,20 @@ from src.experiment.errors import (  # noqa: E402
     ExperimentStateError,
 )
 from src.experiment.manager import ExperimentManager  # noqa: E402
+from src.experiment.presets import PRESETS  # noqa: E402
 from src.experiment.result_writer import BenchmarkResultWriter  # noqa: E402
 from src.experiment.state_store import JsonStateStore  # noqa: E402
+
+
+DEFAULT_START_OPTIONS = {
+    "algorithms": ["GRPO", "PPO", "SAC", "DDQN"],
+    "timesteps": 5000,
+    "seed": 42,
+    "device": "auto",
+    "eval_episodes": 3,
+    "env": "auto",
+    "output_dir": "results",
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -26,19 +38,21 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     start_parser = subparsers.add_parser("start")
-    start_parser.add_argument("--run-id", required=True)
+    start_parser.add_argument("--preset", choices=["quick", "full17"], default=None)
+    start_parser.add_argument("--fresh", action="store_true")
+    start_parser.add_argument("--run-id", default=None)
     start_parser.add_argument("--name", default=None)
     start_parser.add_argument(
         "--algorithms",
         nargs="+",
-        default=["GRPO", "PPO", "SAC", "DDQN"],
+        default=None,
     )
-    start_parser.add_argument("--timesteps", type=int, default=5000)
-    start_parser.add_argument("--seed", type=int, default=42)
-    start_parser.add_argument("--device", default="auto")
-    start_parser.add_argument("--eval-episodes", type=int, default=3)
-    start_parser.add_argument("--env", default="auto")
-    start_parser.add_argument("--output-dir", default="results")
+    start_parser.add_argument("--timesteps", type=int, default=None)
+    start_parser.add_argument("--seed", type=int, default=None)
+    start_parser.add_argument("--device", default=None)
+    start_parser.add_argument("--eval-episodes", type=int, default=None)
+    start_parser.add_argument("--env", default=None)
+    start_parser.add_argument("--output-dir", default=None)
     resume_parser = subparsers.add_parser("resume")
     resume_parser.add_argument("--run-id", required=True)
 
@@ -69,26 +83,48 @@ def _print_error_json(message: str) -> None:
     print(json.dumps({"status": "error", "error": message}, ensure_ascii=False), file=sys.stderr)
 
 
+def _resolve_start_options(args: argparse.Namespace) -> dict:
+    preset = PRESETS[args.preset] if args.preset is not None else DEFAULT_START_OPTIONS
+    run_id = args.run_id or preset.get("run_id")
+    if run_id is None:
+        raise ValueError("start requires --run-id or --preset")
+
+    name = args.name or preset.get("name") or run_id
+    algorithms = args.algorithms if args.algorithms is not None else list(preset["algorithms"])
+    timesteps = args.timesteps if args.timesteps is not None else preset["timesteps"]
+    seed = args.seed if args.seed is not None else preset["seed"]
+    device = args.device if args.device is not None else preset["device"]
+    eval_episodes = (
+        args.eval_episodes if args.eval_episodes is not None else preset["eval_episodes"]
+    )
+    env = args.env if args.env is not None else preset["env"]
+    output_dir = args.output_dir if args.output_dir is not None else preset["output_dir"]
+
+    return {
+        "run_id": run_id,
+        "name": name,
+        "algorithms": algorithms,
+        "timesteps": timesteps,
+        "seed": seed,
+        "device": device,
+        "eval_episodes": eval_episodes,
+        "env": env,
+        "output_dir": output_dir,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
         if args.command == "start":
             manager = ExperimentManager()
-            run_id = args.run_id
-            name = args.name or run_id
-            if not manager.store.exists(run_id):
-                manager.create_experiment(
-                    run_id=run_id,
-                    name=name,
-                    algorithms=args.algorithms,
-                    timesteps=args.timesteps,
-                    seed=args.seed,
-                    device=args.device,
-                    eval_episodes=args.eval_episodes,
-                    env=args.env,
-                    output_dir=args.output_dir,
-                )
+            options = _resolve_start_options(args)
+            run_id = options["run_id"]
+            if args.fresh and manager.store.exists(run_id):
+                manager.delete_experiment(run_id)
+            if args.fresh or not manager.store.exists(run_id):
+                manager.create_experiment(**options)
             manager.start_or_resume(run_id)
             _print_json(manager.get_status(run_id))
         elif args.command == "resume":

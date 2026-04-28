@@ -109,7 +109,16 @@ class ProcessRunner:
 
             error = None
             if not interrupted and exit_code == 0 and not paths["result_json"].exists():
-                error = "Result JSON not found"
+                error = (
+                    f"Result JSON not found for algorithm {spec.name}: "
+                    f"expected={paths['result_json']}; "
+                    f"stdout={paths['stdout_log']}; stderr={paths['stderr_log']}"
+                )
+            elif not interrupted and exit_code != 0:
+                error = (
+                    f"Process failed for algorithm {spec.name} with exit code {exit_code}: "
+                    f"stdout={paths['stdout_log']}; stderr={paths['stderr_log']}"
+                )
 
             return ProcessResult(
                 exit_code=exit_code,

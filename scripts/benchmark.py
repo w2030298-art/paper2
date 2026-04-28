@@ -28,15 +28,9 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
 import numpy as np
-import torch
-from gymnasium import spaces
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-
-from src.trainer.on_policy_trainer import OnPolicyTrainer
-from src.trainer.off_policy_trainer import OffPolicyTrainer
-from src.utils.helpers import set_seed
 
 ALGORITHM_CLASSES = {
     "GRPO": ("rl_algorithms.grpo", "GRPOAgent"),
@@ -281,6 +275,8 @@ def make_env(
 
 
 def create_agent(name, env, cfg, device, game_theory_overrides: Optional[Dict[str, Any]] = None):
+    from gymnasium import spaces
+
     cls = load_algo_class(name)
     ac = cfg.get("algorithm", {})
     nc = cfg.get("network", {})
@@ -515,6 +511,8 @@ def benchmark_heuristic(
     game_theory_overrides: Optional[Dict[str, Any]] = None,
     env_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    import torch
+
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
     rng = np.random.default_rng(seed)
@@ -632,6 +630,11 @@ def benchmark_single(
     环境自动选择: ALGO_ENV_MAP 保证了每个算法在正确的环境类型上评测，
     确保离散/连续/多智能体算法各在其适对应的环境。
     """
+    import torch
+    from src.trainer.on_policy_trainer import OnPolicyTrainer
+    from src.trainer.off_policy_trainer import OffPolicyTrainer
+    from src.utils.helpers import set_seed
+
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
     set_seed(seed)

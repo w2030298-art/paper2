@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "🧪 Experiment Start/Resume (Quick)",
+      "name": "🧪 Experiment Quick Start/Resume",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/scripts/experiment_manager.py",
@@ -14,26 +14,47 @@
       },
       "args": [
         "start",
-        "--run-id",
-        "vscode_quick",
-        "--name",
-        "VSCode Quick Benchmark",
-        "--algorithms",
-        "GRPO",
-        "PPO",
-        "SAC",
-        "--timesteps",
-        "5000",
-        "--seed",
-        "42",
-        "--device",
-        "auto",
-        "--eval-episodes",
-        "3"
+        "--preset",
+        "quick"
       ]
     },
     {
-      "name": "🧪 Experiment Resume",
+      "name": "🧪 Experiment Quick Fresh Clean Run",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "start",
+        "--preset",
+        "quick",
+        "--fresh"
+      ]
+    },
+    {
+      "name": "🏁 Experiment Full 17 Start/Resume",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "start",
+        "--preset",
+        "full17"
+      ]
+    },
+    {
+      "name": "▶️ Experiment Full 17 Resume",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/scripts/experiment_manager.py",
@@ -46,11 +67,79 @@
       "args": [
         "resume",
         "--run-id",
-        "vscode_quick"
+        "paper2_full_17_vscode"
       ]
     },
     {
-      "name": "⏹ Experiment Stop",
+      "name": "⏹ Experiment Full 17 Stop",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "stop",
+        "--run-id",
+        "paper2_full_17_vscode"
+      ]
+    },
+    {
+      "name": "📊 Experiment Full 17 Status",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "status",
+        "--run-id",
+        "paper2_full_17_vscode"
+      ]
+    },
+    {
+      "name": "📋 Experiment List All",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "list"
+      ]
+    },
+    {
+      "name": "📦 Experiment Full 17 Export Results",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "export",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--output",
+        "results/benchmark_paper2_full_17_vscode.json"
+      ]
+    },
+    {
+      "name": "⏹ Experiment Quick Stop",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/scripts/experiment_manager.py",
@@ -67,7 +156,7 @@
       ]
     },
     {
-      "name": "📊 Experiment Status",
+      "name": "📊 Experiment Quick Status",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/scripts/experiment_manager.py",
@@ -84,22 +173,7 @@
       ]
     },
     {
-      "name": "📋 Experiment List",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/scripts/experiment_manager.py",
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "env": {
-        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-      },
-      "args": [
-        "list"
-      ]
-    },
-    {
-      "name": "📦 Experiment Export Results",
+      "name": "📦 Experiment Quick Export Results",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/scripts/experiment_manager.py",
@@ -112,7 +186,389 @@
       "args": [
         "export",
         "--run-id",
-        "vscode_quick"
+        "vscode_quick",
+        "--output",
+        "results/benchmark_vscode_quick.json"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Quick Reset GRPO",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "vscode_quick",
+        "--algorithm",
+        "GRPO"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset GRPO",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "GRPO"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset PPO",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "PPO"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset SAC",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "SAC"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset DDQN",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "DDQN"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset DDPG",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "DDPG"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset TD3",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "TD3"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset A3C",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "A3C"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset TRPO",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "TRPO"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset SimPO",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "SimPO"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset MAPPO",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "MAPPO"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset QMIX",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "QMIX"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset COMA",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "COMA"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset IPPO",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "IPPO"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset VDN",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "VDN"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset MADDPG",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "MADDPG"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset IQL",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "IQL"
+      ]
+    },
+    {
+      "name": "♻️ Experiment Full 17 Reset MATD3",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "reset",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--algorithm",
+        "MATD3"
+      ]
+    },
+    {
+      "name": "🧱 Experiment Rebuild Index",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "rebuild-index"
+      ]
+    },
+    {
+      "name": "🏁 Benchmark Direct All 17",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/benchmark.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--all",
+        "--episodes",
+        "10",
+        "--timesteps",
+        "100000",
+        "--device",
+        "auto",
+        "--output",
+        "results/benchmark_direct_all_17_vscode.json"
       ]
     }
   ]
