@@ -75,7 +75,9 @@ venv.bak/
 
 # IDEs
 .idea/
-.vscode/
+.vscode/*
+!.vscode/
+!.vscode/launch.json
 *.swp
 *.swo
 *~
@@ -91,3 +93,13 @@ data/
 # OS
 .DS_Store
 Thumbs.db
+
+# Experiment orchestration
+experiments/.index.sqlite3
+experiments/**/*.lock
+experiments/**/control/
+experiments/**/process.json
+experiments/**/logs/
+experiments/**/artifacts/**/*.pt
+experiments/**/artifacts/**/*.pth
+experiments/**/artifacts/**/*.ckpt

@@ -1,161 +1,119 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "🟢 Train GRPO",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "scripts.train",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-            },
-            "args": [
-                "--config", "configs/algorithms/grpo.yaml",
-                "--algorithm", "grpo",
-                "--timesteps", "5000",
-                "--seed", "42"
-            ]
-        },
-        {
-            "name": "🟡 Benchmark All (Quick)",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "scripts.benchmark",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-            },
-            "args": [
-                "--algorithms", "grpo", "ppo", "sac",
-                "--episodes", "2",
-                "--timesteps", "1000",
-                "--output", "results/benchmark_debug.json",
-                "--quiet"
-            ]
-        },
-        {
-            "name": "🟡 Benchmark All (Full)",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "scripts.benchmark",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-            },
-            "args": [
-                "--all",
-                "--episodes", "3",
-                "--timesteps", "500000",
-                "--seeds", "42"
-            ]
-        },
-        {
-            "name": "🟡 Benchmark Single",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "scripts.benchmark",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-            },
-            "args": [
-                "--algorithms", "grpo",
-                "--episodes", "3",
-                "--timesteps", "5000",
-                "--seeds", "42"
-            ]
-        },
-        {
-            "name": "🔵 Evaluate Checkpoint",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "scripts.evaluate",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-            },
-            "args": [
-                "--checkpoint", "checkpoints/grpo/final.pt",
-                "--config", "configs/algorithms/grpo.yaml",
-                "--algorithm", "grpo",
-                "--num-episodes", "10",
-                "--seed", "42",
-                "--save-results", "results/eval_result.json"
-            ]
-        },
-        {
-            "name": "🟣 Plot Results",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "scripts.plot_results",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-            },
-            "args": [
-                "--input", "results/benchmark.json",
-                "--output", "figures",
-                "--format", "png"
-            ]
-        },
-        {
-            "name": "🧪 Pytest (Current File)",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-            },
-            "args": [
-                "${file}",
-                "-v",
-                "-s"
-            ]
-        },
-        {
-            "name": "🧪 Pytest (All Tests)",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-            },
-            "args": [
-                "tests/",
-                "-v",
-                "-s"
-            ]
-        },
-        {
-            "name": "🔴 Python: Current File",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-            }
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "🧪 Experiment Start/Resume (Quick)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "start",
+        "--run-id",
+        "vscode_quick",
+        "--name",
+        "VSCode Quick Benchmark",
+        "--algorithms",
+        "GRPO",
+        "PPO",
+        "SAC",
+        "--timesteps",
+        "5000",
+        "--seed",
+        "42",
+        "--device",
+        "auto",
+        "--eval-episodes",
+        "3"
+      ]
+    },
+    {
+      "name": "🧪 Experiment Resume",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "resume",
+        "--run-id",
+        "vscode_quick"
+      ]
+    },
+    {
+      "name": "⏹ Experiment Stop",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "stop",
+        "--run-id",
+        "vscode_quick"
+      ]
+    },
+    {
+      "name": "📊 Experiment Status",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "status",
+        "--run-id",
+        "vscode_quick"
+      ]
+    },
+    {
+      "name": "📋 Experiment List",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "list"
+      ]
+    },
+    {
+      "name": "📦 Experiment Export Results",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "export",
+        "--run-id",
+        "vscode_quick"
+      ]
+    }
+  ]
 }
