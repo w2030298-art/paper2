@@ -1,0 +1,413 @@
+﻿[
+    {
+        "type":  "heading",
+        "text":  "训练进度与算法接入简报（500k 全量 Benchmark）",
+        "level":  1
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 生成时间：2026-04-23 13:49:38 +08:00"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 数据来源："
+    },
+    {
+        "type":  "paragraph",
+        "text":  "  - `logs/benchmark_full_500k_20260423_101541.log`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "  - `logs/benchmark_full_500k_20260423_101541.err.log`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "  - `scripts/benchmark.py`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "  - `src/trainer/off_policy_trainer.py`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "  - `src/trainer/on_policy_trainer.py`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "  - `src/environments/mec_v3/game_theory_adapters.py`"
+    },
+    {
+        "type":  "heading",
+        "text":  "1. 当前训练进度与已完成算法结果",
+        "level":  2
+    },
+    {
+        "type":  "heading",
+        "text":  "1.1 已完成算法（4/17）",
+        "level":  3
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| 算法 | Final Reward (mean ± std) | 训练耗时(s) | 备注 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "|---|---:|---:|---|"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| GRPO | 11.8355 ± 1.0085 | 325.8 | 已完成 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| PPO | 11.8350 ± 1.0084 | 378.9 | 已完成 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| SAC | 11.8355 ± 1.0085 | 6243.9 | 已完成 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| DDPG | 5.4054 ± 2.0366 | 4935.9 | 已完成 |"
+    },
+    {
+        "type":  "heading",
+        "text":  "1.2 当前运行算法",
+        "level":  3
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 当前算法：`TD3`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 最新进度：`92160 / 500000`（约 `18.4%`）"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 最新更新计数：`update_count=71666`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 最近速度区间：约 `80 ~ 106 it/s`（日志窗口内）"
+    },
+    {
+        "type":  "heading",
+        "text":  "1.3 阶段观察（简短）",
+        "level":  3
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 在当前已完成批次中，`GRPO / PPO / SAC` 的最终 reward 接近。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- `DDPG` 的 reward 明显低于前三个算法。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 训练时长呈现明显差异：`SAC/DDPG` 远长于 `GRPO/PPO`。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "---"
+    },
+    {
+        "type":  "heading",
+        "text":  "2. 17个算法对环境的接入实现方式（完整）",
+        "level":  2
+    },
+    {
+        "type":  "heading",
+        "text":  "2.1 统一接入主链路",
+        "level":  3
+    },
+    {
+        "type":  "paragraph",
+        "text":  "1. **算法选择与映射**：在 `scripts/benchmark.py` 中通过 `ALGORITHM_CLASSES` 与 `ALGO_ENV_MAP` 完成。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "2. **环境实例化**：`make_env()` 根据映射选择："
+    },
+    {
+        "type":  "paragraph",
+        "text":  "   - 离散动作：`MEC-v1-game-theory-discrete-ma`（`GameTheoryDiscreteMAEnv`）"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "   - 连续动作：`MEC-v1-game-theory-continuous-ma`（`GameTheoryContinuousMAEnv`）"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "3. **智能体数选择**："
+    },
+    {
+        "type":  "paragraph",
+        "text":  "   - `MULTI_AGENT_ALGOS` 中的算法使用 `num_agents=3`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "   - 其余算法使用 `num_agents=1`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "4. **训练器选择**："
+    },
+    {
+        "type":  "paragraph",
+        "text":  "   - `ON_POLICY` -\u003e `OnPolicyTrainer`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "   - `OFF_POLICY` -\u003e `OffPolicyTrainer`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "5. **动作适配**："
+    },
+    {
+        "type":  "paragraph",
+        "text":  "   - 离散适配器：`Discrete((K+1)*5^3)` -\u003e `{\"target\", \"ratio(3维)\"}`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "   - 连续适配器：`Box(-1,1,(4,))`，第1维映射 `target`，后3维映射 `ratio`"
+    },
+    {
+        "type":  "heading",
+        "text":  "2.2 17算法接入总表",
+        "level":  3
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| 算法 | 训练范式 | 训练器 | 环境ID | 动作类型 | num_agents |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "|---|---|---|---|---|---:|"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| GRPO | On-Policy | OnPolicyTrainer | MEC-v1-game-theory-continuous-ma | 连续(Box 4维) | 1 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| PPO | On-Policy | OnPolicyTrainer | MEC-v1-game-theory-continuous-ma | 连续(Box 4维) | 1 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| SAC | Off-Policy | OffPolicyTrainer | MEC-v1-game-theory-continuous-ma | 连续(Box 4维) | 1 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| DDQN | Off-Policy | OffPolicyTrainer | MEC-v1-game-theory-discrete-ma | 离散(单索引) | 1 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| DDPG | Off-Policy | OffPolicyTrainer | MEC-v1-game-theory-continuous-ma | 连续(Box 4维) | 1 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| TD3 | Off-Policy | OffPolicyTrainer | MEC-v1-game-theory-continuous-ma | 连续(Box 4维) | 1 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| A3C | On-Policy | OnPolicyTrainer | MEC-v1-game-theory-discrete-ma | 离散(单索引) | 1 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| TRPO | On-Policy | OnPolicyTrainer | MEC-v1-game-theory-continuous-ma | 连续(Box 4维) | 1 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| SimPO | On-Policy | OnPolicyTrainer | MEC-v1-game-theory-discrete-ma | 离散(单索引) | 1 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| MAPPO | On-Policy | OnPolicyTrainer | MEC-v1-game-theory-discrete-ma | 离散(单索引) | 3 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| QMIX | Off-Policy | OffPolicyTrainer | MEC-v1-game-theory-discrete-ma | 离散(单索引) | 3 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| COMA | On-Policy | OnPolicyTrainer | MEC-v1-game-theory-discrete-ma | 离散(单索引) | 3 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| IPPO | On-Policy | OnPolicyTrainer | MEC-v1-game-theory-discrete-ma | 离散(单索引) | 3 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| VDN | Off-Policy | OffPolicyTrainer | MEC-v1-game-theory-discrete-ma | 离散(单索引) | 3 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| MADDPG | Off-Policy | OffPolicyTrainer | MEC-v1-game-theory-continuous-ma | 连续(Box 4维) | 3 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| IQL | Off-Policy | OffPolicyTrainer | MEC-v1-game-theory-discrete-ma | 离散(单索引) | 3 |"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "| MATD3 | Off-Policy | OffPolicyTrainer | MEC-v1-game-theory-continuous-ma | 连续(Box 4维) | 3 |"
+    },
+    {
+        "type":  "heading",
+        "text":  "2.3 当前算法（TD3）接入细节",
+        "level":  3
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- TD3 映射到 `MEC-v1-game-theory-continuous-ma`。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 当前基准配置下 TD3 以 `num_agents=1` 运行。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- `OffPolicyTrainer` 负责："
+    },
+    {
+        "type":  "paragraph",
+        "text":  "  - 从 agent 获取连续动作；"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "  - 动作规范化（flatten、NaN/Inf 处理）；"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "  - 调 `env.step(action)`；"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "  - 用回放机制做更新并维护 `update_count`。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 连续适配器在 step 时将 4 维向量解码为底层 GameTheory 环境 Dict 动作（`target + ratio`）。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "---"
+    },
+    {
+        "type":  "heading",
+        "text":  "3. `results` 中历史训练数据是否有参考价值",
+        "level":  2
+    },
+    {
+        "type":  "paragraph",
+        "text":  "结论：**有参考价值，但只能“有条件使用”**。"
+    },
+    {
+        "type":  "heading",
+        "text":  "3.1 目前可用历史文件",
+        "level":  3
+    },
+    {
+        "type":  "paragraph",
+        "text":  "当前 `results/` 保留的是："
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- `benchmark.json`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- `benchmark_no_grpo.json`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- `benchmark_quick_run.json`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- `benchmark_charts.html`"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- `performance_analysis_report.md`"
+    },
+    {
+        "type":  "heading",
+        "text":  "3.2 参考价值（可用于）",
+        "level":  3
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 早期方法筛选（哪些算法大致可跑通/收敛方向）。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 看训练时间量级与资源预算。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 快速对比图和报告模板复用（图表结构、指标字段）。"
+    },
+    {
+        "type":  "heading",
+        "text":  "3.3 使用风险（不能直接当最终结论）",
+        "level":  3
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- **实验预算不一致**：历史运行存在不同 `timesteps`（如 10k/100k/500k）混用。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- **运行状态不一致**：部分历史任务可能是中断或分组跑出来的结果。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- **代码版本漂移**：环境适配、训练器逻辑、清理策略发生过调整时，可比性会下降。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- **结果文件不完整**：你已做过清理，部分中间文件已删除，复盘链路不完整。"
+    },
+    {
+        "type":  "heading",
+        "text":  "3.4 建议的使用策略",
+        "level":  3
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 将历史数据定位为“探索性证据”，不作为论文/最终结论主表。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 以当前这条 **统一 500k 全量 run** 作为主结果来源。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 当前 run 完成后，再统一导出最终总表和图，确保“同预算、同代码、同环境映射”。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "---"
+    },
+    {
+        "type":  "heading",
+        "text":  "4. 结论（简短）",
+        "level":  2
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 目前 500k 全量实验已完成 4 个算法，正在训练 TD3。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 17 算法接入链路在工程上是统一且清晰的：`算法映射 -\u003e 适配环境 -\u003e 训练器 -\u003e 动作解码`。"
+    },
+    {
+        "type":  "paragraph",
+        "text":  "- 历史 `results` 数据可参考，但最终对比结论应以当前统一 500k 实验为准。"
+    }
+]
