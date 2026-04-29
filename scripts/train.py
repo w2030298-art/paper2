@@ -21,6 +21,11 @@ for path in [
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
 
+from src.experiment.presets import FULL_17_ALGORITHMS  # noqa: E402
+
+CANONICAL_ALGORITHM_NAMES = {name.upper(): name for name in FULL_17_ALGORITHMS}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train one RL algorithm on MEC")
     parser.add_argument(
@@ -68,10 +73,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _canonical_algorithm_name(name: str) -> str:
+    normalized = str(name).strip().upper()
+    return CANONICAL_ALGORITHM_NAMES.get(normalized, normalized)
+
+
 def _resolve_algorithm(args: argparse.Namespace, cfg: dict) -> str:
     if args.algorithm:
-        return args.algorithm.upper()
-    return str(cfg.get("algorithm", {}).get("name", "GRPO")).upper()
+        return _canonical_algorithm_name(args.algorithm)
+    return _canonical_algorithm_name(cfg.get("algorithm", {}).get("name", "GRPO"))
 
 
 def _resolve_env_name(algo: str, env_arg: str, algo_env_map: dict[str, str]) -> str:

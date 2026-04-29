@@ -1,5 +1,6 @@
 """Tests for train.py result JSON helpers."""
 
+from argparse import Namespace
 from importlib import util
 from pathlib import Path
 
@@ -22,6 +23,14 @@ def test_to_jsonable_converts_numpy_float32_to_python_float() -> None:
     converted = train_module._to_jsonable({"x": np.float32(1.5)})
     assert isinstance(converted["x"], float)
     assert converted["x"] == 1.5
+
+
+def test_resolve_algorithm_accepts_uppercase_simpo() -> None:
+    train_module = _load_train_module()
+    args = Namespace(algorithm="SIMPO")
+    cfg = {"algorithm": {"name": "GRPO"}}
+
+    assert train_module._resolve_algorithm(args, cfg) == "SimPO"
 
 
 def test_write_result_json_atomic(tmp_path) -> None:
