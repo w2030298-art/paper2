@@ -2,6 +2,57 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "💾 Backup Full 17 Data",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/backup_experiment.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--run-id",
+        "paper2_full_17_vscode"
+      ]
+    },
+    {
+      "name": "💾 Backup Full 17 Data + Plots",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/backup_experiment.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--include-plots"
+      ]
+    },
+    {
+      "name": "🏁 Full 17 Fresh (Auto-Backup)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "start",
+        "--preset",
+        "full17",
+        "--fresh"
+      ]
+    },
+    {
       "name": "🧪 Experiment Quick Start/Resume",
       "type": "debugpy",
       "request": "launch",
@@ -51,6 +102,24 @@
         "start",
         "--preset",
         "full17"
+      ]
+    },
+    {
+      "name": "🏁 Experiment Full 17 Fresh Clean Run",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "start",
+        "--preset",
+        "full17",
+        "--fresh"
       ]
     },
     {
@@ -531,6 +600,25 @@
         "paper2_full_17_vscode",
         "--algorithm",
         "MATD3"
+      ]
+    },
+    {
+      "name": "⚠️ Full 17 Fresh (No Backup)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "start",
+        "--preset",
+        "full17",
+        "--fresh",
+        "--no-backup"
       ]
     },
     {

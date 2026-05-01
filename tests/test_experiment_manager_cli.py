@@ -1,15 +1,19 @@
 """Tests for experiment manager CLI."""
 
-import pytest
 import json
+
+import pytest
 
 import scripts.experiment_manager as cli
 
 
-def test_cli_help() -> None:
+def test_cli_help(capsys) -> None:
     with pytest.raises(SystemExit) as exc_info:
         cli.main(["--help"])
+    output = capsys.readouterr().out
     assert exc_info.value.code == 0
+    assert "--preset" in output
+    assert "--fresh" in output
 
 
 def test_cli_start_creates_when_missing(monkeypatch) -> None:
@@ -77,6 +81,12 @@ def test_cli_start_fresh_deletes_existing_before_create(monkeypatch) -> None:
         def __init__(self) -> None:
             self.store = FakeStore()
 
+        def backup_experiment(self, run_id: str, *, include_plots: bool = False, suffix: str = "backup") -> None:
+            assert run_id == "vscode_quick"
+            assert include_plots is False
+            assert suffix == "auto"
+            events.append("backup")
+
         def delete_experiment(self, run_id: str) -> None:
             assert run_id == "vscode_quick"
             events.append("delete")
@@ -94,7 +104,45 @@ def test_cli_start_fresh_deletes_existing_before_create(monkeypatch) -> None:
 
     monkeypatch.setattr(cli, "ExperimentManager", lambda: FakeManager())
     cli.main(["start", "--preset", "quick", "--fresh"])
+    assert events == ["backup", "delete", "create", "start"]
+
+
+def test_cli_start_fresh_no_backup_skips_backup(monkeypatch) -> None:
+    events: list[str] = []
+
+    class FakeStore:
+        def exists(self, _run_id: str) -> bool:
+            return True
+
+    class FakeManager:
+        def __init__(self) -> None:
+            self.store = FakeStore()
+
+        def backup_experiment(self, run_id: str, *, include_plots: bool = False, suffix: str = "backup") -> None:
+            raise AssertionError("backup_experiment should not be called when --no-backup is set")
+
+        def delete_experiment(self, run_id: str) -> None:
+            events.append("delete")
+
+        def create_experiment(self, **kwargs):
+            events.append("create")
+
+        def start_or_resume(self, run_id: str):
+            events.append("start")
+
+        def get_status(self, _run_id: str):
+            return {"status": "ok"}
+
+    monkeypatch.setattr(cli, "ExperimentManager", lambda: FakeManager())
+    cli.main(["start", "--preset", "quick", "--fresh", "--no-backup"])
     assert events == ["delete", "create", "start"]
+
+
+def test_cli_start_help_mentions_no_backup(capsys) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main(["start", "--help"])
+    assert exc_info.value.code == 0
+    assert "--no-backup" in capsys.readouterr().out
 
 
 def test_cli_start_quick_preset_uses_quick_defaults(monkeypatch) -> None:

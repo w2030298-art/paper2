@@ -39,6 +39,10 @@ REQUIRED_DEBUG_ENTRIES = {
     "♻️ Experiment Quick Reset GRPO",
     "🧱 Experiment Rebuild Index",
     "🏁 Benchmark Direct All 17",
+    "💾 Backup Full 17 Data",
+    "💾 Backup Full 17 Data + Plots",
+    "🏁 Full 17 Fresh (Auto-Backup)",
+    "⚠️ Full 17 Fresh (No Backup)",
 }
 
 REQUIRED_TASKS = {
@@ -54,6 +58,8 @@ REQUIRED_TASKS = {
     "experiment: list",
     "experiment: rebuild-index",
     "benchmark: direct all17",
+    "experiment: full17 backup",
+    "experiment: full17 backup-with-plots",
 }
 
 
@@ -114,3 +120,55 @@ def test_tasks_json_contains_required_tasks_if_present() -> None:
         return
     labels = {item["label"] for item in tasks_json["tasks"]}
     assert REQUIRED_TASKS <= labels
+
+
+def test_launch_json_contains_full17_backup_entries() -> None:
+    launch_json = _load_launch_json()
+    names = {item["name"] for item in launch_json["configurations"]}
+    assert "💾 Backup Full 17 Data" in names
+    assert "💾 Backup Full 17 Data + Plots" in names
+
+    # Verify backup entries use backup_experiment.py
+    backup_data = next(
+        item for item in launch_json["configurations"]
+        if item["name"] == "💾 Backup Full 17 Data"
+    )
+    assert backup_data["program"] == "${workspaceFolder}/scripts/backup_experiment.py"
+
+    backup_plots = next(
+        item for item in launch_json["configurations"]
+        if item["name"] == "💾 Backup Full 17 Data + Plots"
+    )
+    assert backup_plots["program"] == "${workspaceFolder}/scripts/backup_experiment.py"
+
+
+def test_launch_json_contains_full17_fresh_auto_backup_entry() -> None:
+    launch_json = _load_launch_json()
+    names = {item["name"] for item in launch_json["configurations"]}
+    assert "🏁 Full 17 Fresh (Auto-Backup)" in names
+    assert "⚠️ Full 17 Fresh (No Backup)" in names
+
+    # Verify auto-backup entry args
+    auto_backup = next(
+        item for item in launch_json["configurations"]
+        if item["name"] == "🏁 Full 17 Fresh (Auto-Backup)"
+    )
+    assert auto_backup["program"] == "${workspaceFolder}/scripts/experiment_manager.py"
+    assert auto_backup["args"] == ["start", "--preset", "full17", "--fresh"]
+
+    # Verify no-backup entry args
+    no_backup = next(
+        item for item in launch_json["configurations"]
+        if item["name"] == "⚠️ Full 17 Fresh (No Backup)"
+    )
+    assert no_backup["program"] == "${workspaceFolder}/scripts/experiment_manager.py"
+    assert no_backup["args"] == ["start", "--preset", "full17", "--fresh", "--no-backup"]
+
+
+def test_tasks_json_contains_full17_backup_tasks() -> None:
+    tasks_json = _load_tasks_json_if_present()
+    if tasks_json is None:
+        return
+    labels = {item["label"] for item in tasks_json["tasks"]}
+    assert "experiment: full17 backup" in labels
+    assert "experiment: full17 backup-with-plots" in labels

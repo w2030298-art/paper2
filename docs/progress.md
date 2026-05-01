@@ -1,7 +1,7 @@
 # 开发进度
 
 ## 当前状态
-- 当前阶段：Patch 模块 7-9 全部完成
+- 当前阶段：Patch 模块 10 完成
 - 最后更新：2026-05-01
 - 状态：completed
 
@@ -75,6 +75,15 @@
 - [x] Step 5: 更新 generate_report.py ✅ 2026-05-01
 - [x] Step 6: 综合评分单元测试 ✅ 2026-05-01
 - [x] Step 7: 全流程验收 ✅ 2026-05-01
+
+### 模块 10：实验数据备份与 Fresh 自动保护 (Patch)
+- [x] Step 1: 创建备份服务脚本 `scripts/backup_experiment.py` ✅ 2026-05-01 [ADDED]
+- [x] Step 2: 扩展 `ExperimentManager` 备份入口 ✅ 2026-05-01 [MODIFIED]
+- [x] Step 3: 修改 `start --fresh` 默认自动备份 ✅ 2026-05-01 [MODIFIED]
+- [x] Step 4: 新增备份脚本单元测试 ✅ 2026-05-01 [ADDED]
+- [x] Step 5: 更新 CLI fresh 测试 ✅ 2026-05-01 [MODIFIED]
+- [x] Step 6: 更新 VSCode launch/tasks 入口 ✅ 2026-05-01 [MODIFIED]
+- [x] Step 7: 全流程验收 ✅ 2026-05-01 [ADDED]
 
 ## 已知问题
 

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
+
+from scripts.backup_experiment import BackupResult, backup_experiment
 
 from .local_index import LocalExperimentIndex
 from .models import (
@@ -236,6 +239,23 @@ class ExperimentManager:
         self.store.delete(run_id)
         self.index.initialize()
         self.index.rebuild_from_store(self.store)
+
+    def backup_experiment(
+        self,
+        run_id: str,
+        *,
+        include_plots: bool = False,
+        suffix: str = "backup",
+    ) -> BackupResult:
+        return backup_experiment(
+            run_id=run_id,
+            experiments_dir=self.store.root_dir,
+            results_dir=Path("results"),
+            figures_dir=Path("figures"),
+            include_plots=include_plots,
+            suffix=suffix,
+            require_existing=True,
+        )
 
     def reset_failed_algorithm(self, run_id: str, algorithm_name: str) -> ExperimentState:
         with self.store.with_lock(run_id):

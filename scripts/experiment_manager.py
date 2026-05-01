@@ -21,7 +21,6 @@ from src.experiment.presets import PRESETS  # noqa: E402
 from src.experiment.result_writer import BenchmarkResultWriter  # noqa: E402
 from src.experiment.state_store import JsonStateStore  # noqa: E402
 
-
 DEFAULT_START_OPTIONS = {
     "algorithms": ["GRPO", "PPO", "SAC", "DDQN"],
     "timesteps": 5000,
@@ -34,12 +33,23 @@ DEFAULT_START_OPTIONS = {
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Experiment manager CLI")
+    parser = argparse.ArgumentParser(
+        description="Experiment manager CLI",
+        epilog=(
+            "Common start options: start --preset {quick,full17} [--fresh] "
+            "[--run-id RUN_ID]"
+        ),
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     start_parser = subparsers.add_parser("start")
     start_parser.add_argument("--preset", choices=["quick", "full17"], default=None)
     start_parser.add_argument("--fresh", action="store_true")
+    start_parser.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="Skip automatic backup before --fresh deletes an existing experiment.",
+    )
     start_parser.add_argument("--run-id", default=None)
     start_parser.add_argument("--name", default=None)
     start_parser.add_argument(
@@ -122,6 +132,8 @@ def main(argv: list[str] | None = None) -> int:
             options = _resolve_start_options(args)
             run_id = options["run_id"]
             if args.fresh and manager.store.exists(run_id):
+                if not args.no_backup:
+                    manager.backup_experiment(run_id, include_plots=False, suffix="auto")
                 manager.delete_experiment(run_id)
             if args.fresh or not manager.store.exists(run_id):
                 manager.create_experiment(**options)

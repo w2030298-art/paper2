@@ -1,0 +1,272 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "experiment: full17 backup",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/backup_experiment.py",
+        "--run-id",
+        "paper2_full_17_vscode"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: full17 backup-with-plots",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/backup_experiment.py",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--include-plots"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: full17 start-resume",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "start",
+        "--preset",
+        "full17"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: full17 fresh clean run",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "start",
+        "--preset",
+        "full17",
+        "--fresh"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: full17 status",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "status",
+        "--run-id",
+        "paper2_full_17_vscode"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: full17 stop",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "stop",
+        "--run-id",
+        "paper2_full_17_vscode"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: full17 export",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "export",
+        "--run-id",
+        "paper2_full_17_vscode",
+        "--output",
+        "results/benchmark_paper2_full_17_vscode.json"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: quick start-resume",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "start",
+        "--preset",
+        "quick"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: quick fresh",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "start",
+        "--preset",
+        "quick",
+        "--fresh"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: quick status",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "status",
+        "--run-id",
+        "vscode_quick"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: quick stop",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "stop",
+        "--run-id",
+        "vscode_quick"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: quick export",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "export",
+        "--run-id",
+        "vscode_quick",
+        "--output",
+        "results/benchmark_vscode_quick.json"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: list",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "list"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "experiment: rebuild-index",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/experiment_manager.py",
+        "rebuild-index"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "benchmark: direct all17",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/benchmark.py",
+        "--all",
+        "--episodes",
+        "10",
+        "--timesteps",
+        "100000",
+        "--device",
+        "auto",
+        "--output",
+        "results/benchmark_direct_all_17_vscode.json"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+        }
+      },
+      "problemMatcher": []
+    }
+  ]
+}
