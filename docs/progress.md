@@ -1,8 +1,8 @@
 # 开发进度
 
 ## 当前状态
-- 当前阶段：全部模块完成
-- 最后更新：2026-04-28
+- 当前阶段：Patch 模块 7-9 全部完成
+- 最后更新：2026-05-01
 - 状态：completed
 
 ## 模块进度
@@ -42,15 +42,39 @@
 
 ### 模块 5：使用文档更新
 - [x] Step 1: 更新 `docs/vscode_experiment_usage.md` 的功能目标 ✅ 2026-04-28
-- [x] Step 2: 新增“推荐入口优先级” ✅ 2026-04-28
-- [x] Step 3: 新增“Full 17 一键运行说明” ✅ 2026-04-28
-- [x] Step 4: 新增“Quick 入口报错处理” ✅ 2026-04-28
+- [x] Step 2: 新增"推荐入口优先级" ✅ 2026-04-28
+- [x] Step 3: 新增"Full 17 一键运行说明" ✅ 2026-04-28
+- [x] Step 4: 新增"Quick 入口报错处理" ✅ 2026-04-28
 
 ### 模块 6：自动化测试与最终验收
 - [x] Step 1: 运行单元测试 ✅ 2026-04-28
 - [x] Step 2: 验证帮助命令无训练依赖副作用 ✅ 2026-04-28
 - [x] Step 3: 验证 Quick smoke test 入口 ✅ 2026-04-28
 - [x] Step 4: 验证 Full 17 benchmark 入口 ✅ 2026-04-28
+
+### 模块 7：Reward + comm_score 权重修正 (Patch)
+- [x] Step 1: 修改 r_imm 权重 (game_theory_env.py) ✅ 2026-05-01
+- [x] Step 2: 修改 _communication_cost 权重 ✅ 2026-05-01
+- [x] Step 3: 修改 base_trainer.py comm_score 公式 ✅ 2026-05-01
+- [x] Step 4: 同步 benchmark.py comm_score ✅ 2026-05-01
+- [x] Step 5: 同步 evaluate.py comm_score ✅ 2026-05-01
+- [x] Step 6: 编写权重变更单元测试 ✅ 2026-05-01
+
+### 模块 8：收敛曲线数据收集与可视化 (Patch)
+- [x] Step 1: benchmark_single 收集 train_logs ✅ 2026-05-01
+- [x] Step 2: run_benchmark 汇总收敛数据 ✅ 2026-05-01
+- [x] Step 3: 新增收敛曲线绘图函数 ✅ 2026-05-01
+- [x] Step 4: 集成到 CLI ✅ 2026-05-01
+- [x] Step 5: 收敛曲线单元测试 ✅ 2026-05-01
+
+### 模块 9：Composite Score 综合评分体系 (Patch)
+- [x] Step 1: 创建 CompositeScorer 类 ✅ 2026-05-01
+- [x] Step 2: 创建 scoring_profiles.yaml ✅ 2026-05-01
+- [x] Step 3: 集成到 benchmark.py ✅ 2026-05-01
+- [x] Step 4: 新增可视化图表函数 ✅ 2026-05-01
+- [x] Step 5: 更新 generate_report.py ✅ 2026-05-01
+- [x] Step 6: 综合评分单元测试 ✅ 2026-05-01
+- [x] Step 7: 全流程验收 ✅ 2026-05-01
 
 ## 已知问题
 

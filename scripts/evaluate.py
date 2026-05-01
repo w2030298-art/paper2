@@ -311,7 +311,7 @@ def main() -> None:
         100.0
         * throughput_tasks_per_step
         * max(0.0, 1.0 - deadline_miss_rate)
-        / (1.0 + e2e_latency_p95 + 0.1 * e2e_energy_mean)
+        / (1.0 + e2e_latency_p95 + 0.3 * e2e_energy_mean)
     )
 
     summary = {

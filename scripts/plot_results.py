@@ -262,6 +262,266 @@ def plot_summary_table(results: List[Dict], output_dir: Path, fmt: str = "png"):
     plt.close(fig)
 
 
+def plot_convergence_curves(results: List[Dict], output_dir: Path, fmt: str = "png"):
+    """4 子图: 各算法收敛曲线 (reward / latency / energy / comm_score)"""
+    # 收集有 convergence_by_seed 数据的算法
+    algo_data: Dict[str, List[Dict]] = {}
+    for r in results:
+        algo = r["algorithm"]
+        seeds = r.get("convergence_by_seed")
+        if seeds and isinstance(seeds, dict) and len(seeds) > 0:
+            # dict format: {seed_str: convergence_data_dict}
+            algo_data[algo] = list(seeds.values())
+        elif seeds and isinstance(seeds, list) and len(seeds) > 0:
+            algo_data[algo] = seeds
+
+    if not algo_data:
+        return
+
+    metric_keys = [
+        ("eval/reward_mean", "Reward"),
+        ("eval/latency_mean", "Latency / Task"),
+        ("eval/energy_mean", "Energy / Task"),
+        ("eval/comm_score", "Comm Score"),
+    ]
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes = axes.flatten()
+
+    for idx, (metric_key, metric_label) in enumerate(metric_keys):
+        ax = axes[idx]
+        for algo, seeds in algo_data.items():
+            color = ALGO_COLORS.get(algo, "#95a5a6")
+            all_series = []
+            for seed_data in seeds:
+                series = seed_data.get(metric_key)
+                if series and isinstance(series, list) and len(series) > 0:
+                    all_series.append(series)
+
+            if not all_series:
+                continue
+
+            # 对齐长度: 取最短
+            min_len = min(len(s) for s in all_series)
+            arr = np.array([s[:min_len] for s in all_series], dtype=float)
+            mean = np.nanmean(arr, axis=0)
+            std = np.nanstd(arr, axis=0)
+
+            # x 轴: eval_interval * index
+            eval_interval = 1000  # 默认间隔
+            for r in results:
+                if r["algorithm"] == algo:
+                    # eval_interval may be in convergence data or top level
+                    seeds_data = r.get("convergence_by_seed", {})
+                    if isinstance(seeds_data, dict):
+                        for seed_data in seeds_data.values():
+                            if isinstance(seed_data, dict) and "eval_interval" in seed_data:
+                                eval_interval = seed_data["eval_interval"]
+                                break
+                    elif "eval_interval" in r:
+                        eval_interval = r["eval_interval"]
+                    break
+            x = np.arange(min_len) * eval_interval
+
+            ax.plot(x, mean, color=color, label=algo, linewidth=1.5)
+            ax.fill_between(x, mean - std, mean + std, color=color, alpha=0.15)
+
+            # 滑动窗口收敛检测: 最后 10% 窗口相对变化 < 5%
+            window = max(1, min_len // 10)
+            tail_mean = np.nanmean(mean[-window:])
+            head_mean = np.nanmean(mean[-2 * window:-window]) if 2 * window <= min_len else mean[0]
+            if head_mean != 0 and abs(tail_mean - head_mean) / abs(head_mean) < 0.05:
+                # 收敛: 在 legend 中标记 ✓
+                ax.plot([], [], color=color, marker="o", linestyle="",
+                        label=f"{algo} ✓")
+
+        ax.set_xlabel("Timestep", fontsize=11)
+        ax.set_ylabel(metric_label, fontsize=11)
+        ax.set_title(f"{metric_label} Convergence", fontsize=12, fontweight="bold")
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=8, loc="best")
+
+    plt.tight_layout()
+    fig.savefig(output_dir / f"convergence_curves.{fmt}", dpi=150)
+    plt.close(fig)
+
+
+def plot_composite_ranking(results: List[Dict], output_dir: Path, fmt: str = "png"):
+    """3 子图: 各 profile 下综合排名 (balanced / latency_critical / energy_constrained)"""
+    profiles = ["balanced", "latency_critical", "energy_constrained"]
+    profile_labels = ["Balanced", "Latency-Critical", "Energy-Constrained"]
+
+    # 收集有 composite_scores 数据的算法
+    algo_scores: Dict[str, Dict] = {}
+    for r in results:
+        algo = r["algorithm"]
+        cs = r.get("composite_scores")
+        if cs and isinstance(cs, dict):
+            algo_scores[algo] = cs
+
+    if not algo_scores:
+        return
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+    for idx, (profile, label) in enumerate(zip(profiles, profile_labels)):
+        ax = axes[idx]
+        # 收集各算法在该 profile 下的 composite_score
+        entries = []
+        for algo, cs in algo_scores.items():
+            score = cs.get(profile)
+            if score is not None and isinstance(score, (int, float)):
+                entries.append((algo, float(score)))
+
+        if not entries:
+            ax.set_title(f"{label}\n(no data)", fontsize=12, fontweight="bold")
+            ax.axis("off")
+            continue
+
+        # 按 composite_score 降序排列
+        entries.sort(key=lambda x: x[1], reverse=True)
+        algos = [e[0] for e in entries]
+        scores = [e[1] for e in entries]
+        colors = [ALGO_COLORS.get(a, "#95a5a6") for a in algos]
+
+        x = np.arange(len(algos))
+        bars = ax.bar(x, scores, color=colors, edgecolor="white", linewidth=0.8)
+
+        ax.set_ylabel("Composite Score", fontsize=11)
+        ax.set_title(f"{label}", fontsize=12, fontweight="bold")
+        ax.set_xticks(x)
+        ax.set_xticklabels(algos, rotation=45, ha="right", fontsize=9)
+        ax.grid(axis="y", alpha=0.3)
+
+        # 柱顶标注数值
+        for bar, val in zip(bars, scores):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
+                    f"{val:.3f}", ha="center", va="bottom", fontsize=8)
+
+    plt.tight_layout()
+    fig.savefig(output_dir / f"composite_ranking.{fmt}", dpi=150)
+    plt.close(fig)
+
+
+def plot_radar_chart(results: List[Dict], output_dir: Path, fmt: str = "png"):
+    """雷达图: Top-6 算法在 balanced profile 下的多维对比"""
+    # 收集有 composite_scores 的算法
+    algo_scores: Dict[str, Dict] = {}
+    for r in results:
+        algo = r["algorithm"]
+        cs = r.get("composite_scores")
+        if cs and isinstance(cs, dict):
+            algo_scores[algo] = cs
+
+    if not algo_scores:
+        return
+
+    # 按 balanced profile 排名，取 top 6
+    balanced_scores = []
+    for algo, cs in algo_scores.items():
+        score = cs.get("balanced")
+        if score is not None and isinstance(score, (int, float)):
+            balanced_scores.append((algo, float(score)))
+
+    if not balanced_scores:
+        return
+
+    balanced_scores.sort(key=lambda x: x[1], reverse=True)
+    top_algos = [e[0] for e in balanced_scores[:6]]
+
+    # 4 个维度
+    dimensions = ["reward_norm", "latency_norm", "energy_norm", "stability_norm"]
+    dim_labels = ["Reward", "Latency", "Energy", "Stability"]
+    n_dims = len(dimensions)
+
+    # 计算角度
+    angles = np.linspace(0, 2 * np.pi, n_dims, endpoint=False).tolist()
+    angles += angles[:1]  # 闭合
+
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+
+    for algo in top_algos:
+        cs = algo_scores[algo]
+        values = []
+        for dim in dimensions:
+            val = cs.get(dim)
+            if val is not None and isinstance(val, (int, float)):
+                values.append(float(val))
+            else:
+                values.append(0.0)
+        values += values[:1]  # 闭合
+
+        color = ALGO_COLORS.get(algo, "#95a5a6")
+        ax.plot(angles, values, color=color, linewidth=1.8, label=algo)
+        ax.fill(angles, values, color=color, alpha=0.1)
+
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(dim_labels, fontsize=11)
+    ax.set_title("Top-6 Algorithm Radar (Balanced Profile)",
+                 fontsize=13, fontweight="bold", pad=20)
+    ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.1), fontsize=9)
+
+    plt.tight_layout()
+    fig.savefig(output_dir / f"radar_top6.{fmt}", dpi=150)
+    plt.close(fig)
+
+
+def plot_weight_sensitivity(results: List[Dict], output_dir: Path, fmt: str = "png"):
+    """折线图: 各算法在不同 profile 下的排名变化 (权重敏感性)"""
+    profiles = ["balanced", "latency_critical", "energy_constrained"]
+    profile_labels = ["Balanced", "Latency-Critical", "Energy-Constrained"]
+
+    # 收集有 composite_scores 的算法
+    algo_scores: Dict[str, Dict] = {}
+    for r in results:
+        algo = r["algorithm"]
+        cs = r.get("composite_scores")
+        if cs and isinstance(cs, dict):
+            algo_scores[algo] = cs
+
+    if not algo_scores:
+        return
+
+    # 计算每个 profile 下的排名
+    algo_ranks: Dict[str, List[int]] = {}
+    for profile in profiles:
+        entries = []
+        for algo, cs in algo_scores.items():
+            score = cs.get(profile)
+            if score is not None and isinstance(score, (int, float)):
+                entries.append((algo, float(score)))
+
+        entries.sort(key=lambda x: x[1], reverse=True)
+        for rank, (algo, _) in enumerate(entries, start=1):
+            algo_ranks.setdefault(algo, []).append(rank)
+
+    if not algo_ranks:
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    x = np.arange(len(profiles))
+
+    for algo, ranks in algo_ranks.items():
+        if len(ranks) != len(profiles):
+            continue
+        color = ALGO_COLORS.get(algo, "#95a5a6")
+        ax.plot(x, ranks, color=color, marker="o", linewidth=1.8,
+                markersize=6, label=algo)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(profile_labels, fontsize=11)
+    ax.set_ylabel("Rank", fontsize=12)
+    ax.set_title("Weight Sensitivity: Algorithm Rank Across Profiles",
+                 fontsize=13, fontweight="bold")
+    ax.invert_yaxis()  # rank 1 在顶部
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=9, loc="best")
+
+    plt.tight_layout()
+    fig.savefig(output_dir / f"weight_sensitivity.{fmt}", dpi=150)
+    plt.close(fig)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Plot Benchmark Results")
     parser.add_argument("--input", type=str, required=True, help="benchmark JSON path")
@@ -279,6 +539,10 @@ def main():
     plot_training_time(results, output_dir, args.format)
     plot_latency_energy(results, output_dir, args.format)
     plot_summary_table(results, output_dir, args.format)
+    plot_convergence_curves(results, output_dir, args.format)
+    plot_composite_ranking(results, output_dir, args.format)
+    plot_radar_chart(results, output_dir, args.format)
+    plot_weight_sensitivity(results, output_dir, args.format)
 
     print(f"Figures saved to {output_dir}/")
 

@@ -713,10 +713,10 @@ class HierarchicalReward:
         deadline_miss_ratio = max(0.0, float(latency) - effective_deadline) / max(effective_deadline, EPS)
         non_nearest_penalty = 0.0 if nearest_server_selected else 0.05
         r_imm = -(
-            0.55 * latency_ratio
+            0.40 * latency_ratio
             + 0.15 * queue_ratio
             + 0.20 * deadline_miss_ratio * deadline_miss_ratio
-            + 0.10 * energy_ratio
+            + 0.25 * energy_ratio
             + non_nearest_penalty
         )
         r_coop = float(np.clip(float(shapley_value) * float(cooperation_gain), -1.0, 1.0))
@@ -1101,10 +1101,10 @@ class GameTheoryMECEnv(BaseMECEnv):
         deadline_miss_ratio = max(0.0, latency - deadline) / max(deadline, EPS)
         non_nearest = 0.0 if bool(components.get("nearest_server_selected", 1.0)) else 1.0
         return float(
-            0.60 * latency / max(self.latency_budget, EPS)
+            0.45 * latency / max(self.latency_budget, EPS)
             + 0.15 * queue_wait / max(self.latency_budget, EPS)
-            + 0.15 * deadline_miss_ratio * deadline_miss_ratio
-            + 0.10 * float(energy) / max(self.energy_budget, EPS)
+            + 0.10 * deadline_miss_ratio * deadline_miss_ratio
+            + 0.25 * float(energy) / max(self.energy_budget, EPS)
             + 0.05 * non_nearest
         )
 

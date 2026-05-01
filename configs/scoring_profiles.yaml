@@ -1,0 +1,21 @@
+# Scoring Profiles for Composite Score Calculation
+# Each profile defines weights for reward, latency, energy, and stability.
+# All weights within a profile sum to 1.0.
+
+# Profiles
+profiles:
+  balanced:
+    reward: 0.30
+    latency: 0.30
+    energy: 0.25
+    stability: 0.15
+  latency_critical:
+    reward: 0.20
+    latency: 0.40
+    energy: 0.25
+    stability: 0.15
+  energy_constrained:
+    reward: 0.20
+    latency: 0.25
+    energy: 0.40
+    stability: 0.15

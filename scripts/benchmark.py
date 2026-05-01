@@ -29,6 +29,8 @@ from typing import Dict, List, Any, Optional, Tuple
 
 import numpy as np
 
+from src.utils.composite_score import CompositeScorer
+
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -579,7 +581,7 @@ def benchmark_heuristic(
     energy_per_task = float(np.mean(energy_arr)) if energy_arr.size else float(np.mean(ep_energies))
     deadline_miss_rate = float(deadline_misses / max(total_tasks, 1))
     throughput = float(total_tasks / max(total_steps, 1))
-    comm_score = float(100.0 * throughput * max(0.0, 1.0 - deadline_miss_rate) / (1.0 + e2e_p95 + 0.1 * energy_per_task))
+    comm_score = float(100.0 * throughput * max(0.0, 1.0 - deadline_miss_rate) / (1.0 + e2e_p95 + 0.3 * energy_per_task))
     avg_steps_per_episode = float(total_steps / max(episodes, 1))
 
     result = {
@@ -679,6 +681,12 @@ def benchmark_single(
     start = time.time()
     trainer.train()
     elapsed = time.time() - start
+    # Module 8: collect convergence data from training eval logs
+    convergence_data = {}
+    for key, values in trainer.eval_logs.items():
+        convergence_data[key] = [round(v, 6) for v in values]
+    convergence_data["eval_interval"] = trainer.eval_interval
+    convergence_data["total_timesteps"] = trainer.total_steps
     fe = trainer.evaluate()
     latency_e2e = fe.get("eval/e2e_latency_mean", fe.get("eval/latency_per_task_mean", fe.get("eval/latency_mean", 0.0)))
     latency_p95 = fe.get("eval/e2e_latency_p95", latency_e2e)
@@ -710,6 +718,7 @@ def benchmark_single(
         "final_latency_per_task_mean": None if latency_per_task is None else round(latency_per_task, 4),
         "final_energy_per_task_mean": None if energy_per_task is None else round(energy_per_task, 4),
         "total_episodes": trainer.episode_count, "total_updates": trainer.update_count,
+        "convergence": convergence_data,
     }
     if verbose:
         print(f"[{name}] reward={result['final_reward_mean']:.4f}+/-{result['final_reward_std']:.4f}  time={result['train_time_seconds']:.1f}s")
@@ -874,6 +883,15 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                 avg.setdefault("final_latency_per_task_mean_mean", None)
                 avg.setdefault("final_energy_per_task_mean_mean", None)
                 avg.setdefault("train_time_seconds_mean", None)
+                # Module 8: collect convergence data per seed (no cross-seed averaging)
+                convergence_by_seed = {}
+                for r in algo_results:
+                    seed_val = r.get("seed")
+                    conv = r.get("convergence")
+                    if conv is not None and seed_val is not None:
+                        convergence_by_seed[str(seed_val)] = conv
+                if convergence_by_seed:
+                    avg["convergence_by_seed"] = convergence_by_seed
                 avg["status"] = "ok" if not algo_errors else "partial"
                 if algo_errors:
                     avg["failed_seeds"] = len(algo_errors)
@@ -921,6 +939,50 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                 tm = _fmt_metric(r.get("train_time_seconds_mean"), 10, 1)
                 print(f"{r['algorithm']:<12} {rm} {rs} {tm}")
             print("=" * 80)
+
+    # Module 9: Composite Score calculation
+    scoring_profiles_path = Path(__file__).parent.parent / "configs" / "scoring_profiles.yaml"
+    if scoring_profiles_path.exists() and all_results:
+        try:
+            with open(scoring_profiles_path, encoding="utf-8") as f:
+                profiles_cfg = yaml.safe_load(f)
+            profiles = profiles_cfg.get("profiles", {})
+            if profiles:
+                scorer = CompositeScorer(profiles)
+                # Prepare results for scoring: extract required fields
+                scoring_input = []
+                for r in all_results:
+                    entry = {
+                        "algorithm": r.get("algorithm", "unknown"),
+                        "reward_mean": _to_float(r.get("final_reward_mean_mean", r.get("final_reward_mean", 0))) or 0.0,
+                        "reward_std": _to_float(r.get("final_reward_std_mean", r.get("final_reward_std", 0))) or 0.0,
+                        "latency_mean": _pick_latency_metric(r) or 0.0,
+                        "energy_mean": _pick_energy_metric(r) or 0.0,
+                    }
+                    scoring_input.append(entry)
+                # Score all profiles
+                all_profile_scores = scorer.score_all_profiles(scoring_input)
+                robustness = scorer.robustness_summary(scoring_input)
+                # Attach scores back to all_results
+                robustness_map = {item["algorithm"]: item for item in robustness}
+                for r in all_results:
+                    algo = r.get("algorithm", "unknown")
+                    r["composite_scores"] = {}
+                    for profile_name, scored_list in all_profile_scores.items():
+                        for scored in scored_list:
+                            if scored["algorithm"] == algo:
+                                r["composite_scores"][profile_name] = {
+                                    "score": scored["composite_score"],
+                                    "rank": scored["rank"],
+                                    "breakdown": scored.get("breakdown", {}),
+                                }
+                                break
+                    if algo in robustness_map:
+                        r["robustness"] = robustness_map[algo]
+                if verbose:
+                    print(f"Composite scores computed for {len(all_results)} algorithms across {len(profiles)} profiles")
+        except Exception as e:
+            logging.getLogger(__name__).warning("Composite scoring failed: %s", e)
 
     if output_file:
         op = Path(output_file)

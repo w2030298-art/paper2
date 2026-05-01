@@ -205,6 +205,117 @@ class BenchmarkAnalyzer:
         return stats
 
 
+def _append_composite_ranking_section(analyzer: BenchmarkAnalyzer, lines: List[str]) -> None:
+    """Append the 综合评分排名 section to the report lines.
+
+    Reads ``composite_scores`` and ``robustness`` fields from the raw JSON
+    data.  Gracefully skips algorithms that lack these fields.
+    """
+    profiles = ["balanced", "latency_critical", "energy_constrained"]
+    profile_labels = {
+        "balanced": "Balanced (均衡)",
+        "latency_critical": "Latency-Critical (时延优先)",
+        "energy_constrained": "Energy-Constrained (能耗优先)",
+    }
+
+    # Collect algorithms that have composite_scores
+    algo_data: Dict[str, Dict] = {}
+    for entry in analyzer.raw_data:
+        algo = entry.get("algorithm", "unknown")
+        cs = entry.get("composite_scores")
+        if cs and isinstance(cs, dict):
+            algo_data[algo] = {
+                "composite_scores": cs,
+                "robustness": entry.get("robustness"),
+            }
+
+    if not algo_data:
+        return  # No composite data available — skip section entirely
+
+    lines.append("## 综合评分排名")
+    lines.append("")
+    lines.append("基于多维度加权归一化的综合评分，从奖励、时延、能耗、稳定性四个维度对算法进行综合排名。")
+    lines.append("三个评分配置（Profile）分别侧重不同优化目标：均衡、时延优先、能耗优先。")
+    lines.append("")
+
+    # ── Per-profile ranking tables ─────────────────────────────────────
+    for profile in profiles:
+        label = profile_labels.get(profile, profile)
+        lines.append(f"### {label}")
+        lines.append("")
+
+        # Collect (algo, score_data) for this profile
+        profile_entries = []
+        for algo, data in algo_data.items():
+            ps = data["composite_scores"].get(profile)
+            if ps and isinstance(ps, dict) and "score" in ps:
+                profile_entries.append((algo, ps))
+
+        if not profile_entries:
+            lines.append(f"*暂无 {profile} profile 数据*")
+            lines.append("")
+            continue
+
+        # Sort by composite score descending
+        profile_entries.sort(key=lambda x: x[1]["score"], reverse=True)
+
+        lines.append("| Rank | Algorithm | Composite Score | Reward | Latency | Energy | Stability |")
+        lines.append("|------|-----------|----------------|--------|---------|--------|-----------|")
+
+        for rank, (algo, ps) in enumerate(profile_entries, 1):
+            score = ps["score"]
+            bd = ps.get("breakdown", {})
+            reward_bd = bd.get("reward", 0.0)
+            latency_bd = bd.get("latency", 0.0)
+            energy_bd = bd.get("energy", 0.0)
+            stability_bd = bd.get("stability", 0.0)
+            lines.append(
+                f"| {rank} | {algo} | {score:.4f} | {reward_bd:.4f} | "
+                f"{latency_bd:.4f} | {energy_bd:.4f} | {stability_bd:.4f} |"
+            )
+
+        lines.append("")
+
+    # ── Robustness summary table ───────────────────────────────────────
+    lines.append("### 鲁棒性分析 (Robustness)")
+    lines.append("")
+    lines.append("综合各 Profile 排名，评估算法在不同优化目标下的稳定表现。")
+    lines.append("\"Robust\" 表示该算法在所有 Profile 中均排名前 3。")
+    lines.append("")
+
+    robustness_entries = []
+    for algo, data in algo_data.items():
+        rob = data.get("robustness")
+        if rob and isinstance(rob, dict):
+            robustness_entries.append((algo, rob))
+
+    if robustness_entries:
+        # Sort by avg_rank ascending
+        robustness_entries.sort(key=lambda x: x[1].get("avg_rank", 999))
+
+        lines.append("| Algorithm | Avg Rank | Worst Rank | Best Rank | Robust |")
+        lines.append("|-----------|----------|------------|-----------|--------|")
+
+        for algo, rob in robustness_entries:
+            avg_rank = rob.get("avg_rank", 0)
+            worst_rank = rob.get("worst_rank", 0)
+            best_rank = rob.get("best_rank", 0)
+            is_robust = rob.get("robust", False)
+            robust_str = "✅" if is_robust else "❌"
+            lines.append(
+                f"| {algo} | {avg_rank:.2f} | {worst_rank} | {best_rank} | {robust_str} |"
+            )
+
+        lines.append("")
+
+    # ── Figure references ──────────────────────────────────────────────
+    lines.append("### 相关图表")
+    lines.append("")
+    lines.append("- 综合排名柱状图: `figures/composite_ranking.png` / `figures/composite_ranking.pdf`")
+    lines.append("- Top-6 雷达图: `figures/radar_top6.png` / `figures/radar_top6.pdf`")
+    lines.append("")
+
+
 def generate_markdown_report(analyzer: BenchmarkAnalyzer, output_file: Path):
     """Generate comprehensive markdown report"""
 
@@ -227,6 +338,7 @@ def generate_markdown_report(analyzer: BenchmarkAnalyzer, output_file: Path):
     lines.append("- [Key Findings](#key-findings)")
     lines.append("- [Failure Diagnosis](#failure-diagnosis)")
     lines.append("- [Recommendations](#recommendations)")
+    lines.append("- [综合评分排名](#综合评分排名)")
     lines.append("")
 
     # Executive Summary
@@ -399,11 +511,140 @@ def generate_markdown_report(analyzer: BenchmarkAnalyzer, output_file: Path):
     lines.append("4. **Multi-seed Analysis**: Current results are single-seed (seed=42); use 3+ seeds for statistical significance")
     lines.append("")
 
+    # ── Composite Score Ranking (综合评分排名) ──────────────────────────
+    _append_composite_ranking_section(analyzer, lines)
+
     # Write file
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines))
 
     print(f"OK Markdown report generated: {output_file}")
+
+
+def _add_composite_scores_sheet(analyzer: BenchmarkAnalyzer, wb: Workbook) -> None:
+    """Add a 'Composite Scores' sheet to the workbook.
+
+    Creates two sub-tables:
+    1. Per-profile ranking (balanced / latency_critical / energy_constrained)
+    2. Robustness summary
+    """
+    profiles = ["balanced", "latency_critical", "energy_constrained"]
+
+    # Collect algorithms that have composite_scores
+    algo_data: Dict[str, Dict] = {}
+    for entry in analyzer.raw_data:
+        algo = entry.get("algorithm", "unknown")
+        cs = entry.get("composite_scores")
+        if cs and isinstance(cs, dict):
+            algo_data[algo] = {
+                "composite_scores": cs,
+                "robustness": entry.get("robustness"),
+            }
+
+    if not algo_data:
+        return  # No composite data — skip sheet
+
+    ws = wb.create_sheet("Composite Scores")
+
+    # ── Header styles ──────────────────────────────────────────────────
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font_white = Font(bold=True, size=11, color="FFFFFF")
+
+    current_row = 1
+
+    # ── Per-profile ranking tables ─────────────────────────────────────
+    profile_labels = {
+        "balanced": "Balanced",
+        "latency_critical": "Latency-Critical",
+        "energy_constrained": "Energy-Constrained",
+    }
+
+    for profile in profiles:
+        label = profile_labels.get(profile, profile)
+
+        # Section title
+        ws.cell(row=current_row, column=1, value=f"Profile: {label}")
+        ws.cell(row=current_row, column=1).font = Font(bold=True, size=12)
+        current_row += 1
+
+        # Header row
+        headers = ["Rank", "Algorithm", "Composite Score", "Reward", "Latency", "Energy", "Stability"]
+        for c_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=current_row, column=c_idx, value=h)
+            cell.font = header_font_white
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
+        current_row += 1
+
+        # Collect and sort entries
+        profile_entries = []
+        for algo, data in algo_data.items():
+            ps = data["composite_scores"].get(profile)
+            if ps and isinstance(ps, dict) and "score" in ps:
+                profile_entries.append((algo, ps))
+
+        profile_entries.sort(key=lambda x: x[1]["score"], reverse=True)
+
+        for rank, (algo, ps) in enumerate(profile_entries, 1):
+            bd = ps.get("breakdown", {})
+            ws.cell(row=current_row, column=1, value=rank)
+            ws.cell(row=current_row, column=2, value=algo)
+            ws.cell(row=current_row, column=3, value=round(ps["score"], 6))
+            ws.cell(row=current_row, column=4, value=round(bd.get("reward", 0.0), 6))
+            ws.cell(row=current_row, column=5, value=round(bd.get("latency", 0.0), 6))
+            ws.cell(row=current_row, column=6, value=round(bd.get("energy", 0.0), 6))
+            ws.cell(row=current_row, column=7, value=round(bd.get("stability", 0.0), 6))
+            # Number format for score columns
+            for c in range(3, 8):
+                ws.cell(row=current_row, column=c).number_format = "0.000000"
+            current_row += 1
+
+        current_row += 1  # Blank row between profiles
+
+    # ── Robustness summary table ───────────────────────────────────────
+    ws.cell(row=current_row, column=1, value="Robustness Summary")
+    ws.cell(row=current_row, column=1).font = Font(bold=True, size=12)
+    current_row += 1
+
+    rob_headers = ["Algorithm", "Avg Rank", "Worst Rank", "Best Rank", "Rank Variance", "Robust"]
+    for c_idx, h in enumerate(rob_headers, 1):
+        cell = ws.cell(row=current_row, column=c_idx, value=h)
+        cell.font = header_font_white
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+    current_row += 1
+
+    robustness_entries = []
+    for algo, data in algo_data.items():
+        rob = data.get("robustness")
+        if rob and isinstance(rob, dict):
+            robustness_entries.append((algo, rob))
+
+    robustness_entries.sort(key=lambda x: x[1].get("avg_rank", 999))
+
+    for algo, rob in robustness_entries:
+        ws.cell(row=current_row, column=1, value=algo)
+        ws.cell(row=current_row, column=2, value=round(rob.get("avg_rank", 0), 4))
+        ws.cell(row=current_row, column=3, value=rob.get("worst_rank", 0))
+        ws.cell(row=current_row, column=4, value=rob.get("best_rank", 0))
+        ws.cell(row=current_row, column=5, value=round(rob.get("rank_variance", 0), 4))
+        ws.cell(row=current_row, column=6, value="Yes" if rob.get("robust", False) else "No")
+        ws.cell(row=current_row, column=2).number_format = "0.0000"
+        ws.cell(row=current_row, column=5).number_format = "0.0000"
+        current_row += 1
+
+    # Auto-adjust column widths
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except Exception:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column_letter].width = adjusted_width
 
 
 def generate_excel_analysis(analyzer: BenchmarkAnalyzer, output_file: Path):
@@ -588,6 +829,9 @@ def generate_excel_analysis(analyzer: BenchmarkAnalyzer, output_file: Path):
             row += 1
     else:
         ws7[f'A{row}'] = "No failures"
+
+    # Sheet 8: Composite Scores
+    _add_composite_scores_sheet(analyzer, wb)
 
     # Save workbook
     wb.save(output_file)
