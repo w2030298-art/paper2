@@ -113,3 +113,13 @@ def test_state_store_delete_refuses_running_experiment_with_process_json(tmp_pat
     with pytest.raises(ExperimentStateError, match="Cannot delete running experiment: demo"):
         store.delete("demo")
     assert run_dir.exists()
+
+
+def test_state_store_delete_refuses_path_outside_root(tmp_path) -> None:
+    store = JsonStateStore(root_dir=tmp_path / "experiments")
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+
+    with pytest.raises(ExperimentStateError, match="Refusing to delete outside experiment root"):
+        store.delete("../outside")
+    assert outside_dir.exists()

@@ -658,6 +658,98 @@
         "--output",
         "results/benchmark_direct_all_17_vscode.json"
       ]
+    },
+    {
+      "name": "📊 Plot Results (PDF)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/plot_results.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--input",
+        "results/benchmark.json",
+        "--output",
+        "figures/",
+        "--format",
+        "pdf"
+      ]
+    },
+    {
+      "name": "📊 Plot Results (PNG)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/plot_results.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--input",
+        "results/benchmark.json",
+        "--output",
+        "figures/",
+        "--format",
+        "png"
+      ]
+    },
+    {
+      "name": "📊 Plot Results (SVG)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/plot_results.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--input",
+        "results/benchmark.json",
+        "--output",
+        "figures/",
+        "--format",
+        "svg"
+      ]
+    },
+    {
+      "name": "📊 Plot Latest Experiment Results",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/plot_results.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--input",
+        "results/benchmark_paper2_full_17_vscode.json",
+        "--output",
+        "figures/",
+        "--format",
+        "pdf"
+      ]
+    },
+    {
+      "name": "📝 Generate Report",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/generate_report.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      }
     }
   ]
 }

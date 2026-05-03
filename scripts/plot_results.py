@@ -275,9 +275,42 @@ def plot_convergence_curves(results: List[Dict], output_dir: Path, fmt: str = "p
         elif seeds and isinstance(seeds, list) and len(seeds) > 0:
             algo_data[algo] = seeds
 
+    # 如果没有 convergence_by_seed 数据，尝试从 train_logs.json 文件读取
+    if not algo_data:
+        for r in results:
+            algo = r["algorithm"]
+            checkpoint_dir = r.get("checkpoint_dir", "")
+            if checkpoint_dir:
+                # 构建 train_logs.json 路径
+                train_logs_path = Path(checkpoint_dir) / "train_logs.json"
+                if not train_logs_path.exists():
+                    # 尝试从 experiments 目录查找
+                    for exp_dir in Path("experiments").iterdir():
+                        if exp_dir.is_dir():
+                            candidate = exp_dir / "artifacts" / algo / "checkpoints" / "train_logs.json"
+                            if candidate.exists():
+                                train_logs_path = candidate
+                                break
+                
+                if train_logs_path.exists():
+                    try:
+                        with open(train_logs_path, encoding="utf-8") as f:
+                            logs = json.load(f)
+                        algo_data[algo] = [logs]  # 包装成列表以兼容原有逻辑
+                    except Exception:
+                        pass
+
     if not algo_data:
         return
 
+    # train_logs.json 中的 metric keys（与 convergence_by_seed 不同）
+    metric_keys_train_logs = [
+        ("eval_eval/reward_mean", "eval/reward_mean", "Reward"),
+        ("eval_eval/latency_mean", "eval/latency_mean", "Latency / Task"),
+        ("eval_eval/energy_mean", "eval/energy_mean", "Energy / Task"),
+        ("eval_eval/comm_score", "eval/comm_score", "Comm Score"),
+    ]
+    
     metric_keys = [
         ("eval/reward_mean", "Reward"),
         ("eval/latency_mean", "Latency / Task"),
@@ -288,13 +321,16 @@ def plot_convergence_curves(results: List[Dict], output_dir: Path, fmt: str = "p
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     axes = axes.flatten()
 
-    for idx, (metric_key, metric_label) in enumerate(metric_keys):
+    for idx, ((eval_key, train_log_key, metric_label)) in enumerate(metric_keys_train_logs):
         ax = axes[idx]
         for algo, seeds in algo_data.items():
             color = ALGO_COLORS.get(algo, "#95a5a6")
             all_series = []
             for seed_data in seeds:
-                series = seed_data.get(metric_key)
+                # 先尝试 convergence_by_seed 格式的 key，再尝试 train_logs.json 格式
+                series = seed_data.get(eval_key)
+                if not series:
+                    series = seed_data.get(train_log_key)
                 if series and isinstance(series, list) and len(series) > 0:
                     all_series.append(series)
 

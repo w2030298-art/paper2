@@ -148,7 +148,13 @@ class JsonStateStore:
         return self.manifest_path(run_id).exists() and self.state_path(run_id).exists()
 
     def delete(self, run_id: str) -> None:
-        experiment_dir = self.root_dir / run_id
+        root_dir = self.root_dir.resolve()
+        experiment_dir = (self.root_dir / run_id).resolve()
+        try:
+            experiment_dir.relative_to(root_dir)
+        except ValueError as exc:
+            message = f"Refusing to delete outside experiment root: {run_id}"
+            raise ExperimentStateError(message) from exc
         if not experiment_dir.exists():
             return
         if (experiment_dir / "process.json").exists():

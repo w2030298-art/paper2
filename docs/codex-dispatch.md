@@ -1,79 +1,106 @@
 # Codex 任务派发
 
-进入连续执行模式。按以下流程工作：从 **模块 1：现状锁定与 Quick 入口 bug 复现 Step 1** 开始，严格按 `docs/plan.md` 执行到所有模块完成。
+## 类型：patch
+
+进入增量执行模式。**只执行 `docs/plan-patch.md` 中的模块 7/8/9**，不触碰模块 1-6 的任何代码。
 
 ## 启动
 
-1. 读取 `docs/progress.md`，定位当前未完成的第一个步骤。
-2. 读取 `docs/plan.md`，加载完整开发计划。
-3. 本项目为简单路线，本次交付没有 `docs/references/`；不要等待参考资料。
-4. 确认当前仓库为 `paper2`，核心目标是让 VSCode Run and Debug / Tasks 覆盖实验系统全部核心能力，并实现 Full 17 algorithms benchmark 一键运行。
+1. 读取 `docs/progress.md`，确认模块 1-6 已全部 completed。
+2. 读取 `docs/plan-patch.md`，加载增量开发计划。
+3. 从 **模块 7 Step 1** 开始执行。
+4. 本次变更会修改 reward 函数和 comm_score 公式——这是用户确认的变更，不受原 plan.md "不做事项"约束。
 
 ## 计划模块
 
-- 模块 1：现状锁定与 Quick 入口 bug 复现（5 steps）
-- 模块 2：实验预设与 CLI 稳定性增强（8 steps）
-- 模块 3：VSCode `launch.json` 全入口改造（7 steps）
-- 模块 4：VSCode `tasks.json` 任务入口补齐（5 steps）
-- 模块 5：使用文档更新（4 steps）
-- 模块 6：自动化测试与最终验收（4 steps）
+- 模块 7：Reward + comm_score 权重修正（6 steps）
+- 模块 8：收敛曲线数据收集与可视化（5 steps）
+- 模块 9：Composite Score 综合评分体系（7 steps）
+
+## 依赖链
+
+```
+模块 7（全部 6 步）→ 模块 8（全部 5 步）→ 模块 9（全部 7 步）
+```
+
+模块 8 依赖模块 7（权重修正后的公式）。模块 9 依赖模块 8（收敛数据用于 stability 计算）。严格按此顺序执行。
+
+## 核心变更文件清单
+
+### 修改文件（必须精确定位行号后再改）
+
+| 文件 | 变更描述 |
+|------|---------|
+| `src/environments/mec_v3/game_theory_env.py` | `r_imm` 权重：latency 0.55→0.40, energy 0.10→0.25；`_communication_cost` 权重：latency 0.60→0.45, energy 0.10→0.25, deadline 0.15→0.10 |
+| `src/trainer/base_trainer.py` | `comm_score` 公式 `0.1 * e2e_energy_mean` → `0.3 * e2e_energy_mean` |
+| `scripts/benchmark.py` | 同步 comm_score 公式；`benchmark_single()` 收集 convergence 数据；`run_benchmark()` 汇总 convergence + composite_score |
+| `scripts/evaluate.py` | 同步 comm_score 公式 |
+| `scripts/plot_results.py` | 新增 4 个绘图函数：convergence_curves, composite_ranking, radar_chart, weight_sensitivity |
+| `scripts/generate_report.py` | 新增综合评分排名章节 |
+
+### 新增文件
+
+| 文件 | 描述 |
+|------|------|
+| `src/utils/composite_score.py` | CompositeScorer 类，加权归一化 + 多 profile 评分 |
+| `configs/scoring_profiles.yaml` | 3 组权重 profile 配置 |
+| `tests/test_reward_weights.py` | reward 权重变更验证 |
+| `tests/test_convergence_plot.py` | 收敛曲线绘图验证 |
+| `tests/test_composite_score.py` | 综合评分逻辑验证 |
 
 ## 执行规则
 
-- 从当前进度点开始，按 `docs/plan.md` 的模块顺序和步骤顺序逐步执行。
-- 每个步骤完成后立即运行该步骤指定的验证命令。
+- 从模块 7 Step 1 开始，按 `docs/plan-patch.md` 逐步执行。
+- 每个步骤完成后运行该步骤指定的验证命令。
 - **验证通过 → 直接执行下一步骤，不要停下来问我。**
 - **验证失败 → 自行诊断修复，最多重试 2 次；仍失败则记录到 `docs/issues.md` 并停下报告。**
-- 每完成一个完整模块后，批量更新 `docs/progress.md`。
-- `docs/progress.md` 的模块名、Step 编号、Step 标题必须继续与 `docs/plan.md` 保持逐条一致。
-- 如果修改 `.vscode/launch.json` 或 `.vscode/tasks.json`，必须保证它们是标准 JSON，可以通过 `python -m json.tool` 解析。
-- 不要运行正式长时间训练作为常规验证；除 `docs/plan.md` 明确要求的手动验收外，自动化验证优先使用结构测试、CLI help、单元测试和短流程 smoke check。
+- 每完成一个模块后，更新 `docs/progress.md`，在模块 6 之后追加新模块的进度。
 
-## 仅以下情况停下
+## 关键约束
 
-- 验证失败重试 2 次仍无法解决。
-- 遇到 `docs/plan.md` 未覆盖的技术决策。
-- 需要我提供外部资源、凭证、私有数据或无法自动判断的环境信息。
-- 当前步骤的前置依赖未完成。
-- 发现当前仓库结构与 `docs/plan.md` 假设明显不一致，且无法用现有代码安全修复。
+### comm_score 公式一致性
+
+修改 comm_score 公式时，必须确保以下 3 处完全同步：
+1. `src/trainer/base_trainer.py:427` — `_evaluate()` 中
+2. `scripts/benchmark.py:582` — `benchmark_heuristic()` 中
+3. `scripts/evaluate.py:314` — `evaluate_model()` 中
+
+修改后运行：
+```bash
+grep -rn "0\.1 \* e2e_energy\|0\.1 \* energy_per_task" src/ scripts/
+```
+期望输出为空。如果不为空，说明有遗漏。
+
+### reward 权重总和
+
+`r_imm` 中的 latency_ratio + queue_ratio + deadline_miss_ratio + energy_ratio 系数总和必须恒等于 1.0（non_nearest_penalty 是条件项不算）。同理 `_communication_cost` 中 5 项系数总和 = 1.0。
+
+### 不改动范围
+
+- 模块 1-6 的全部文件不动
+- `.vscode/launch.json`、`.vscode/tasks.json` 不动
+- `src/experiment/` 目录不动
+- 算法网络结构（`rl_algorithms/` 下所有 agent 类）不动
+- 环境物理模型（channel、server、task 生成逻辑）不动
+
+### 新增依赖
+
+本 patch **不引入任何新第三方依赖**。`composite_score.py` 仅使用 `numpy`（已有）和 `yaml`（标准库 or `PyYAML` 已在 `requirements.txt`）。
 
 ## 禁止行为
 
-- 不要每完成一个小步骤就停下来请求确认。
-- 不要偏离 `docs/plan.md` 自行添加功能。
-- 不要引入 `docs/plan.md` 未指定的第三方依赖。
-- 不要修改算法训练逻辑、奖励函数、环境定义或论文实验指标。
-- 不要改变实验最小恢复单元；仍以“算法完成状态”为恢复单元。
-- 不要把 `torch`、trainer 或 benchmark 相关训练依赖移回 `scripts/train.py` 顶层导入。
-- 不要将 `launch.json` / `tasks.json` 写成带注释 JSON。
-
-## 关键验收目标
-
-- VSCode Run and Debug 面板可以点击启动 Quick 实验。
-- VSCode Run and Debug 面板可以点击启动 `paper2_full_17_vscode` 的 Full 17 algorithms benchmark。
-- Full 17 benchmark 覆盖以下算法且顺序不变：`GRPO, PPO, SAC, DDQN, DDPG, TD3, A3C, TRPO, SimPO, MAPPO, QMIX, COMA, IPPO, VDN, MADDPG, IQL, MATD3`。
-- 用户可以点击停止、恢复、查看状态、列出实验、导出结果、重置失败算法、重建索引。
-- Quick 入口报错问题已被定位并修复；如果训练本身失败，错误信息必须指向具体 stdout/stderr 日志。
-- VSCode Tasks 面板提供同等轻量任务入口。
-- 用户无需手输任何命令即可完成主要实验流程。
+- 不要修改模块 1-6 已完成的代码，除非是本 patch 明确列出的文件。
+- 不要在 `composite_score.py` 中 import torch 或任何训练相关模块。
+- 不要在修改 reward 权重时改变 `adaptive_weights()` 的逻辑。
+- 不要重命名现有的 JSON 字段名（如 `final_reward_mean`），只追加新字段。
+- 不要运行完整 benchmark 作为验证——用 1 算法 1000 步 dry-run 即可。
 
 ## 完成后
 
-输出完成报告，格式必须包含：
-
-| 模块 | 状态 | 关键改动 | 验证结果 |
-|---|---|---|---|
-| 模块 1：现状锁定与 Quick 入口 bug 复现 | completed/blocked | ... | ... |
-| 模块 2：实验预设与 CLI 稳定性增强 | completed/blocked | ... | ... |
-| 模块 3：VSCode `launch.json` 全入口改造 | completed/blocked | ... | ... |
-| 模块 4：VSCode `tasks.json` 任务入口补齐 | completed/blocked | ... | ... |
-| 模块 5：使用文档更新 | completed/blocked | ... | ... |
-| 模块 6：自动化测试与最终验收 | completed/blocked | ... | ... |
-
-并列出：
-
-- 遇到的 issues 列表；没有则写“无”。
-- 需要用户后续处理的事项；没有则写“无”。
-- 最终建议用户在 VSCode 中优先点击的入口：`🏁 Experiment Full 17 Start/Resume`。
-
-现在开始执行。
+1. 更新 `docs/progress.md`，追加模块 7/8/9 的完成状态。
+2. 运行最终验收命令（plan-patch.md 模块 9 Step 7 中列出的 5 条命令）。
+3. **不要自行重跑完整 benchmark**。告知用户模块 7-9 代码已就绪，需手动运行：
+   ```bash
+   python scripts/benchmark.py --all --timesteps 100000 --device auto
+   ```
+4. 停下报告完成状态。
