@@ -104,3 +104,7 @@ experiments/**/logs/
 experiments/**/artifacts/**/*.pt
 experiments/**/artifacts/**/*.pth
 experiments/**/artifacts/**/*.ckpt
+
+# Generated figures and results (can regenerate from data)
+figures/
+results/
