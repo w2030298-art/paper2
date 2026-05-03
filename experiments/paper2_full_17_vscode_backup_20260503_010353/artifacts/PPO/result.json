@@ -1,0 +1,28 @@
+{
+  "algorithm": "PPO",
+  "environment": "MEC-v1-game-theory-continuous-ma",
+  "seed": 42,
+  "device": "cpu",
+  "train_timesteps": 100000,
+  "checkpoint_dir": "experiments\\paper2_full_17_vscode\\artifacts\\PPO\\checkpoints",
+  "final_eval": {
+    "eval/reward_mean": -4.982246907548655,
+    "eval/reward_std": 0.2041689728242006,
+    "eval/latency_mean": 0.18976463393150192,
+    "eval/energy_mean": 0.7250976115292295,
+    "eval/e2e_latency_mean": 0.18976463393150192,
+    "eval/e2e_latency_p95": 0.35480303327661533,
+    "eval/deadline_miss_rate": 0.0,
+    "eval/throughput_tasks_per_step": 1.0,
+    "eval/comm_score": 73.69314459618356,
+    "eval/latency_total_mean": 18.97646339315019,
+    "eval/energy_total_mean": 0.7250976115292295,
+    "eval/latency_per_step_mean": 0.1897646339315019,
+    "eval/energy_per_step_mean": 0.007250976115292296,
+    "eval/latency_per_task_mean": 0.1897646339315019,
+    "eval/energy_per_task_mean": 0.007250976115292296,
+    "eval/episode_steps_mean": 100.0,
+    "eval/episode_tasks_mean": 100.0
+  },
+  "status": "success"
+}

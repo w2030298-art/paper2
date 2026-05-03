@@ -1,0 +1,23 @@
+Algorithm: DDQN
+Environment: MEC-v1-game-theory-discrete-ma
+Device: cpu
+Seed: 42
+Timesteps: 100000
+Final evaluation:
+  eval/reward_mean: -12.4534
+  eval/reward_std: 1.9188
+  eval/latency_mean: 0.2045
+  eval/energy_mean: 0.5208
+  eval/e2e_latency_mean: 0.2045
+  eval/e2e_latency_p95: 0.4472
+  eval/deadline_miss_rate: 0.0010
+  eval/throughput_tasks_per_step: 1.0000
+  eval/comm_score: 68.9532
+  eval/latency_total_mean: 20.4484
+  eval/energy_total_mean: 0.5208
+  eval/latency_per_step_mean: 0.2045
+  eval/energy_per_step_mean: 0.0052
+  eval/latency_per_task_mean: 0.2045
+  eval/energy_per_task_mean: 0.0052
+  eval/episode_steps_mean: 100.0000
+  eval/episode_tasks_mean: 100.0000

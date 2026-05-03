@@ -29,10 +29,10 @@ from typing import Dict, List, Any, Optional, Tuple
 
 import numpy as np
 
-from src.utils.composite_score import CompositeScorer
-
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+from src.utils.composite_score import CompositeScorer  # noqa: E402
 
 ALGORITHM_CLASSES = {
     "GRPO": ("rl_algorithms.grpo", "GRPOAgent"),
@@ -685,6 +685,11 @@ def benchmark_single(
     convergence_data = {}
     for key, values in trainer.eval_logs.items():
         convergence_data[key] = [round(v, 6) for v in values]
+    convergence_data["schema_version"] = 2
+    convergence_data["seed"] = seed
+    convergence_data["algorithm"] = name
+    convergence_data["run_status"] = "success"
+    convergence_data["failure_reason"] = None
     convergence_data["eval_interval"] = trainer.eval_interval
     convergence_data["total_timesteps"] = trainer.total_steps
     fe = trainer.evaluate()
@@ -733,6 +738,45 @@ def _to_float(value):
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _pick_first_numeric(record: Dict[str, Any], keys: List[str]) -> float | None:
+    """Pick the first finite numeric value from a benchmark record."""
+    for key in keys:
+        value = _to_float(record.get(key))
+        if value is not None and np.isfinite(value):
+            return value
+    return None
+
+
+def _pick_latency_metric(record: Dict[str, Any]) -> float | None:
+    """Return the preferred latency metric for scoring/reporting."""
+    return _pick_first_numeric(
+        record,
+        [
+            "final_latency_per_task_mean_mean",
+            "final_latency_per_task_mean",
+            "final_latency_total_mean_mean",
+            "final_latency_mean_mean",
+            "final_latency_total_mean",
+            "final_latency_mean",
+        ],
+    )
+
+
+def _pick_energy_metric(record: Dict[str, Any]) -> float | None:
+    """Return the preferred energy metric for scoring/reporting."""
+    return _pick_first_numeric(
+        record,
+        [
+            "final_energy_per_task_mean_mean",
+            "final_energy_per_task_mean",
+            "final_energy_total_mean_mean",
+            "final_energy_mean_mean",
+            "final_energy_total_mean",
+            "final_energy_mean",
+        ],
+    )
 
 
 def _fmt_metric(value, width, precision):
@@ -849,7 +893,20 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                         )
                     algo_results.append(r)
                 except Exception as e:
-                    algo_errors.append({"seed": seed, "error": str(e)})
+                    failure_reason = str(e)
+                    algo_errors.append(
+                        {
+                            "seed": seed,
+                            "error": failure_reason,
+                            "convergence": {
+                                "schema_version": 2,
+                                "seed": seed,
+                                "algorithm": algo,
+                                "run_status": "failed",
+                                "failure_reason": failure_reason,
+                            },
+                        }
+                    )
                     logging.getLogger(__name__).exception("Error %s seed=%s", algo, seed)
                     if verbose:
                         print(f"Error {algo} seed={seed}: {e}")
@@ -890,6 +947,11 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                     conv = r.get("convergence")
                     if conv is not None and seed_val is not None:
                         convergence_by_seed[str(seed_val)] = conv
+                for error in algo_errors:
+                    conv = error.get("convergence")
+                    seed_val = error.get("seed")
+                    if conv is not None and seed_val is not None:
+                        convergence_by_seed[str(seed_val)] = conv
                 if convergence_by_seed:
                     avg["convergence_by_seed"] = convergence_by_seed
                 avg["status"] = "ok" if not algo_errors else "partial"
@@ -922,6 +984,14 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                     "train_time_seconds_mean": None,
                     "errors": algo_errors or [{"seed": None, "error": "Unknown benchmark failure"}],
                 }
+                convergence_by_seed = {}
+                for error in algo_errors:
+                    conv = error.get("convergence")
+                    seed_val = error.get("seed")
+                    if conv is not None and seed_val is not None:
+                        convergence_by_seed[str(seed_val)] = conv
+                if convergence_by_seed:
+                    failed["convergence_by_seed"] = convergence_by_seed
                 group_results.append(failed)
                 all_results.append(failed)
 

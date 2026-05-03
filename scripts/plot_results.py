@@ -9,7 +9,7 @@ Plot Benchmark Results — 从 JSON 生成对比图表
 
 import argparse
 import json
-import os
+import math
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -40,6 +40,35 @@ ALGO_COLORS = {
     "IQL": "#03A9F4",
     "MATD3": "#9C27B0",
 }
+
+CONVERGENCE_METRIC_SPECS = {
+    "reward": {
+        "title": "Reward",
+        "ylabel": "Reward",
+        "aliases": ["eval/reward_mean", "eval_eval/reward_mean"],
+        "higher_is_better": True,
+    },
+    "latency": {
+        "title": "Latency / Task",
+        "ylabel": "Latency / Task",
+        "aliases": ["eval/latency_mean", "eval_eval/latency_mean"],
+        "higher_is_better": False,
+    },
+    "energy": {
+        "title": "Energy / Task",
+        "ylabel": "Energy / Task",
+        "aliases": ["eval/energy_mean", "eval_eval/energy_mean"],
+        "higher_is_better": False,
+    },
+    "comm_score": {
+        "title": "Comm Score",
+        "ylabel": "Comm Score",
+        "aliases": ["eval/comm_score", "eval_eval/comm_score"],
+        "higher_is_better": True,
+    },
+}
+
+DEFAULT_EVAL_INTERVAL = 1000
 
 
 def load_results(path: str) -> List[Dict[str, Any]]:
@@ -262,124 +291,576 @@ def plot_summary_table(results: List[Dict], output_dir: Path, fmt: str = "png"):
     plt.close(fig)
 
 
-def plot_convergence_curves(results: List[Dict], output_dir: Path, fmt: str = "png"):
-    """4 子图: 各算法收敛曲线 (reward / latency / energy / comm_score)"""
-    # 收集有 convergence_by_seed 数据的算法
-    algo_data: Dict[str, List[Dict]] = {}
-    for r in results:
-        algo = r["algorithm"]
-        seeds = r.get("convergence_by_seed")
-        if seeds and isinstance(seeds, dict) and len(seeds) > 0:
-            # dict format: {seed_str: convergence_data_dict}
-            algo_data[algo] = list(seeds.values())
-        elif seeds and isinstance(seeds, list) and len(seeds) > 0:
-            algo_data[algo] = seeds
+def _json_number(value: Any) -> float | None:
+    """Return a JSON-safe finite float, or None."""
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(numeric):
+        return None
+    return numeric
 
-    # 如果没有 convergence_by_seed 数据，尝试从 train_logs.json 文件读取
-    if not algo_data:
-        for r in results:
-            algo = r["algorithm"]
-            checkpoint_dir = r.get("checkpoint_dir", "")
-            if checkpoint_dir:
-                # 构建 train_logs.json 路径
-                train_logs_path = Path(checkpoint_dir) / "train_logs.json"
-                if not train_logs_path.exists():
-                    # 尝试从 experiments 目录查找
-                    for exp_dir in Path("experiments").iterdir():
-                        if exp_dir.is_dir():
-                            candidate = exp_dir / "artifacts" / algo / "checkpoints" / "train_logs.json"
-                            if candidate.exists():
-                                train_logs_path = candidate
-                                break
-                
-                if train_logs_path.exists():
-                    try:
-                        with open(train_logs_path, encoding="utf-8") as f:
-                            logs = json.load(f)
-                        algo_data[algo] = [logs]  # 包装成列表以兼容原有逻辑
-                    except Exception:
-                        pass
 
-    if not algo_data:
-        return
+def _series_to_float_array(series: Any) -> np.ndarray:
+    """Convert a scalar-like series to float array, coercing bad values to NaN."""
+    if series is None:
+        return np.asarray([], dtype=float)
+    if isinstance(series, np.ndarray):
+        raw_values = series.reshape(-1).tolist()
+    elif isinstance(series, (list, tuple)):
+        raw_values = list(series)
+    else:
+        return np.asarray([], dtype=float)
 
-    # train_logs.json 中的 metric keys（与 convergence_by_seed 不同）
-    metric_keys_train_logs = [
-        ("eval_eval/reward_mean", "eval/reward_mean", "Reward"),
-        ("eval_eval/latency_mean", "eval/latency_mean", "Latency / Task"),
-        ("eval_eval/energy_mean", "eval/energy_mean", "Energy / Task"),
-        ("eval_eval/comm_score", "eval/comm_score", "Comm Score"),
+    converted = []
+    for value in raw_values:
+        numeric = _json_number(value)
+        converted.append(np.nan if numeric is None else numeric)
+    return np.asarray(converted, dtype=float)
+
+
+def _pick_metric_series(seed_data: dict, spec: dict) -> np.ndarray:
+    """Pick the first metric alias present in seed data."""
+    for alias in spec["aliases"]:
+        if alias in seed_data:
+            return _series_to_float_array(seed_data.get(alias))
+    return np.asarray([], dtype=float)
+
+
+def _build_timestep_axis(seed_data: dict, length: int) -> np.ndarray:
+    """Build an x-axis aligned with a convergence series."""
+    if length <= 0:
+        return np.asarray([], dtype=float)
+
+    timesteps = _series_to_float_array(seed_data.get("timesteps"))
+    if len(timesteps) >= length:
+        aligned = timesteps[:length]
+        if np.all(np.isfinite(aligned)):
+            return aligned
+
+    eval_interval = _json_number(seed_data.get("eval_interval"))
+    if eval_interval is None or eval_interval <= 0:
+        eval_interval = DEFAULT_EVAL_INTERVAL
+    return np.arange(length, dtype=float) * float(eval_interval)
+
+
+def _sanitize_metric_series(
+    values: np.ndarray,
+    *,
+    outlier_policy: str = "winsorize",
+    lower_quantile: float = 0.01,
+    upper_quantile: float = 0.99,
+) -> tuple[np.ndarray, dict]:
+    """Clean one metric series and return quality statistics."""
+    raw = np.asarray(values, dtype=float).reshape(-1)
+    clean = raw.copy()
+    finite_mask = np.isfinite(raw)
+    finite_values = raw[finite_mask]
+
+    stats = {
+        "raw_count": int(raw.size),
+        "finite_count": int(finite_values.size),
+        "nan_count": int(raw.size - finite_values.size),
+        "raw_min": _json_number(np.nanmin(finite_values)) if finite_values.size else None,
+        "raw_max": _json_number(np.nanmax(finite_values)) if finite_values.size else None,
+        "clean_min": None,
+        "clean_max": None,
+        "outlier_count": 0,
+        "outlier_ratio": 0.0,
+        "outlier_policy": outlier_policy,
+    }
+
+    clean[~finite_mask] = np.nan
+    if finite_values.size and outlier_policy != "none":
+        if outlier_policy == "winsorize":
+            lower = float(np.nanquantile(finite_values, lower_quantile))
+            upper = float(np.nanquantile(finite_values, upper_quantile))
+            outlier_mask = finite_mask & ((raw < lower) | (raw > upper))
+            clean[finite_mask] = np.clip(raw[finite_mask], lower, upper)
+        elif outlier_policy == "iqr-mask":
+            q1 = float(np.nanquantile(finite_values, 0.25))
+            q3 = float(np.nanquantile(finite_values, 0.75))
+            iqr = q3 - q1
+            lower = q1 - 3.0 * iqr
+            upper = q3 + 3.0 * iqr
+            outlier_mask = finite_mask & ((raw < lower) | (raw > upper))
+            clean[outlier_mask] = np.nan
+        else:
+            raise ValueError(f"Unsupported outlier policy: {outlier_policy}")
+        stats["outlier_count"] = int(np.count_nonzero(outlier_mask))
+        stats["outlier_ratio"] = (
+            float(stats["outlier_count"] / finite_values.size) if finite_values.size else 0.0
+        )
+
+    clean_finite = clean[np.isfinite(clean)]
+    if clean_finite.size:
+        stats["clean_min"] = _json_number(np.nanmin(clean_finite))
+        stats["clean_max"] = _json_number(np.nanmax(clean_finite))
+    return clean, stats
+
+
+def _is_span_extreme(values: np.ndarray) -> bool:
+    """Detect extreme numeric spread without naming specific algorithms."""
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if finite.size < 3:
+        return False
+    median_abs = float(np.nanmedian(np.abs(finite)))
+    max_abs = float(np.nanmax(np.abs(finite)))
+    if median_abs <= 1e-12:
+        return max_abs > 1e3
+    return max_abs / median_abs >= 100.0
+
+
+def _write_convergence_quality_report(report: list[dict], output_dir: Path) -> None:
+    """Write convergence quality records as JSON and Markdown."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "convergence_quality_report.json"
+    md_path = output_dir / "convergence_quality_report.md"
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+
+    lines = [
+        "# Convergence Quality Report",
+        "",
+        "| Algorithm | Seed | Metric | Status | Policy | Outliers | Ratio | Notes |",
+        "|-----------|------|--------|--------|--------|----------|-------|-------|",
     ]
-    
-    metric_keys = [
-        ("eval/reward_mean", "Reward"),
-        ("eval/latency_mean", "Latency / Task"),
-        ("eval/energy_mean", "Energy / Task"),
-        ("eval/comm_score", "Comm Score"),
-    ]
+    for record in report:
+        notes = []
+        if record.get("skipped_from_clean_plot"):
+            notes.append(record.get("skip_reason", "skipped"))
+        if record.get("excluded_from_clean_plot"):
+            notes.append(record.get("reason", "excluded"))
+        if record.get("severe_outlier"):
+            notes.append("severe_outlier")
+        note_text = "; ".join(str(n) for n in notes) if notes else "-"
+        ratio = record.get("outlier_ratio")
+        ratio_text = "NA" if ratio is None else f"{float(ratio):.3f}"
+        lines.append(
+            "| {algorithm} | {seed} | {metric} | {run_status} | {outlier_policy} | "
+            "{outlier_count} | {ratio} | {notes} |".format(
+                algorithm=record.get("algorithm", "unknown"),
+                seed=record.get("seed", "unknown"),
+                metric=record.get("metric", "unknown"),
+                run_status=record.get("run_status", "unknown"),
+                outlier_policy=record.get("outlier_policy", "none"),
+                outlier_count=record.get("outlier_count", 0),
+                ratio=ratio_text,
+                notes=note_text,
+            )
+        )
 
+    md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _aggregate_metric_by_seed(
+    seed_curves: list[tuple[np.ndarray, np.ndarray]],
+    *,
+    aggregate: str = "median",
+) -> dict:
+    """Interpolate seed curves onto a common grid and aggregate robustly."""
+    if aggregate not in {"median", "mean"}:
+        raise ValueError(f"Unsupported aggregate: {aggregate}")
+
+    valid_curves = []
+    positive_steps = []
+    for x_values, y_values in seed_curves:
+        x = np.asarray(x_values, dtype=float).reshape(-1)
+        y = np.asarray(y_values, dtype=float).reshape(-1)
+        n = min(len(x), len(y))
+        if n < 2:
+            continue
+        x = x[:n]
+        y = y[:n]
+        mask = np.isfinite(x) & np.isfinite(y)
+        x = x[mask]
+        y = y[mask]
+        if len(x) < 2:
+            continue
+        order = np.argsort(x)
+        x = x[order]
+        y = y[order]
+        unique_x, unique_idx = np.unique(x, return_index=True)
+        x = unique_x
+        y = y[unique_idx]
+        if len(x) < 2:
+            continue
+        diffs = np.diff(x)
+        positive_steps.extend(diffs[diffs > 0].tolist())
+        valid_curves.append((x, y))
+
+    empty = {
+        "x": np.asarray([], dtype=float),
+        "median": np.asarray([], dtype=float),
+        "q25": np.asarray([], dtype=float),
+        "q75": np.asarray([], dtype=float),
+        "mean": np.asarray([], dtype=float),
+        "std": np.asarray([], dtype=float),
+        "n_seeds": 0,
+    }
+    if not valid_curves:
+        return empty
+
+    start = max(float(x[0]) for x, _ in valid_curves)
+    end = min(float(x[-1]) for x, _ in valid_curves)
+    if end < start:
+        start = min(float(x[0]) for x, _ in valid_curves)
+        end = max(float(x[-1]) for x, _ in valid_curves)
+
+    step = float(np.nanmedian(positive_steps)) if positive_steps else DEFAULT_EVAL_INTERVAL
+    if not np.isfinite(step) or step <= 0:
+        step = DEFAULT_EVAL_INTERVAL
+    if math.isclose(start, end):
+        grid = np.asarray([start], dtype=float)
+    else:
+        grid = np.arange(start, end + step * 0.5, step, dtype=float)
+        if grid.size < 2:
+            grid = np.linspace(start, end, num=2, dtype=float)
+
+    interpolated = []
+    for x, y in valid_curves:
+        interpolated.append(np.interp(grid, x, y))
+    arr = np.vstack(interpolated)
+    return {
+        "x": grid,
+        "median": np.nanmedian(arr, axis=0),
+        "q25": np.nanquantile(arr, 0.25, axis=0),
+        "q75": np.nanquantile(arr, 0.75, axis=0),
+        "mean": np.nanmean(arr, axis=0),
+        "std": np.nanstd(arr, axis=0),
+        "n_seeds": int(arr.shape[0]),
+    }
+
+
+def compute_convergence_status(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    higher_is_better: bool,
+    window_fraction: float = 0.10,
+    rel_change_threshold: float = 0.05,
+    volatility_threshold: float = 0.10,
+    min_points: int = 5,
+) -> dict:
+    """Classify convergence using metric direction and tail stability."""
+    del x
+    values = np.asarray(y, dtype=float).reshape(-1)
+    values = values[np.isfinite(values)]
+    if len(values) < min_points:
+        return {
+            "status": "insufficient",
+            "tail_mean": None,
+            "prev_tail_mean": None,
+            "relative_change": None,
+            "tail_volatility": None,
+            "higher_is_better": higher_is_better,
+        }
+
+    window = max(2, int(math.ceil(len(values) * window_fraction)))
+    if len(values) < window * 2:
+        window = max(1, len(values) // 2)
+    tail = values[-window:]
+    prev_tail = values[-2 * window : -window]
+    tail_mean = float(np.nanmean(tail))
+    prev_tail_mean = float(np.nanmean(prev_tail))
+    denom = max(abs(prev_tail_mean), 1e-9)
+    relative_change = float((tail_mean - prev_tail_mean) / denom)
+    volatility_denom = max(abs(tail_mean), 1e-9)
+    tail_volatility = float(np.nanstd(tail) / volatility_denom)
+
+    if tail_volatility > volatility_threshold:
+        status = "unstable"
+    elif abs(relative_change) < rel_change_threshold:
+        status = "converged"
+    else:
+        is_improving = relative_change > 0 if higher_is_better else relative_change < 0
+        status = "improving" if is_improving else "degrading"
+
+    return {
+        "status": status,
+        "tail_mean": tail_mean,
+        "prev_tail_mean": prev_tail_mean,
+        "relative_change": relative_change,
+        "tail_volatility": tail_volatility,
+        "higher_is_better": higher_is_better,
+    }
+
+
+def _robust_ylim(
+    values: list[np.ndarray],
+    *,
+    lower: float = 0.01,
+    upper: float = 0.99,
+) -> tuple[float, float] | None:
+    """Return robust y-limits for publication figures."""
+    finite_parts = [np.asarray(v, dtype=float).reshape(-1) for v in values if len(v)]
+    if not finite_parts:
+        return None
+    combined = np.concatenate(finite_parts)
+    combined = combined[np.isfinite(combined)]
+    if combined.size < 3:
+        return None
+    low = float(np.nanquantile(combined, lower))
+    high = float(np.nanquantile(combined, upper))
+    if not np.isfinite(low) or not np.isfinite(high) or math.isclose(low, high):
+        return None
+    padding = (high - low) * 0.05
+    return low - padding, high + padding
+
+
+def _collect_convergence_data(results: List[Dict]) -> dict[str, list[dict]]:
+    """Collect convergence entries from benchmark results or train_logs files."""
+    algo_data: dict[str, list[dict]] = {}
+    for result in results:
+        algo = result.get("algorithm", "unknown")
+        seeds = result.get("convergence_by_seed")
+        if isinstance(seeds, dict) and seeds:
+            entries = []
+            for seed_key, seed_data in seeds.items():
+                if isinstance(seed_data, dict):
+                    entry = dict(seed_data)
+                    entry.setdefault("seed", seed_key)
+                    entry.setdefault("algorithm", algo)
+                    entry.setdefault("run_status", "success")
+                    entry.setdefault("failure_reason", None)
+                    entries.append(entry)
+            if entries:
+                algo_data[algo] = entries
+        elif isinstance(seeds, list) and seeds:
+            entries = []
+            for idx, seed_data in enumerate(seeds):
+                if isinstance(seed_data, dict):
+                    entry = dict(seed_data)
+                    entry.setdefault("seed", idx)
+                    entry.setdefault("algorithm", algo)
+                    entry.setdefault("run_status", "success")
+                    entry.setdefault("failure_reason", None)
+                    entries.append(entry)
+            if entries:
+                algo_data[algo] = entries
+
+    if algo_data:
+        return algo_data
+
+    for result in results:
+        algo = result.get("algorithm", "unknown")
+        checkpoint_dir = result.get("checkpoint_dir", "")
+        if not checkpoint_dir:
+            continue
+        train_logs_path = Path(checkpoint_dir) / "train_logs.json"
+        if not train_logs_path.exists() and Path("experiments").exists():
+            for exp_dir in Path("experiments").iterdir():
+                if not exp_dir.is_dir():
+                    continue
+                candidate = exp_dir / "artifacts" / algo / "checkpoints" / "train_logs.json"
+                if candidate.exists():
+                    train_logs_path = candidate
+                    break
+        if train_logs_path.exists():
+            try:
+                with open(train_logs_path, encoding="utf-8") as f:
+                    logs = json.load(f)
+                if isinstance(logs, dict):
+                    logs.setdefault("algorithm", algo)
+                    logs.setdefault("run_status", "success")
+                    logs.setdefault("failure_reason", None)
+                    algo_data[algo] = [logs]
+            except (OSError, json.JSONDecodeError):
+                continue
+    return algo_data
+
+
+def _plot_convergence_figure(
+    algo_data: dict[str, list[dict]],
+    output_path: Path,
+    *,
+    clean: bool,
+    aggregate: str,
+    outlier_policy: str,
+    quality_records: list[dict],
+    record_quality: bool = True,
+) -> dict[str, dict[str, bool]]:
+    """Render one convergence figure and append quality records."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     axes = axes.flatten()
+    warning_map: dict[str, dict[str, bool]] = {
+        metric_name: {} for metric_name in CONVERGENCE_METRIC_SPECS
+    }
+    plotted_any = False
 
-    for idx, ((eval_key, train_log_key, metric_label)) in enumerate(metric_keys_train_logs):
+    for idx, (metric_name, spec) in enumerate(CONVERGENCE_METRIC_SPECS.items()):
         ax = axes[idx]
+        clean_values_for_limits: list[np.ndarray] = []
+
         for algo, seeds in algo_data.items():
             color = ALGO_COLORS.get(algo, "#95a5a6")
-            all_series = []
+            seed_curves: list[tuple[np.ndarray, np.ndarray]] = []
+            first_raw_label = True
+            metric_has_warning = False
+
             for seed_data in seeds:
-                # 先尝试 convergence_by_seed 格式的 key，再尝试 train_logs.json 格式
-                series = seed_data.get(eval_key)
-                if not series:
-                    series = seed_data.get(train_log_key)
-                if series and isinstance(series, list) and len(series) > 0:
-                    all_series.append(series)
+                seed = seed_data.get("seed", "unknown")
+                run_status = str(seed_data.get("run_status", "success"))
+                raw_values = _pick_metric_series(seed_data, spec)
+                if raw_values.size == 0:
+                    continue
+                x_values = _build_timestep_axis(seed_data, len(raw_values))
+                clean_values, stats = _sanitize_metric_series(
+                    raw_values,
+                    outlier_policy=outlier_policy if clean else "none",
+                )
+                severe_outlier = bool(
+                    stats["outlier_ratio"] >= 0.20 or _is_span_extreme(raw_values)
+                )
+                metric_has_warning = metric_has_warning or severe_outlier
 
-            if not all_series:
-                continue
+                record = {
+                    "algorithm": algo,
+                    "seed": seed,
+                    "metric": metric_name,
+                    "run_status": run_status,
+                    "failure_reason": seed_data.get("failure_reason"),
+                    "schema_version": seed_data.get("schema_version"),
+                    "higher_is_better": bool(spec["higher_is_better"]),
+                    "severe_outlier": severe_outlier,
+                    **stats,
+                }
+                if clean and run_status != "success":
+                    record["skipped_from_clean_plot"] = True
+                    record["skip_reason"] = f"run_status={run_status}"
+                    if record_quality:
+                        quality_records.append(record)
+                    continue
+                if record_quality:
+                    quality_records.append(record)
 
-            # 对齐长度: 取最短
-            min_len = min(len(s) for s in all_series)
-            arr = np.array([s[:min_len] for s in all_series], dtype=float)
-            mean = np.nanmean(arr, axis=0)
-            std = np.nanstd(arr, axis=0)
+                if clean:
+                    seed_curves.append((x_values, clean_values))
+                    clean_values_for_limits.append(clean_values)
+                else:
+                    label = algo if first_raw_label else "_nolegend_"
+                    ax.plot(x_values, raw_values, color=color, alpha=0.45, linewidth=1.1, label=label)
+                    first_raw_label = False
+                    plotted_any = True
 
-            # x 轴: eval_interval * index
-            eval_interval = 1000  # 默认间隔
-            for r in results:
-                if r["algorithm"] == algo:
-                    # eval_interval may be in convergence data or top level
-                    seeds_data = r.get("convergence_by_seed", {})
-                    if isinstance(seeds_data, dict):
-                        for seed_data in seeds_data.values():
-                            if isinstance(seed_data, dict) and "eval_interval" in seed_data:
-                                eval_interval = seed_data["eval_interval"]
-                                break
-                    elif "eval_interval" in r:
-                        eval_interval = r["eval_interval"]
-                    break
-            x = np.arange(min_len) * eval_interval
+            if clean and seed_curves:
+                aggregated = _aggregate_metric_by_seed(seed_curves, aggregate=aggregate)
+                if aggregated["n_seeds"] == 0:
+                    continue
+                x = aggregated["x"]
+                main_key = "median" if aggregate == "median" else "mean"
+                y = aggregated[main_key]
+                status = compute_convergence_status(
+                    x,
+                    y,
+                    higher_is_better=bool(spec["higher_is_better"]),
+                )
+                warning_map[metric_name][algo] = metric_has_warning
+                warning_suffix = " ⚠" if metric_has_warning else ""
+                label = f"{algo} [{status['status']}]{warning_suffix}"
+                ax.plot(x, y, color=color, label=label, linewidth=1.7)
+                if aggregate == "median":
+                    ax.fill_between(x, aggregated["q25"], aggregated["q75"], color=color, alpha=0.14)
+                else:
+                    ax.fill_between(
+                        x,
+                        aggregated["mean"] - aggregated["std"],
+                        aggregated["mean"] + aggregated["std"],
+                        color=color,
+                        alpha=0.14,
+                    )
+                plotted_any = True
 
-            ax.plot(x, mean, color=color, label=algo, linewidth=1.5)
-            ax.fill_between(x, mean - std, mean + std, color=color, alpha=0.15)
-
-            # 滑动窗口收敛检测: 最后 10% 窗口相对变化 < 5%
-            window = max(1, min_len // 10)
-            tail_mean = np.nanmean(mean[-window:])
-            head_mean = np.nanmean(mean[-2 * window:-window]) if 2 * window <= min_len else mean[0]
-            if head_mean != 0 and abs(tail_mean - head_mean) / abs(head_mean) < 0.05:
-                # 收敛: 在 legend 中标记 ✓
-                ax.plot([], [], color=color, marker="o", linestyle="",
-                        label=f"{algo} ✓")
-
+        if clean:
+            ylim = _robust_ylim(clean_values_for_limits)
+            if ylim is not None:
+                ax.set_ylim(*ylim)
         ax.set_xlabel("Timestep", fontsize=11)
-        ax.set_ylabel(metric_label, fontsize=11)
-        ax.set_title(f"{metric_label} Convergence", fontsize=12, fontweight="bold")
+        ax.set_ylabel(str(spec["ylabel"]), fontsize=11)
+        mode_label = "Clean" if clean else "Raw"
+        ax.set_title(f"{spec['title']} Convergence ({mode_label})", fontsize=12, fontweight="bold")
         ax.grid(alpha=0.3)
-        ax.legend(fontsize=8, loc="best")
+        if ax.lines or ax.collections:
+            ax.legend(fontsize=8, loc="best")
 
-    plt.tight_layout()
-    fig.savefig(output_dir / f"convergence_curves.{fmt}", dpi=150)
+    if plotted_any:
+        plt.tight_layout()
+        fig.savefig(output_path, dpi=150)
     plt.close(fig)
+    return warning_map
+
+
+def plot_convergence_curves(
+    results: list[dict],
+    output_dir: Path,
+    fmt: str = "png",
+    *,
+    mode: str = "both",
+    aggregate: str = "median",
+    outlier_policy: str = "winsorize",
+    include_algorithms: set[str] | None = None,
+    exclude_algorithms: set[str] | None = None,
+) -> None:
+    """Plot diagnostic and publication convergence curves with quality reports."""
+    if mode not in {"raw", "clean", "both"}:
+        raise ValueError(f"Unsupported convergence mode: {mode}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    algo_data = _collect_convergence_data(results)
+    quality_records: list[dict] = []
+    if not algo_data:
+        _write_convergence_quality_report(quality_records, output_dir)
+        return
+
+    selected_data: dict[str, list[dict]] = {}
+    include = set(include_algorithms) if include_algorithms else None
+    exclude = set(exclude_algorithms) if exclude_algorithms else set()
+    for algo, seeds in algo_data.items():
+        if include is not None and algo not in include:
+            continue
+        if algo in exclude:
+            quality_records.append(
+                {
+                    "algorithm": algo,
+                    "seed": "all",
+                    "metric": "all",
+                    "run_status": "excluded",
+                    "excluded_from_clean_plot": True,
+                    "reason": "excluded by convergence_exclude",
+                    "outlier_policy": outlier_policy,
+                    "outlier_count": 0,
+                    "outlier_ratio": 0.0,
+                }
+            )
+            continue
+        selected_data[algo] = seeds
+
+    if not selected_data:
+        _write_convergence_quality_report(quality_records, output_dir)
+        return
+
+    if mode in {"raw", "both"}:
+        _plot_convergence_figure(
+            selected_data,
+            output_dir / f"convergence_curves_raw_all.{fmt}",
+            clean=False,
+            aggregate=aggregate,
+            outlier_policy=outlier_policy,
+            quality_records=quality_records,
+            record_quality=mode == "raw",
+        )
+    if mode in {"clean", "both"}:
+        _plot_convergence_figure(
+            selected_data,
+            output_dir / f"convergence_curves_clean_all.{fmt}",
+            clean=True,
+            aggregate=aggregate,
+            outlier_policy=outlier_policy,
+            quality_records=quality_records,
+            record_quality=True,
+        )
+    _write_convergence_quality_report(quality_records, output_dir)
 
 
 def plot_composite_ranking(results: List[Dict], output_dir: Path, fmt: str = "png"):
@@ -563,6 +1044,15 @@ def main():
     parser.add_argument("--input", type=str, required=True, help="benchmark JSON path")
     parser.add_argument("--output", type=str, default="figures", help="output directory")
     parser.add_argument("--format", type=str, default="png", choices=["png", "pdf", "svg"])
+    parser.add_argument("--convergence-mode", choices=["raw", "clean", "both"], default="both")
+    parser.add_argument("--convergence-aggregate", choices=["median", "mean"], default="median")
+    parser.add_argument(
+        "--convergence-outlier-policy",
+        choices=["none", "winsorize", "iqr-mask"],
+        default="winsorize",
+    )
+    parser.add_argument("--convergence-include", nargs="*", default=None)
+    parser.add_argument("--convergence-exclude", nargs="*", default=None)
     args = parser.parse_args()
 
     output_dir = Path(args.output)
@@ -575,7 +1065,16 @@ def main():
     plot_training_time(results, output_dir, args.format)
     plot_latency_energy(results, output_dir, args.format)
     plot_summary_table(results, output_dir, args.format)
-    plot_convergence_curves(results, output_dir, args.format)
+    plot_convergence_curves(
+        results,
+        output_dir,
+        args.format,
+        mode=args.convergence_mode,
+        aggregate=args.convergence_aggregate,
+        outlier_policy=args.convergence_outlier_policy,
+        include_algorithms=set(args.convergence_include) if args.convergence_include else None,
+        exclude_algorithms=set(args.convergence_exclude) if args.convergence_exclude else None,
+    )
     plot_composite_ranking(results, output_dir, args.format)
     plot_radar_chart(results, output_dir, args.format)
     plot_weight_sensitivity(results, output_dir, args.format)

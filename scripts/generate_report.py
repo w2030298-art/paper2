@@ -4,20 +4,39 @@ RL-MEC Benchmark Results Report Generator
 Generates comprehensive experiment analysis report and data export
 """
 
+from __future__ import annotations
+
+import argparse
 import json
-import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Tuple
-import numpy as np
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils.dataframe import dataframe_to_rows
+from typing import Dict, List
+
+try:
+    import pandas as pd
+except ModuleNotFoundError:
+    pd = None
+
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils.dataframe import dataframe_to_rows
+except ModuleNotFoundError:
+    Workbook = None
+    Alignment = None
+    Border = None
+    Font = None
+    PatternFill = None
+    Side = None
+    dataframe_to_rows = None
+
+PROJECT_ROOT = Path(__file__).parent.parent
 
 # File paths
-RESULTS_DIR = Path(__file__).parent.parent / "results"
-LOGS_DIR = Path(__file__).parent.parent / "logs"
+RESULTS_DIR = PROJECT_ROOT / "results"
+LOGS_DIR = PROJECT_ROOT / "logs"
 SCRIPTS_DIR = Path(__file__).parent
+FIGURES_DIR = PROJECT_ROOT / "figures"
 
 # Input files
 JSON_FILE = RESULTS_DIR / "benchmark_full_500k_20260423_101541.json"
@@ -33,6 +52,8 @@ class BenchmarkAnalyzer:
 
     def __init__(self, json_path: Path):
         """Initialize analyzer with JSON results"""
+        if pd is None:
+            raise RuntimeError("pandas is required to generate benchmark reports")
         with open(json_path, 'r') as f:
             self.raw_data = json.load(f)
 
@@ -316,16 +337,126 @@ def _append_composite_ranking_section(analyzer: BenchmarkAnalyzer, lines: List[s
     lines.append("")
 
 
-def generate_markdown_report(analyzer: BenchmarkAnalyzer, output_file: Path):
+def _display_path(path: Path) -> str:
+    """Return a project-relative display path when possible."""
+    try:
+        return path.resolve().relative_to(PROJECT_ROOT.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _find_convergence_figure(figures_dir: Path) -> Path | None:
+    """Prefer clean convergence figures, then raw/legacy fallbacks."""
+    candidates = [
+        figures_dir / "convergence_curves_clean_all.png",
+        figures_dir / "convergence_curves_clean_all.pdf",
+        figures_dir / "convergence_curves_raw_all.png",
+        figures_dir / "convergence_curves_raw_all.pdf",
+        figures_dir / "convergence_curves.png",
+        figures_dir / "convergence_curves.pdf",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _load_convergence_quality_records(figures_dir: Path) -> list[dict]:
+    """Load convergence quality JSON records if present."""
+    report_path = figures_dir / "convergence_quality_report.json"
+    if not report_path.exists():
+        return []
+    try:
+        with open(report_path, encoding="utf-8") as f:
+            records = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+    return records if isinstance(records, list) else []
+
+
+def _append_convergence_quality_section(
+    lines: List[str],
+    *,
+    figures_dir: Path,
+    convergence_figure: Path | None,
+    quality_records: list[dict],
+) -> None:
+    """Append convergence figure and quality-report notes."""
+    quality_md = figures_dir / "convergence_quality_report.md"
+    if convergence_figure is None and not quality_md.exists() and not quality_records:
+        return
+
+    lines.append("## Convergence Quality Notes")
+    lines.append("")
+    if convergence_figure is not None:
+        lines.append(f"- Preferred convergence figure: `{_display_path(convergence_figure)}`")
+        if convergence_figure.name.startswith("convergence_curves_clean_all"):
+            lines.append("- This report uses the clean publication figure when available.")
+    raw_png = figures_dir / "convergence_curves_raw_all.png"
+    raw_pdf = figures_dir / "convergence_curves_raw_all.pdf"
+    if raw_png.exists() or raw_pdf.exists():
+        raw_path = raw_png if raw_png.exists() else raw_pdf
+        lines.append(f"- Raw diagnostic figure: `{_display_path(raw_path)}`")
+    if quality_md.exists():
+        lines.append(f"- Full quality report: `{_display_path(quality_md)}`")
+    lines.append("")
+
+    warnings = []
+    for record in quality_records:
+        ratio = record.get("outlier_ratio") or 0.0
+        if (
+            record.get("severe_outlier")
+            or ratio >= 0.20
+            or record.get("skipped_from_clean_plot")
+            or record.get("excluded_from_clean_plot")
+        ):
+            warnings.append(record)
+
+    if not warnings:
+        lines.append("No severe convergence quality warnings were reported.")
+        lines.append("")
+        return
+
+    lines.append("| Algorithm | Seed | Metric | Warning | Outlier Ratio |")
+    lines.append("|-----------|------|--------|---------|---------------|")
+    for record in warnings[:20]:
+        warning_bits = []
+        if record.get("severe_outlier"):
+            warning_bits.append("severe_outlier")
+        if record.get("skipped_from_clean_plot"):
+            warning_bits.append(record.get("skip_reason", "skipped_from_clean_plot"))
+        if record.get("excluded_from_clean_plot"):
+            warning_bits.append(record.get("reason", "excluded_from_clean_plot"))
+        warning = "; ".join(str(bit) for bit in warning_bits) or "outlier_ratio"
+        lines.append(
+            "| {algorithm} | {seed} | {metric} | {warning} | {ratio:.3f} |".format(
+                algorithm=record.get("algorithm", "unknown"),
+                seed=record.get("seed", "unknown"),
+                metric=record.get("metric", "unknown"),
+                warning=warning,
+                ratio=float(record.get("outlier_ratio") or 0.0),
+            )
+        )
+    lines.append("")
+
+
+def generate_markdown_report(
+    analyzer: BenchmarkAnalyzer,
+    output_file: Path,
+    figures_dir: Path | None = None,
+):
     """Generate comprehensive markdown report"""
 
     lines = []
+    figures_dir = figures_dir or FIGURES_DIR
+    convergence_figure = _find_convergence_figure(figures_dir)
+    quality_records = _load_convergence_quality_records(figures_dir)
 
     # Header
     lines.append("# RL-MEC Benchmark Results Report")
-    lines.append(f"**Experiment Date**: 2026-04-23 10:15:41")
+    lines.append("**Experiment Date**: 2026-04-23 10:15:41")
     lines.append(f"**Report Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    lines.append(f"**Total Timesteps**: 500,000 (500k)")
+    lines.append("**Total Timesteps**: 500,000 (500k)")
     lines.append("")
 
     # Table of Contents
@@ -338,6 +469,8 @@ def generate_markdown_report(analyzer: BenchmarkAnalyzer, output_file: Path):
     lines.append("- [Key Findings](#key-findings)")
     lines.append("- [Failure Diagnosis](#failure-diagnosis)")
     lines.append("- [Recommendations](#recommendations)")
+    if convergence_figure is not None or quality_records or (figures_dir / "convergence_quality_report.md").exists():
+        lines.append("- [Convergence Quality Notes](#convergence-quality-notes)")
     lines.append("- [综合评分排名](#综合评分排名)")
     lines.append("")
 
@@ -492,7 +625,7 @@ def generate_markdown_report(analyzer: BenchmarkAnalyzer, output_file: Path):
         for _, row in failed.iterrows():
             lines.append(f"**{row['algorithm']} ({row['environment']})**")
             lines.append(f"- Error: `{row.get('error', 'Unknown error')}`")
-            lines.append(f"- Recommendation: Check configuration parameter validation in IPPOAgent initialization")
+            lines.append("- Recommendation: Check configuration parameter validation in IPPOAgent initialization")
             lines.append("")
 
     # Recommendations
@@ -510,6 +643,13 @@ def generate_markdown_report(analyzer: BenchmarkAnalyzer, output_file: Path):
     lines.append("3. **Extended Training**: Run to 1M+ timesteps to see convergence patterns")
     lines.append("4. **Multi-seed Analysis**: Current results are single-seed (seed=42); use 3+ seeds for statistical significance")
     lines.append("")
+
+    _append_convergence_quality_section(
+        lines,
+        figures_dir=figures_dir,
+        convergence_figure=convergence_figure,
+        quality_records=quality_records,
+    )
 
     # ── Composite Score Ranking (综合评分排名) ──────────────────────────
     _append_composite_ranking_section(analyzer, lines)
@@ -840,6 +980,13 @@ def generate_excel_analysis(analyzer: BenchmarkAnalyzer, output_file: Path):
 
 def main():
     """Main execution"""
+    parser = argparse.ArgumentParser(description="Generate RL-MEC benchmark reports")
+    parser.add_argument("--input", type=Path, default=JSON_FILE, help="benchmark JSON input path")
+    parser.add_argument("--output-md", type=Path, default=REPORT_FILE, help="markdown report output")
+    parser.add_argument("--output-xlsx", type=Path, default=ANALYSIS_FILE, help="Excel analysis output")
+    parser.add_argument("--figures-dir", type=Path, default=FIGURES_DIR, help="figures directory")
+    parser.add_argument("--skip-excel", action="store_true", help="only generate markdown")
+    args = parser.parse_args()
 
     print("=" * 60)
     print("RL-MEC Benchmark Report Generator")
@@ -847,16 +994,16 @@ def main():
     print()
 
     # Check input file exists
-    if not JSON_FILE.exists():
-        print(f"ERROR: {JSON_FILE} not found")
+    if not args.input.exists():
+        print(f"ERROR: {args.input} not found")
         return
 
-    print(f"Input: {JSON_FILE}")
+    print(f"Input: {args.input}")
     print()
 
     # Create analyzer
     print("Processing benchmark data...")
-    analyzer = BenchmarkAnalyzer(JSON_FILE)
+    analyzer = BenchmarkAnalyzer(args.input)
 
     summary = analyzer.get_success_summary()
     print(f"[OK] Loaded {summary['total']} results ({summary['successful']} successful, {summary['failed']} failed)")
@@ -864,13 +1011,14 @@ def main():
 
     # Generate markdown report
     print("Generating markdown report...")
-    generate_markdown_report(analyzer, REPORT_FILE)
+    generate_markdown_report(analyzer, args.output_md, args.figures_dir)
     print()
 
     # Generate Excel analysis
-    print("Generating Excel analysis...")
-    generate_excel_analysis(analyzer, ANALYSIS_FILE)
-    print()
+    if not args.skip_excel:
+        print("Generating Excel analysis...")
+        generate_excel_analysis(analyzer, args.output_xlsx)
+        print()
 
     # Summary
     print("=" * 60)
@@ -878,8 +1026,9 @@ def main():
     print("=" * 60)
     print()
     print("Outputs:")
-    print(f"  1. Markdown Report: {REPORT_FILE}")
-    print(f"  2. Excel Analysis: {ANALYSIS_FILE}")
+    print(f"  1. Markdown Report: {args.output_md}")
+    if not args.skip_excel:
+        print(f"  2. Excel Analysis: {args.output_xlsx}")
     print()
 
     # Show highlights

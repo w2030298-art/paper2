@@ -1,9 +1,9 @@
 # 开发进度
 
 ## 当前状态
-- 当前阶段：Patch 模块 10 完成
-- 最后更新：2026-05-01
-- 状态：completed
+- 当前阶段：Patch v3 模块 10-11 完成
+- 最后更新：2026-05-02
+- 状态：completed，需要 review scope 审核
 
 ## 模块进度
 
@@ -76,14 +76,23 @@
 - [x] Step 6: 综合评分单元测试 ✅ 2026-05-01
 - [x] Step 7: 全流程验收 ✅ 2026-05-01
 
-### 模块 10：实验数据备份与 Fresh 自动保护 (Patch)
-- [x] Step 1: 创建备份服务脚本 `scripts/backup_experiment.py` ✅ 2026-05-01 [ADDED]
-- [x] Step 2: 扩展 `ExperimentManager` 备份入口 ✅ 2026-05-01 [MODIFIED]
-- [x] Step 3: 修改 `start --fresh` 默认自动备份 ✅ 2026-05-01 [MODIFIED]
-- [x] Step 4: 新增备份脚本单元测试 ✅ 2026-05-01 [ADDED]
-- [x] Step 5: 更新 CLI fresh 测试 ✅ 2026-05-01 [MODIFIED]
-- [x] Step 6: 更新 VSCode launch/tasks 入口 ✅ 2026-05-01 [MODIFIED]
-- [x] Step 7: 全流程验收 ✅ 2026-05-01 [ADDED]
+### 模块 10：Convergence Quality Pipeline (Patch v3)
+- [x] Step 1: 收敛数据 schema 归一化 ✅ 2026-05-02 [auto]
+- [x] Step 2: 新增质量诊断与数据清洗层 ✅ 2026-05-02 [review]
+- [x] Step 3: 实现多 seed 稳健聚合 ✅ 2026-05-02 [review]
+- [x] Step 4: 实现方向感知的收敛判定 ✅ 2026-05-02 [review]
+- [x] Step 5: 拆分 diagnostic raw 图与 publication clean 图 ✅ 2026-05-02 [review]
+- [x] Step 6: 实现稳健坐标轴策略与异常算法标注 ✅ 2026-05-02 [review]
+- [x] Step 7: 补齐 CLI 参数 ✅ 2026-05-02 [auto]
+- [x] Step 8: 补齐 benchmark convergence schema 元数据 ✅ 2026-05-02 [review]
+- [x] Step 9: 强化收敛曲线回归测试 ✅ 2026-05-02 [auto]
+- [x] Step 10: 报告与文档集成 ✅ 2026-05-02 [auto]
+
+### 模块 11：docs 目录整理 (Patch v3)
+- [x] Step 1: 建立 docs 目录索引 ✅ 2026-05-02 [auto]
+- [x] Step 2: 创建标准子目录并归档明显历史文件 ✅ 2026-05-02 [auto]
+- [x] Step 3: 补齐执行端契约文档占位 ✅ 2026-05-02 [auto]
+- [x] Step 4: 增加 docs 契约回归测试 ✅ 2026-05-02 [auto]
 
 ## 已知问题
 

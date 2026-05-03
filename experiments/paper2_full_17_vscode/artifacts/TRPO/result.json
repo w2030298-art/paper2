@@ -1,0 +1,28 @@
+{
+  "algorithm": "TRPO",
+  "environment": "MEC-v1-game-theory-continuous-ma",
+  "seed": 42,
+  "device": "cpu",
+  "train_timesteps": 100000,
+  "checkpoint_dir": "experiments\\paper2_full_17_vscode\\artifacts\\TRPO\\checkpoints",
+  "final_eval": {
+    "eval/reward_mean": -14.611222400454565,
+    "eval/reward_std": 1.4702028154297324,
+    "eval/latency_mean": 0.1358844923938064,
+    "eval/energy_mean": 0.33168055449465955,
+    "eval/e2e_latency_mean": 0.1358844923938064,
+    "eval/e2e_latency_p95": 0.2550370528339817,
+    "eval/deadline_miss_rate": 0.0,
+    "eval/throughput_tasks_per_step": 1.0,
+    "eval/comm_score": 79.61579997683869,
+    "eval/latency_total_mean": 13.58844923938064,
+    "eval/energy_total_mean": 0.33168055449465955,
+    "eval/latency_per_step_mean": 0.13588449239380643,
+    "eval/energy_per_step_mean": 0.003316805544946595,
+    "eval/latency_per_task_mean": 0.13588449239380643,
+    "eval/energy_per_task_mean": 0.003316805544946595,
+    "eval/episode_steps_mean": 100.0,
+    "eval/episode_tasks_mean": 100.0
+  },
+  "status": "success"
+}

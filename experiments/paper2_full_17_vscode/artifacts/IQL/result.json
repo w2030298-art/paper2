@@ -1,0 +1,28 @@
+{
+  "algorithm": "IQL",
+  "environment": "MEC-v1-game-theory-discrete-ma",
+  "seed": 42,
+  "device": "cpu",
+  "train_timesteps": 100000,
+  "checkpoint_dir": "experiments\\paper2_full_17_vscode\\artifacts\\IQL\\checkpoints",
+  "final_eval": {
+    "eval/reward_mean": -2427.026253727778,
+    "eval/reward_std": 3100.251623621428,
+    "eval/latency_mean": 1.2836067314920734,
+    "eval/energy_mean": 61.81264278772162,
+    "eval/e2e_latency_mean": 1.2836067314920734,
+    "eval/e2e_latency_p95": 2.545154219992095,
+    "eval/deadline_miss_rate": 0.06066666666666667,
+    "eval/throughput_tasks_per_step": 3.0,
+    "eval/comm_score": 78.12658411361797,
+    "eval/latency_total_mean": 385.082019447622,
+    "eval/energy_total_mean": 61.81264278772162,
+    "eval/latency_per_step_mean": 3.8508201944762197,
+    "eval/energy_per_step_mean": 0.6181264278772162,
+    "eval/latency_per_task_mean": 1.2836067314920734,
+    "eval/energy_per_task_mean": 0.2060421426257387,
+    "eval/episode_steps_mean": 100.0,
+    "eval/episode_tasks_mean": 300.0
+  },
+  "status": "success"
+}

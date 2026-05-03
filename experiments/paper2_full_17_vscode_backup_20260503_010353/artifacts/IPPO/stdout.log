@@ -1,0 +1,23 @@
+Algorithm: IPPO
+Environment: MEC-v1-game-theory-discrete-ma
+Device: cpu
+Seed: 42
+Timesteps: 100000
+Final evaluation:
+  eval/reward_mean: -39.0512
+  eval/reward_std: 3.4149
+  eval/latency_mean: 0.2926
+  eval/energy_mean: 1.6037
+  eval/e2e_latency_mean: 0.2926
+  eval/e2e_latency_p95: 0.6584
+  eval/deadline_miss_rate: 0.0027
+  eval/throughput_tasks_per_step: 3.0000
+  eval/comm_score: 180.2389
+  eval/latency_total_mean: 87.7871
+  eval/energy_total_mean: 1.6037
+  eval/latency_per_step_mean: 0.8779
+  eval/energy_per_step_mean: 0.0160
+  eval/latency_per_task_mean: 0.2926
+  eval/energy_per_task_mean: 0.0053
+  eval/episode_steps_mean: 100.0000
+  eval/episode_tasks_mean: 300.0000

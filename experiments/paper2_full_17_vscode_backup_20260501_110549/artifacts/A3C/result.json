@@ -1,0 +1,28 @@
+{
+  "algorithm": "A3C",
+  "environment": "MEC-v1-game-theory-discrete-ma",
+  "seed": 42,
+  "device": "cpu",
+  "train_timesteps": 100000,
+  "checkpoint_dir": "experiments\\paper2_full_17_vscode\\artifacts\\A3C\\checkpoints",
+  "final_eval": {
+    "eval/reward_mean": -22.584766687694433,
+    "eval/reward_std": 2.193792572069673,
+    "eval/latency_mean": 0.3744023224270537,
+    "eval/energy_mean": 0.48873227213599185,
+    "eval/e2e_latency_mean": 0.3744023224270537,
+    "eval/e2e_latency_p95": 1.5124572458971939,
+    "eval/deadline_miss_rate": 0.028,
+    "eval/throughput_tasks_per_step": 1.0,
+    "eval/comm_score": 38.67970137217585,
+    "eval/latency_total_mean": 37.44023224270537,
+    "eval/energy_total_mean": 0.48873227213599185,
+    "eval/latency_per_step_mean": 0.37440232242705374,
+    "eval/energy_per_step_mean": 0.004887322721359918,
+    "eval/latency_per_task_mean": 0.37440232242705374,
+    "eval/energy_per_task_mean": 0.004887322721359918,
+    "eval/episode_steps_mean": 100.0,
+    "eval/episode_tasks_mean": 100.0
+  },
+  "status": "success"
+}
