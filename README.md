@@ -198,17 +198,16 @@ paper2/
 │   └── utils/
 │       ├── __init__.py
 │       ├── helpers.py            #   set_seed, RunningMeanStd
-│       ├── logger.py             #   Logger (TensorBoard + JSON)
 │       ├── buffer.py             #   ReplayBuffer(PER), RolloutBuffer
-│       ├── action_utils.py       #   ActionScaler
-│       ├── config.py             #   OmegaConf 配置管理
 │       └── exceptions.py         #   自定义异常
 │
 ├── scripts/
 │   ├── benchmark.py             #   17 算法对比评测 CLI 入口
 │   ├── train.py                  #   单算法训练脚本
-│   ├── evaluate.py               #   评估脚本
-│   └── plot_results.py          #   结果可视化
+│   ├── experiment_manager.py     #   实验编排入口
+│   ├── backup_experiment.py      #   实验结果备份入口
+│   ├── analyze_convergence_failures.py # 收敛失败分析
+│   └── plot_results.py           #   结果可视化与质量报告
 │
 ├── configs/
 │   ├── default.yaml             #   默认全局配置
@@ -460,8 +459,6 @@ python scripts/benchmark.py --all --include-heuristics --episodes 10
 python scripts/benchmark.py --algorithms GRPO MAPPO --efx-enabled false --cpnet-enabled false
 ```
 
-实现状态矩阵与消融映射见 [docs/reporting/implementation_matrix.md](/C:/Users/22003/paper2/paper2/docs/reporting/implementation_matrix.md)。
-
 ### GameTheory Integration Matrix
 
 | 算法 | 模式 | Shapley信用 | CTDE提示 | Warm-Start |
@@ -657,7 +654,6 @@ seaborn>=0.12
 tensorboard>=2.13
 tqdm>=4.65
 pyyaml>=6.0
-omegaconf>=2.3
 pytest>=7.0
 ```
 

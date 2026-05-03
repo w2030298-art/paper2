@@ -19,7 +19,6 @@ from tqdm import tqdm
 from gymnasium import spaces
 
 from src.utils.helpers import is_done
-from .callbacks import TrainerCallback
 
 # TensorBoard (可选依赖)
 try:
@@ -52,7 +51,6 @@ class BaseTrainer(ABC):
         log_interval: int = 100,
         device: str = "auto",
         seed: Optional[int] = None,
-        callbacks: Optional[List[TrainerCallback]] = None,
     ):
         self.env = env
         self.agent = agent
@@ -63,8 +61,6 @@ class BaseTrainer(ABC):
         self.save_interval = save_interval
         self.save_dir = save_dir
         self.log_interval = log_interval
-        self.callbacks = callbacks or []
-        self._stop_training = False
 
         # 设备
         if device == "auto":
@@ -122,13 +118,11 @@ class BaseTrainer(ABC):
             tb_dir = os.path.join(self.save_dir, "tensorboard")
             self._tb_writer = SummaryWriter(log_dir=tb_dir)
 
-        for cb in self.callbacks:
-            cb.on_train_begin(self)
         eval_every_updates = max(1, self.eval_interval // max(1, self.rollout_steps))
         save_every_updates = max(1, self.save_interval // max(1, self.rollout_steps))
 
         try:
-            while self.total_steps < self.total_timesteps and not self._stop_training:
+            while self.total_steps < self.total_timesteps:
                 # 收集rollout
                 rollout_data = self._collect_rollout()
 
@@ -159,9 +153,6 @@ class BaseTrainer(ABC):
                             if isinstance(v, (int, float))
                         }
                     )
-                    for cb in self.callbacks:
-                        cb.on_step_end(self, self.total_steps, update_info)
-
                 # 评估
                 if self.update_count % eval_every_updates == 0:
                     eval_info = self.evaluate()
@@ -173,9 +164,6 @@ class BaseTrainer(ABC):
                             # TensorBoard
                             if self._tb_writer is not None:
                                 self._tb_writer.add_scalar(f"eval/{k}", v, self.total_steps)
-                    for cb in self.callbacks:
-                        cb.on_eval_end(self, eval_info)
-
                 # 保存
                 if self.update_count % save_every_updates == 0:
                     self.save(os.path.join(self.save_dir, f"ckpt_{self.total_steps}.pt"))
@@ -185,12 +173,9 @@ class BaseTrainer(ABC):
             self.save(os.path.join(self.save_dir, f"ckpt_interrupt_{self.total_steps}.pt"))
 
         pbar.close()
-        if self.total_steps >= self.total_timesteps or self._stop_training:
+        if self.total_steps >= self.total_timesteps:
             self.save(os.path.join(self.save_dir, "final.pt"))
         self._save_logs()
-
-        for cb in self.callbacks:
-            cb.on_train_end(self)
 
         # 关闭 TensorBoard
         if self._tb_writer is not None:

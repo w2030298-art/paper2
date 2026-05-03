@@ -19,7 +19,6 @@ dependencies = [
     "tensorboard>=2.13",
     "tqdm>=4.65",
     "pyyaml>=6.0",
-    "omegaconf>=2.3",
 ]
 
 [project.optional-dependencies]

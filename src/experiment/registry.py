@@ -30,7 +30,7 @@ class AlgorithmRegistry:
 
     def config_path_for(self, algorithm_name: str) -> str:
         canonical = self.canonicalize(algorithm_name)
-        return str(Path("configs") / "algorithms" / f"{canonical.lower()}.yaml")
+        return (Path("configs") / "algorithms" / f"{canonical.lower()}.yaml").as_posix()
 
     def build_specs(
         self,

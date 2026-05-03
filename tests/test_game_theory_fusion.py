@@ -4,7 +4,6 @@ Focused tests for game-theory MEC fusion components and deep-fusion algorithms.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -26,7 +25,6 @@ from scripts.benchmark import (  # noqa: E402
     make_env,
     resolve_game_theory_config,
 )
-from scripts.generate_report import BenchmarkAnalyzer  # noqa: E402
 from src.environments.mec_v3.game_theory_env import (  # noqa: E402
     Channel3GPP,
     CPNetPreferenceModel,
@@ -189,50 +187,6 @@ def test_performance_reward_dominates_far_congested_fairness_gain():
     )
 
     assert near_reward > far_reward
-
-
-def test_report_ranking_uses_e2e_latency_before_reward(tmp_path):
-    data = [
-        {
-            "algorithm": "HighRewardSlow",
-            "status": "ok",
-            "environment": "MEC-v1-game-theory-discrete-ma",
-            "final_reward_mean_mean": 100.0,
-            "final_reward_std_mean": 0.1,
-            "final_e2e_latency_mean_mean": 5.0,
-            "final_e2e_latency_p95_mean": 8.0,
-            "final_latency_total_mean_mean": 50.0,
-            "final_energy_mean_mean": 1.0,
-            "train_time_seconds_mean": 1.0,
-            "train_timesteps_mean": 10.0,
-            "total_episodes_mean": 1.0,
-            "total_updates_mean": 1.0,
-        },
-        {
-            "algorithm": "LowRewardFast",
-            "status": "ok",
-            "environment": "MEC-v1-game-theory-discrete-ma",
-            "final_reward_mean_mean": 1.0,
-            "final_reward_std_mean": 0.1,
-            "final_e2e_latency_mean_mean": 1.0,
-            "final_e2e_latency_p95_mean": 2.0,
-            "final_latency_total_mean_mean": 10.0,
-            "final_energy_mean_mean": 1.0,
-            "train_time_seconds_mean": 1.0,
-            "train_timesteps_mean": 10.0,
-            "total_episodes_mean": 1.0,
-            "total_updates_mean": 1.0,
-        },
-    ]
-    path = tmp_path / "results.json"
-    path.write_text(json.dumps(data), encoding="utf-8")
-
-    analyzer = BenchmarkAnalyzer(path)
-    latency_ranking = analyzer.get_ranking("e2e_latency_p95", ascending=True, limit=1)
-    reward_ranking = analyzer.get_ranking("reward_mean", ascending=False, limit=1)
-
-    assert latency_ranking[0]["algorithm"] == "LowRewardFast"
-    assert reward_ranking[0]["algorithm"] == "HighRewardSlow"
 
 
 def test_cpnet_efx_transfer_repair():

@@ -738,18 +738,6 @@
         "--format",
         "pdf"
       ]
-    },
-    {
-      "name": "📝 Generate Report",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/scripts/generate_report.py",
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "env": {
-        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
-      }
     }
   ]
 }

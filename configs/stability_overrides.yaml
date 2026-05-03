@@ -1,0 +1,59 @@
+# Candidate stability overrides for targeted reruns.
+# This file is intentionally disabled by default and is not loaded by benchmark.py.
+enabled: false
+purpose: "Candidate settings for diagnosing non-converged algorithms after failure analysis."
+activation_rule: "Use only via explicit targeted rerun planning; do not enable for full 17 by default."
+
+algorithm_families:
+  on_policy_high_variance:
+    algorithms: ["A3C", "COMA", "IPPO", "MAPPO"]
+    candidate_overrides:
+      actor_lr_scale: 0.5
+      critic_lr_scale: 0.5
+      gradient_clip_norm: 0.5
+      advantage_normalization: true
+      eval_episodes: 10
+    diagnostic_focus:
+      - "advantage variance"
+      - "policy entropy"
+      - "per-agent reward spread"
+
+  continuous_actor_critic:
+    algorithms: ["SAC", "MADDPG", "MATD3"]
+    candidate_overrides:
+      actor_lr_scale: 0.5
+      critic_lr_scale: 0.5
+      replay_warmup_steps: 10000
+      target_tau_scale: 0.5
+      exploration_noise_scale: 0.75
+      eval_episodes: 10
+    diagnostic_focus:
+      - "critic loss"
+      - "target Q range"
+      - "action distribution"
+
+  value_decomposition:
+    algorithms: ["VDN", "IQL"]
+    candidate_overrides:
+      lr_scale: 0.5
+      gradient_clip_norm: 1.0
+      replay_warmup_steps: 10000
+      epsilon_decay_scale: 1.5
+      target_update_interval_scale: 1.5
+      eval_episodes: 10
+    diagnostic_focus:
+      - "TD error range"
+      - "episode-level failure"
+      - "replay outlier transitions"
+
+  conservative_policy_update:
+    algorithms: ["GRPO", "TRPO"]
+    candidate_overrides:
+      policy_lr_scale: 0.75
+      value_lr_scale: 0.75
+      entropy_coef_scale: 1.2
+      eval_episodes: 10
+    diagnostic_focus:
+      - "bad plateau"
+      - "best-tail gap"
+      - "KL constraint saturation"

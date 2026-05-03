@@ -36,9 +36,17 @@ docs/
 ## 恢复规则
 
 执行端只从 `docs/plan.md` 与 `docs/inbox/plan.md` 恢复计划。`docs/archive/` 中的文件只用于保留历史证据，不参与自动恢复、patch diff 或执行起点判断。
+`docs/.archive/` 已废弃，不允许重新创建或作为恢复来源。
 
 ## 归档规则
 
 - 根目录中明显历史或 backup markdown 文件移动到 `docs/archive/`。
 - 不删除历史文档。
 - 不移动当前有效文件：`docs/plan.md`、`docs/plan-patch.md`、`docs/inbox/plan.md`、`docs/report.md`、`docs/progress.md`、`docs/issues.md`、`docs/convergence_plot_quality.md`。
+
+## 瘦身后边界
+
+- 论文写作资料迁出到 `C:\Users\22003\paper2\writing_ref\docs_paper`，本仓库不再保留 `docs_paper/`。
+- 图表与收敛质量报告由 `scripts/plot_results.py` 生成。
+- 收敛失败矩阵由 `scripts/analyze_convergence_failures.py` 生成。
+- 历史 graphify 报告归入 `docs/references/`，`graphify-out/cache/` 不进入 Git tracking。

@@ -1,9 +1,9 @@
 # 开发进度
 
 ## 当前状态
-- 当前阶段：Patch v3 模块 10-11 完成
+- 当前阶段：slimming-plan-v1 模块 13 Step 8 完成
 - 最后更新：2026-05-02
-- 状态：completed，需要 review scope 审核
+- 状态：NEEDS_REVIEW，`rl-mec-dashboard` 本机缺失导致外部兼容性待审核
 
 ## 模块进度
 
@@ -94,6 +94,32 @@
 - [x] Step 3: 补齐执行端契约文档占位 ✅ 2026-05-02 [auto]
 - [x] Step 4: 增加 docs 契约回归测试 ✅ 2026-05-02 [auto]
 
+### 模块 12：未收敛算法诊断与稳定化计划 (Patch v4)
+- [x] Step 1: 修复提交卫生与统一 `docs/archive/` ✅ 2026-05-02 [auto]
+- [x] Step 2: 新增未收敛诊断脚本与测试 ✅ 2026-05-02 [auto]
+- [x] Step 3: 扩展收敛判定为 bad_plateau / oscillating / diverging / catastrophic_outlier ✅ 2026-05-02 [review]
+- [x] Step 4: 新增稳定化候选配置且默认不启用 ✅ 2026-05-02 [review]
+- [x] Step 5: 记录 targeted rerun 计划，不重跑 full 17 ✅ 2026-05-02 [review]
+- [x] Step 6: 产出 `docs/convergence_failure_analysis.md` ✅ 2026-05-02 [auto]
+
+### 模块 12（Slimming）：无争议仓库卫生清理 (slimming-plan-v1)
+- [x] Step 1: 生成执行前审计快照 `docs/slimming_audit_phase2.md` ✅ 2026-05-02 [auto]
+- [x] Step 2: 从 Git tracking 移除生成产物，保留本地数据 ✅ 2026-05-02 [auto]
+- [x] Step 3: 删除废弃坏入口 `src/trainer/benchmark.py` ✅ 2026-05-02 [auto]
+- [x] Step 4: 统一 docs/archive 并清理 graphify cache ✅ 2026-05-02 [auto]
+- [x] Step 5: 移除 dashboard 依赖 `fastapi/uvicorn` ✅ 2026-05-02 [auto]
+- [x] Step 6: 新增仓库卫生与主入口帮助测试 ✅ 2026-05-02 [auto]
+
+### 模块 13：已确认非核心功能删除 (slimming-plan-v1)
+- [x] Step 1: 迁移 `docs_paper/` 到外部写作资料目录并校验 ✅ 2026-05-02 [review]
+- [x] Step 2: 删除 `scripts/evaluate.py` ✅ 2026-05-02 [auto]
+- [x] Step 3: 删除 `scripts/generate_report.py` ✅ 2026-05-02 [auto]
+- [x] Step 4: 删除 callback 扩展机制并简化 `BaseTrainer` ✅ 2026-05-02 [review]
+- [x] Step 5: 删除旧 utils 工具并移除 `omegaconf` ✅ 2026-05-02 [review]
+- [x] Step 6: 删除旧 buffer wrapper，保留 `src/utils/buffer.py` ✅ 2026-05-02 [review]
+- [x] Step 7: 更新 README 与 docs 契约 ✅ 2026-05-02 [auto]
+- [x] Step 8: 更新执行报告与进度 ✅ 2026-05-02 [auto]
+
 ## 已知问题
 
-（暂无）
+- `C:\Users\22003\paper2\rl-mec-dashboard` 本机不存在，外部 dashboard 兼容性需在有该仓库的环境复核。

@@ -542,12 +542,22 @@ def compute_convergence_status(
     window_fraction: float = 0.10,
     rel_change_threshold: float = 0.05,
     volatility_threshold: float = 0.10,
+    best_gap_threshold: float = 0.10,
     min_points: int = 5,
 ) -> dict:
-    """Classify convergence using metric direction and tail stability."""
-    del x
+    """Classify convergence using direction, tail stability, and bad-plateau checks."""
+    x_values = np.asarray(x, dtype=float).reshape(-1)
     values = np.asarray(y, dtype=float).reshape(-1)
-    values = values[np.isfinite(values)]
+    n = min(len(x_values), len(values))
+    if n:
+        x_values = x_values[:n]
+        values = values[:n]
+        mask = np.isfinite(x_values) & np.isfinite(values)
+        x_values = x_values[mask]
+        values = values[mask]
+    else:
+        x_values = np.asarray([], dtype=float)
+        values = np.asarray([], dtype=float)
     if len(values) < min_points:
         return {
             "status": "insufficient",
@@ -555,6 +565,13 @@ def compute_convergence_status(
             "prev_tail_mean": None,
             "relative_change": None,
             "tail_volatility": None,
+            "tail_slope": None,
+            "best_value": None,
+            "initial_value": None,
+            "best_tail_gap": None,
+            "plateau_badness": None,
+            "reward_regression_from_initial": None,
+            "reward_regression_from_best": None,
             "higher_is_better": higher_is_better,
         }
 
@@ -569,14 +586,39 @@ def compute_convergence_status(
     relative_change = float((tail_mean - prev_tail_mean) / denom)
     volatility_denom = max(abs(tail_mean), 1e-9)
     tail_volatility = float(np.nanstd(tail) / volatility_denom)
-
-    if tail_volatility > volatility_threshold:
-        status = "unstable"
-    elif abs(relative_change) < rel_change_threshold:
-        status = "converged"
+    initial_value = float(values[0])
+    best_value = float(np.nanmax(values) if higher_is_better else np.nanmin(values))
+    if higher_is_better:
+        best_gap_raw = best_value - tail_mean
+        initial_gap_raw = initial_value - tail_mean
     else:
-        is_improving = relative_change > 0 if higher_is_better else relative_change < 0
-        status = "improving" if is_improving else "degrading"
+        best_gap_raw = tail_mean - best_value
+        initial_gap_raw = tail_mean - initial_value
+    best_tail_gap = float(max(0.0, best_gap_raw) / max(abs(best_value), 1e-9))
+    regression_from_initial = float(max(0.0, initial_gap_raw) / max(abs(initial_value), 1e-9))
+    plateau_badness = max(best_tail_gap, regression_from_initial)
+    if len(tail) >= 2:
+        tail_x = x_values[-window:]
+        x_span = float(np.nanmax(tail_x) - np.nanmin(tail_x))
+        x_norm = (tail_x - float(np.nanmin(tail_x))) / max(x_span, 1.0)
+        tail_slope = float(np.polyfit(x_norm, tail, 1)[0])
+    else:
+        tail_slope = 0.0
+
+    is_improving = relative_change > 0 if higher_is_better else relative_change < 0
+    if _is_span_extreme(values):
+        status = "catastrophic_outlier"
+    elif not is_improving and abs(relative_change) >= rel_change_threshold:
+        status = "diverging"
+    elif tail_volatility > volatility_threshold:
+        status = "oscillating"
+    elif abs(relative_change) < rel_change_threshold:
+        if plateau_badness > best_gap_threshold:
+            status = "bad_plateau"
+        else:
+            status = "converged_good"
+    else:
+        status = "improving"
 
     return {
         "status": status,
@@ -584,6 +626,13 @@ def compute_convergence_status(
         "prev_tail_mean": prev_tail_mean,
         "relative_change": relative_change,
         "tail_volatility": tail_volatility,
+        "tail_slope": tail_slope,
+        "best_value": best_value,
+        "initial_value": initial_value,
+        "best_tail_gap": best_tail_gap,
+        "plateau_badness": plateau_badness,
+        "reward_regression_from_initial": regression_from_initial,
+        "reward_regression_from_best": best_tail_gap,
         "higher_is_better": higher_is_better,
     }
 
@@ -711,9 +760,7 @@ def _plot_convergence_figure(
                     raw_values,
                     outlier_policy=outlier_policy if clean else "none",
                 )
-                severe_outlier = bool(
-                    stats["outlier_ratio"] >= 0.20 or _is_span_extreme(raw_values)
-                )
+                severe_outlier = bool(_is_span_extreme(raw_values))
                 metric_has_warning = metric_has_warning or severe_outlier
 
                 record = {
