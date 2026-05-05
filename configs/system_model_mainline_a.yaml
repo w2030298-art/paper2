@@ -1,0 +1,15 @@
+system_model:
+  enabled: false
+  task_model: independent
+  queue_model: mm1
+  edge_topology: bs_only
+  cooperation_enabled: false
+  mobility_model: markov
+  channel_model:
+    theory: analytic
+    simulation: 3gpp_lite
+  energy_model: dvfs_network_level
+compatibility:
+  preserve_legacy_default: true
+  no_effect_on_legacy_convergence_module14: true
+

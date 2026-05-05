@@ -1,52 +1,44 @@
-# docs 目录说明
+# docs Directory Contract
 
-`docs/` 是 Web + Codex 双端工作流的执行文档目录。执行端恢复上下文时只读取当前有效计划与 inbox 输入，不从归档目录恢复历史计划。
+`docs/` is the active Web + Codex execution document surface. Active state is restored from `docs/plan.md`, `docs/progress.md`, `docs/report.md`, and incoming `docs/inbox/plan.md`-equivalent files. Historical files under `docs/archive/` are preserved as evidence only and are not used as an automatic restore source.
 
-## 目录契约
+## Active Files
 
-```text
-docs/
-├── README.md
-├── plan.md
-├── plan-patch.md
-├── progress.md
-├── issues.md
-├── report.md
-├── vscode_experiment_usage.md
-├── convergence_plot_quality.md
-├── inbox/
-├── references/
-└── archive/
-```
+| Path | Purpose | Rule |
+|------|---------|------|
+| `docs/plan.md` | active plan | current execution authority |
+| `docs/plan-patch.md` | retained patch baseline | do not archive unless explicitly requested |
+| `docs/progress.md` | step status | update after task execution |
+| `docs/issues.md` | execution issues and notes | append only |
+| `docs/report.md` | user/Web execution report | update after each task |
+| `docs/convergence_plot_quality.md` | plotting quality contract | active reference |
+| `docs/convergence_event_audit.md` | legacy convergence audit gate | retained for old runner compatibility |
+| `docs/convergence_publication_gate.md` | publication evidence gate | active |
+| `docs/formal_convergence_protocol.md` | legacy and mainline-A evidence protocol | active |
+| `docs/legacy_convergence_retirement.md` | old L2/L3 retirement record | active |
+| `docs/mainline_a_compatibility_report.md` | legacy/default compatibility report | active |
+| `docs/mainline_a_experiment_protocol.md` | N0/N1/N2/N3 experiment protocol | active |
+| `docs/mainline_a_publication_gate.md` | new model publication gate | active |
+| `docs/paper_revision_pending_questions.md` | paper rewrite questions | active |
+| `docs/paper_revision_manifest.md` | writing asset manifest | active |
 
-| 路径 | 用途 | 规则 |
-|------|------|------|
-| `docs/README.md` | docs 目录索引和契约说明 | 当前文件 |
-| `docs/plan.md` | 主开发计划 | 当前有效计划，执行端按此恢复任务 |
-| `docs/plan-patch.md` | 当前已合入或待合入的增量计划基线 | 保留为 patch 基线，不归档 |
-| `docs/progress.md` | 步骤完成状态 | 每完成 Step 后更新 |
-| `docs/issues.md` | 执行问题记录 | 仅追加问题或本轮执行备注 |
-| `docs/report.md` | 与用户/Web 的双向执行报告 | 每次任务后更新 |
-| `docs/vscode_experiment_usage.md` | VSCode 实验入口使用说明 | 当前有效用户文档 |
-| `docs/convergence_plot_quality.md` | 收敛曲线质量规则说明 | 模块 10 的质量管线文档 |
-| `docs/inbox/` | 执行端 merge-back 输入区 | Web 投递新版计划到 `docs/inbox/plan.md` 或等价 plan 文件 |
-| `docs/references/` | 实现参考和调研资料 | 只读参考材料 |
-| `docs/archive/` | 历史计划、备份、过期 patch | 只归档，不作为恢复依据 |
+## Directories
 
-## 恢复规则
+| Path | Purpose | Rule |
+|------|---------|------|
+| `docs/inbox/` | merge-back input | clear after successful merge |
+| `docs/references/` | current technical references | read-mostly, keep only current references |
+| `docs/theory/` | theory assets for mainline-A | active docs |
+| `docs/archive/` | historical plans, backups, legacy outputs | archive only; do not restore from here automatically |
 
-执行端只从 `docs/plan.md` 与 `docs/inbox/plan.md` 恢复计划。`docs/archive/` 中的文件只用于保留历史证据，不参与自动恢复、patch diff 或执行起点判断。
-`docs/.archive/` 已废弃，不允许重新创建或作为恢复来源。
+## Archive Rules
 
-## 归档规则
+- Use `docs/archive/`, not `docs/.archive/`.
+- Preserve historical files instead of deleting them.
+- Keep old L1/L2/L3 reports as legacy baseline only.
+- Do not restore removed legacy entrypoints or `docs_paper/`.
+- Generated experiment outputs under `experiments/`, `results/`, `figures/`, `logs/`, and `checkpoints/` remain outside Git tracking.
 
-- 根目录中明显历史或 backup markdown 文件移动到 `docs/archive/`。
-- 不删除历史文档。
-- 不移动当前有效文件：`docs/plan.md`、`docs/plan-patch.md`、`docs/inbox/plan.md`、`docs/report.md`、`docs/progress.md`、`docs/issues.md`、`docs/convergence_plot_quality.md`。
+## Writing Boundary
 
-## 瘦身后边界
-
-- 论文写作资料迁出到 `C:\Users\22003\paper2\writing_ref\docs_paper`，本仓库不再保留 `docs_paper/`。
-- 图表与收敛质量报告由 `scripts/plot_results.py` 生成。
-- 收敛失败矩阵由 `scripts/analyze_convergence_failures.py` 生成。
-- 历史 graphify 报告归入 `docs/references/`，`graphify-out/cache/` 不进入 Git tracking。
+Paper writing assets live under `writing_ref/paper2_mainline_a_revision/` and are indexed by `docs/paper_revision_manifest.md`. This plan does not directly edit paper body text.

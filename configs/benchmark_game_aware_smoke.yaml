@@ -1,0 +1,11 @@
+name: benchmark_game_aware_smoke
+algorithms: [game_aware_pd_marl, MAPPO]
+seeds: [42, 43]
+steps: 1000
+system_model:
+  enabled: true
+dynamic_pricing:
+  enabled: true
+game_aware:
+  enabled: true
+

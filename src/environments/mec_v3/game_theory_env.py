@@ -24,6 +24,7 @@ import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
+import yaml
 from gymnasium import spaces
 
 
@@ -789,6 +790,13 @@ class GameTheoryMECEnv(BaseMECEnv):
         # Base station positions
         bs_positions: Optional[List[List[float]]] = None,
         ris_elements: int = 0,
+        # Mainline-A system model flags. Defaults preserve the legacy path.
+        system_model_config: Optional[str] = None,
+        dynamic_pricing_config: Optional[str] = None,
+        enable_mainline_a: bool = False,
+        channel_model: Optional[str] = None,
+        queue_model: Optional[str] = None,
+        mobility_intensity: str = "medium",
         **kwargs: Any,
     ) -> None:
         self._num_edge_servers = int(num_edge_servers)
@@ -805,6 +813,19 @@ class GameTheoryMECEnv(BaseMECEnv):
         self.ris_elements = int(ris_elements)
         self.efx_transfer_rate = float(np.clip(efx_transfer_rate, 0.05, 1.0))
         self.max_velocity = 5.0
+        self._system_model_config_path = system_model_config
+        self._dynamic_pricing_config_path = dynamic_pricing_config
+        self._enable_mainline_a_override = bool(enable_mainline_a)
+        self._mainline_channel_override = channel_model
+        self._mainline_queue_override = queue_model
+        self.mobility_intensity = str(mobility_intensity)
+        self.system_model_config = self._load_system_model_config()
+        self.dynamic_pricing_config = self._load_dynamic_pricing_config()
+        self.mainline_a_enabled = bool(self.system_model_config["system_model"].get("enabled", False))
+        self.dynamic_pricing_enabled = bool(
+            self.dynamic_pricing_config.get("dynamic_pricing", {}).get("enabled", False)
+        )
+        self.last_mainline_a_metrics: Dict[str, float] = {}
 
         if bs_positions is None:
             self.bs_positions = [[10.0 + i * 15.0, 0.0, 25.0] for i in range(self._num_edge_servers)]
@@ -909,7 +930,6 @@ class GameTheoryMECEnv(BaseMECEnv):
         self.latest_efx_violation: Optional[Tuple[int, int, str]] = None
 
         self.game_history = {"prices": [], "demands": [], "equilibrium_steps": []}
-
         obs_dim = self._get_obs_dim()
         self.observation_space = spaces.Box(
             low=-10.0,
@@ -928,7 +948,71 @@ class GameTheoryMECEnv(BaseMECEnv):
     def _get_obs_dim(self) -> int:
         k = self._num_edge_servers
         m = self.game_history_len
-        return 3 * k + 5 + m * k + (k + 1) + m + 3 * k
+        base_dim = 3 * k + 5 + m * k + (k + 1) + m + 3 * k
+        if self.mainline_a_enabled:
+            return base_dim + 4 * k + 1
+        return base_dim
+
+    def _project_path(self, value: Optional[str], default: str) -> Path:
+        """Resolve a project-relative config path."""
+        root = Path(__file__).resolve().parents[3]
+        path = Path(value or default)
+        return path if path.is_absolute() else root / path
+
+    def _load_system_model_config(self) -> Dict[str, Any]:
+        """Load optional mainline-A system-model config."""
+        path = self._project_path(self._system_model_config_path, "configs/system_model_mainline_a.yaml")
+        default = {
+            "system_model": {
+                "enabled": False,
+                "queue_model": "mm1",
+                "channel_model": {"theory": "analytic", "simulation": "3gpp_lite"},
+                "mobility_model": "markov",
+            },
+            "compatibility": {"preserve_legacy_default": True},
+        }
+        if path.exists():
+            loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            for section, values in loaded.items():
+                if isinstance(values, dict) and isinstance(default.get(section), dict):
+                    default[section].update(values)
+                else:
+                    default[section] = values
+        if self._enable_mainline_a_override:
+            default.setdefault("system_model", {})["enabled"] = True
+        if self._mainline_queue_override:
+            default.setdefault("system_model", {})["queue_model"] = self._mainline_queue_override
+        if self._mainline_channel_override:
+            default.setdefault("system_model", {}).setdefault("channel_model", {})[
+                "simulation"
+            ] = self._mainline_channel_override
+        return default
+
+    def _load_dynamic_pricing_config(self) -> Dict[str, Any]:
+        """Load optional dynamic-pricing config."""
+        path = self._project_path(self._dynamic_pricing_config_path, "configs/pricing_dynamic_mainline_a.yaml")
+        default: Dict[str, Any] = {
+            "dynamic_pricing": {
+                "enabled": False,
+                "base_price": 1.0,
+                "bounds": {"min": 0.05, "max": 10.0},
+                "components": {
+                    "queue": {"enabled": True, "alpha": 0.4},
+                    "channel": {"enabled": True, "alpha": 0.2},
+                    "migration": {"enabled": True, "alpha": 0.3},
+                },
+            }
+        }
+        if path.exists():
+            loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            for section, values in loaded.items():
+                if isinstance(values, dict) and isinstance(default.get(section), dict):
+                    default[section].update(values)
+                else:
+                    default[section] = values
+        if self._enable_mainline_a_override and "dynamic_pricing" in default:
+            default["dynamic_pricing"]["enabled"] = bool(default["dynamic_pricing"].get("enabled", False))
+        return default
 
     def _get_battery_level(self, agent_id: int) -> float:
         return float(55.0 + 25.0 * math.sin(self.current_step * 0.07 + agent_id))
@@ -1028,20 +1112,21 @@ class GameTheoryMECEnv(BaseMECEnv):
         delta_q = np.clip(self.delta_q / 5.0, -1.0, 1.0)
         rho = np.clip(self.rho, 0.0, 1.0)
 
-        return np.concatenate(
-            [
-                queue_obs,
-                snr_obs,
-                cpu_load,
-                task_features,
-                price_hist,
-                action_freq,
-                shap_hist,
-                delta_snr,
-                delta_q,
-                rho,
-            ]
-        ).astype(np.float32)
+        parts = [
+            queue_obs,
+            snr_obs,
+            cpu_load,
+            task_features,
+            price_hist,
+            action_freq,
+            shap_hist,
+            delta_snr,
+            delta_q,
+            rho,
+        ]
+        if self.mainline_a_enabled:
+            parts.append(self._mainline_a_features(agent_id))
+        return np.concatenate(parts).astype(np.float32)
 
     def _get_global_obs(self) -> np.ndarray:
         all_obs = [self._get_agent_obs(i) for i in range(self.num_agents)]
@@ -1050,12 +1135,143 @@ class GameTheoryMECEnv(BaseMECEnv):
     def _get_obs(self) -> np.ndarray:
         return self._get_agent_obs(0)
 
+    def _mainline_a_features(self, agent_id: int) -> np.ndarray:
+        """Build optional mainline-A observation features."""
+        if not self.mainline_a_enabled:
+            return np.asarray([], dtype=np.float32)
+        queue_pressure = self.queue_lengths / max(float(np.max(self.queue_lengths) + 1.0), 1.0)
+        channel_quality = np.clip((self.channel_qualities[agent_id] + 20.0) / 40.0, 0.0, 1.0)
+        migration_state = np.asarray(
+            [min(float(np.linalg.norm(self.user_mobility[agent_id, :2])) / 100.0, 1.0)],
+            dtype=np.float32,
+        )
+        edge_heterogeneity = self.service_rates / max(float(np.max(self.service_rates)), EPS)
+        prices = self.latest_equilibrium_prices / max(float(np.max(self.latest_equilibrium_prices)), EPS)
+        return np.concatenate(
+            [queue_pressure, channel_quality, migration_state, edge_heterogeneity, prices]
+        ).astype(np.float32)
+
+    def _compose_observation(self) -> np.ndarray:
+        """Compose the current single-agent observation."""
+        return self._get_agent_obs(0)
+
+    def _build_system_state(self):
+        """Build a mainline-A SystemState from current legacy env fields."""
+        from src.mec_model.adapters import build_system_state_from_legacy_env
+
+        return build_system_state_from_legacy_env(self)
+
+    def _compute_dynamic_prices(self, system_state):
+        """Compute dynamic prices or return the current static prices."""
+        from src.game_pricing.dynamic_pricing import compute_state_dependent_price
+        from src.game_pricing.types import PricingBounds, PricingParameters, PricingState
+        from src.mec_model.queues import compute_queue_pressure
+
+        if not self.dynamic_pricing_enabled:
+            from src.game_pricing.types import PriceVector
+
+            return PriceVector(tuple(float(value) for value in self.latest_equilibrium_prices))
+
+        cfg = self.dynamic_pricing_config.get("dynamic_pricing", {})
+        components = cfg.get("components", {})
+        queue_alpha = float(components.get("queue", {}).get("alpha", 0.4))
+        channel_alpha = float(components.get("channel", {}).get("alpha", 0.2))
+        migration_alpha = float(components.get("migration", {}).get("alpha", 0.3))
+        bounds_cfg = cfg.get("bounds", {})
+        queue_pressure = tuple(compute_queue_pressure(node.queue) for node in system_state.edge_nodes.values())
+        channel_quality = []
+        for node_id in system_state.edge_nodes:
+            qualities = [
+                user.channel_by_node[node_id].quality
+                for user in system_state.users.values()
+                if node_id in user.channel_by_node
+            ]
+            channel_quality.append(float(np.mean(qualities)) if qualities else 0.0)
+        migration_risk = tuple(
+            float(np.mean([user.mobility.handover_risk for user in system_state.users.values()]))
+            for _ in system_state.edge_nodes
+        )
+        state = PricingState(
+            queue_pressure=queue_pressure,
+            channel_quality=tuple(channel_quality),
+            migration_risk=migration_risk,
+            base_prices=tuple(float(value) for value in self.latest_equilibrium_prices),
+        )
+        params = PricingParameters(
+            base_price=float(cfg.get("base_price", 1.0)),
+            alpha_queue=queue_alpha,
+            alpha_channel=channel_alpha,
+            alpha_migration=migration_alpha,
+        )
+        return compute_state_dependent_price(
+            state,
+            PricingBounds(
+                min_price=float(bounds_cfg.get("min", 0.05)),
+                max_price=float(bounds_cfg.get("max", 10.0)),
+            ),
+            params,
+        )
+
+    def _compute_follower_responses(self, price_vector, system_state):
+        """Compute follower responses for all users."""
+        from src.game_pricing.follower_response import compute_best_response
+
+        return {
+            user_id: compute_best_response(user_state, price_vector, system_state)
+            for user_id, user_state in system_state.users.items()
+        }
+
+    def _compute_pricing_rewards(self, price_vector, responses) -> Dict[str, float]:
+        """Compute pricing reward metadata from responses."""
+        demand = np.zeros(len(price_vector.values), dtype=np.float64)
+        for response in responses.values():
+            values = np.asarray(response.demand, dtype=np.float64)
+            demand[: values.size] += values
+        revenue = float(np.dot(np.asarray(price_vector.values, dtype=np.float64), demand))
+        return {
+            "price_payment": revenue,
+            "provider_revenue": revenue,
+            "follower_total_demand": float(np.sum(demand)),
+        }
+
+    def _compute_mainline_a_metrics(self, actions) -> Dict[str, float]:
+        """Compute interpretable mainline-A reward components."""
+        _ = actions
+        queue_penalty = float(np.sum(self.queue_lengths))
+        channel_quality = float(np.mean(self.channel_qualities)) if self.channel_qualities.size else 0.0
+        metrics = {
+            "delay_cost": float(self.total_latency / max(1, self.task_completed)),
+            "energy_cost": float(self.total_energy / max(1, self.task_completed)),
+            "queue_penalty": queue_penalty,
+            "migration_penalty": 0.0 if self.mobility_intensity == "low" else 0.01 * queue_penalty,
+            "deadline_violation_penalty": 0.0,
+            "cooperation_gain": 0.0,
+            "price_payment": float(np.sum(self.latest_equilibrium_prices)),
+            "provider_revenue": float(np.sum(self.latest_equilibrium_prices)),
+            "constraint_penalty": max(0.0, queue_penalty - channel_quality),
+        }
+        self.last_mainline_a_metrics = metrics
+        return metrics
+
     def _compute_game_equilibrium_hints(self) -> Dict[str, np.ndarray]:
         prices, eq_actions, demands = self.bilevel_solver.solve(
             channel_db=self.channel_qualities,
             queue_lengths=self.queue_lengths,
             tasks=self.agent_tasks,
         )
+        dynamic_price_metadata: Dict[str, Any] = {}
+        if self.mainline_a_enabled:
+            system_state = self._build_system_state()
+            price_vector = self._compute_dynamic_prices(system_state)
+            responses = self._compute_follower_responses(price_vector, system_state)
+            pricing_rewards = self._compute_pricing_rewards(price_vector, responses)
+            if self.dynamic_pricing_enabled:
+                prices = np.asarray(price_vector.values, dtype=np.float32)
+            dynamic_price_metadata = {
+                "dynamic_prices": np.asarray(price_vector.values, dtype=np.float32),
+                "follower_responses": responses,
+                "pricing_rewards": pricing_rewards,
+            }
         self.latest_equilibrium_prices = prices
         self.latest_equilibrium_actions = eq_actions
         self.latest_demands = demands
@@ -1075,6 +1291,7 @@ class GameTheoryMECEnv(BaseMECEnv):
             "equilibrium_actions": eq_actions.copy(),
             "equilibrium_targets": eq_targets,
             "predicted_demands": demands.copy(),
+            **dynamic_price_metadata,
         }
 
     def _local_baseline_components(self, task: Optional[Dict[str, Any]], agent_id: int) -> Tuple[Dict[str, float], float]:
@@ -1402,7 +1619,7 @@ class GameTheoryMECEnv(BaseMECEnv):
             "offload_ratio_mean": float(np.mean(individual_offload)) if individual_offload else 0.0,
             "non_nearest_server_rate": float(np.mean(1.0 - nearest)) if nearest.size else 0.0,
         }
-        return {
+        info = {
             "global_obs": self._get_global_obs(),
             "agent_tasks": self.agent_tasks.copy(),
             "game_hints": game_hints,
@@ -1425,6 +1642,28 @@ class GameTheoryMECEnv(BaseMECEnv):
             "episode_reward_mean": float(np.mean(rewards)) if rewards else 0.0,
             "channel_qualities": self.channel_qualities.copy(),
         }
+        if self.mainline_a_enabled:
+            system_state = self._build_system_state()
+            reward_components = self._compute_mainline_a_metrics(eq_actions)
+            price_vector = self._compute_dynamic_prices(system_state)
+            responses = self._compute_follower_responses(price_vector, system_state)
+            pricing_rewards = self._compute_pricing_rewards(price_vector, responses)
+            reward_components.update(pricing_rewards)
+            info.update(
+                {
+                    "system_state": system_state,
+                    "mainline_a_enabled": True,
+                    "mainline_a_reward_components": reward_components,
+                    "dynamic_price_metadata": {
+                        "enabled": self.dynamic_pricing_enabled,
+                        "prices": price_vector.values,
+                        "responses": responses,
+                    },
+                }
+            )
+        else:
+            info["mainline_a_enabled"] = False
+        return info
 
     def reset(
         self,

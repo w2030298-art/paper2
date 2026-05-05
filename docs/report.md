@@ -1,38 +1,34 @@
 # Execution Report
 
-## STATUS: IN_PROGRESS
+## STATUS: NEEDS_REVIEW
 
-> 上次更新: 2026-05-04 | plan.md 版本:slimming-plan-v3
+> 上次更新: 2026-05-05 | plan.md 版本:system-model-overhaul-v4.1
 
 ## Last Execution
 - 来源: dispatch:patch
-- 摘要: 已启动 L2 formal convergence background run：`l2_20260504_171744`，PID `26860`，运行 `COMA/MAPPO/TRPO/IQL/VDN/IPPO/MADDPG` 的 100k x 3 seeds。L1 仍只作为预筛；L2 未完成前不产生论文主结论，L3 只会在 L2 达标算法上自动进入。
+- 摘要: 已完成 v4.1 merge-back、docs 根目录整理、旧 L2/L3 legacy convergence retirement，以及模块 15-21 的 mainline-A 代码/配置/文档/测试资产。新模型默认关闭，legacy default 仍保留；论文部分只生成 writing assets 和 pending questions，未直接改正文。
 
 ## Completed
-- [x] 模块 14 Step 1：新增 `docs/formal_convergence_protocol.md`，固化 L0/L1/L2/L3 与 `verified_converged_under_protocol` 口径 (commit 未提交)
-- [x] 模块 14 Step 2：生成 `docs/l1_baseline_convergence_assessment.md`，50k single-seed 仅标记 `l1_candidate` / `failed_l1` / event audit / single-variable fix (commit 未提交)
-- [x] 模块 14 Step 3：补强 `scripts/analyze_convergence_failures.py` 与 `tests/test_formal_convergence_protocol.py`，新增 formal decision helpers 与 CLI 参数 (commit 未提交)
-- [x] 模块 14 Step 4/6：新增 `configs/formal_convergence_matrix.yaml` 与 `configs/formal_single_variable_fixes.yaml`；`configs/stability_overrides.yaml` 保持 `enabled: false` (commit 未提交)
-- [x] 模块 14 Step 5：更新 `docs/convergence_event_audit.md`，`IQL/VDN/IPPO/MADDPG` 当前归类为 training instability，未发现 reward/metric/env 语义错误证据 (commit 未提交)
-- [x] 模块 14 Step 8/10/11：新增 L2 failure triage、L3-only publication gate，并让 plot quality report 支持 evidence metadata (commit 未提交)
-- [x] 模块 14 Step 7：L2 job 已启动，manifest 位于 `experiments/formal_convergence/l2/l2_20260504_171744/manifest.json` (commit 未提交)
+- [x] merge-back：旧 `plan.md` 已归档到 `docs/archive/plan-slimming-plan-v3-before-system-model-overhaul-v4.1-20260505.md`，inbox 已清空。(commit 未提交)
+- [x] 模块 14R：停止旧 L2 PID `26860`，保留 manifest/log，未启动旧 L3；旧结果仅作 `legacy_pre_overhaul` baseline。(commit 未提交)
+- [x] 模块 15-16：新增 `src/mec_model/`、legacy adapter、可选 mainline-A env state/reward、benchmark dry-run 参数和兼容性报告。(commit 未提交)
+- [x] 模块 17-18：新增 `src/game_pricing/` 与 `src/rl_algorithms/game_aware/`，动态定价、follower/leader objective、theory checks、critic features、primal-dual 和 reward design 已覆盖测试。(commit 未提交)
+- [x] 模块 19-20：新增 theory validation、small-scale oracle、N0/N1/N2/N3 configs、experiment runner 和 plot helper。(commit 未提交)
+- [x] 模块 21：新增 `writing_ref/paper2_mainline_a_revision/`、`docs/paper_revision_pending_questions.md`、`docs/paper_revision_manifest.md`；未改论文正文。(commit 未提交)
 
 ## In Review
-- [ ] 模块 14 Step 3/5/11 为 review scope，需审核 formal classifier、event audit 口径和 plot metadata 绑定。
-- [ ] 模块 13 Step 1/4/5/6 仍为历史 review items。
-- [ ] 外部 dashboard 兼容性仍需在 `C:\Users\22003\paper2\rl-mec-dashboard` 可用环境复核。
+- [ ] 模块 14R Step 1 — 旧 L2 停止与 legacy baseline 降级待审核。
+- [ ] 模块 15-20 的 review scope 实现项 — 模型接口、定价假设、env 接入、game-aware primal-dual、理论口径和实验协议待审核。
+- [ ] 模块 21 Step 2 — 模型变更清单待审核。
 
 ## Blocked
-- [ ] L2 100k multi-seed validation — 正在运行，等待 PID `26860` 完成并产出 `results/l2_candidate_convergence_report.json`。
-- [ ] L3 200k multi-seed formal validation — runner 带 `--auto-l3`，只会在 L2 达标算法上继续；当前仍依赖 L2 完成。
-- [ ] 全目录 forbidden phrase 原样 grep — `docs/plan.md` 本身包含禁止语句示例；实际防误报检查需排除 plan/archive 指令文本，只检查执行产物。
+- [ ] 外部 dashboard 兼容性 — `C:\Users\22003\paper2\rl-mec-dashboard` 本机仍不可用，需在有该仓库的环境复核。
+- [ ] 正式 N0/N1/N2/N3 实验 — 本轮只做 dry-run，不启动真实训练。
 
 ## Discovered Issues
-- evidence level 状态：当前只有 L1 预筛完成；L2 正在运行，L3 尚未产生结果。
-- L2 active run 状态：`COMA/MAPPO/TRPO/IQL/VDN/IPPO/MADDPG` 已启动；`A3C/MATD3/SAC/GRPO` 因需要 single-variable fix 候选，未进入本轮 L2 run。
-- L1 baseline 当前仅 3 个算法为 `l1_candidate`：`COMA/MAPPO/TRPO`；`IQL/VDN/IPPO/MADDPG` 需要 event audit；`A3C/MATD3/SAC/GRPO` 需要 single-variable fix 候选。
-- 未执行 L2/L3 前，没有任何算法可标记为 `verified_converged_under_protocol`。
+- 旧 L2/L3 formal convergence 对新系统模型不再构成主结论证据 — 严重度: 中；已降级为 legacy baseline。
+- 历史 convergence reassessment reference 含旧 formal verdict 文本 — 严重度: 低；已迁入 `docs/archive/legacy-convergence-20260505/`。
 
 ## Recommendations
-- 继续监控 PID `26860`，完成后检查 `docs/l2_candidate_convergence_report.md` 与 raw/clean/quality report。
-- L3 未通过的算法只进入 appendix/debug，不进入论文主 convergence figure 或主结论。
+- 审核 review scope 后，再决定是否启动 N0 smoke 或 N1 oracle 的真实实验。
+- 论文正文改写应等待 `docs/paper_revision_pending_questions.md` 中的问题被补齐。

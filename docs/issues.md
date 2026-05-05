@@ -33,3 +33,10 @@
 - [Info] M14-v3-event-audit: `IQL/VDN/IPPO/MADDPG` 当前事件审计归类为 `training_instability`，未发现 reward/metric/env 语义错误证据；若后续发现语义错误，应立即标记 `NEEDS_ESCALATION`。
 - [Info] M14-v3-forbidden-check: v3 plan 指令文本本身包含禁止语句示例，最终防误报 grep 需要排除 `docs/plan.md` 与 `docs/archive/` 后检查执行产物。
 - [In Progress] M14-v3-L2-active-run: 已启动 L2 background job `l2_20260504_171744`，PID `26860`，manifest 为 `experiments/formal_convergence/l2/l2_20260504_171744/manifest.json`。当前运行算法为 `COMA/MAPPO/TRPO/IQL/VDN/IPPO/MADDPG`；`A3C/MATD3/SAC/GRPO` 因需 single-variable fix 候选暂未进入。
+
+## 2026-05-05 System Model Overhaul v4.1
+
+- [Info] M14R-legacy-convergence-retirement: 旧 L2/L3 已降级为 `legacy_pre_overhaul` baseline；旧结果不得进入新论文主图或新系统模型主结论。
+- [Needs Review] M14R-L2-stop: 旧 L2 run `l2_20260504_171744` 的 PID `26860` 已停止，manifest/log 保留；旧 L3 未启动。该操作属于 review scope，需审核。
+- [Info] Docs-cleanup: 旧 L1/L2/L3 结果报告与历史 convergence reassessment reference 已迁入 `docs/archive/legacy-convergence-20260505/`。
+- [Needs Review] Mainline-A-review-scope: 模块 15-20 涉及 MEC model、dynamic pricing、env adapter、game-aware primal-dual、theory assets 和 N0/N1/N2/N3 experiment chain，均含 review scope 项，等待用户/Web 审核。

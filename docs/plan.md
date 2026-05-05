@@ -1,25 +1,37 @@
-# docs/inbox/plan.md：paper2 正式收敛验证协议
+# docs/inbox/plan.md：paper2 主线A系统模型大换血计划 v4.1
 
 ## 元信息
 
 - 项目：`paper2`
-- 计划版本：`slimming-plan-v3`
+- 计划版本：`system-model-overhaul-v4.1`
 - 变更类型：`patch`
-- 当前状态：**新增模块 14：formal convergence verification protocol，等待执行端 merge-back**
+- 创建日期：2026-05-04
+- 最后更新：2026-05-04
+- 上一版本：`slimming-plan-v3`
 - GitHub 仓库：`w2030298-art/paper2`
-- 外部关联仓库：`w2030298-art/rl-mec-dashboard`
-- 创建日期：2026-05-02
-- 最后更新：2026-05-03
-- 本版目标：在工程协议下直接验证算法改进是否达到 `verified_converged_under_protocol`。
-- 明确不做：数学/理论意义的“保证收敛”证明。
+- 项目边界：`paper2` 与仿真对比实验是同一个项目；实验 runner、benchmark、plot、oracle、OOD、ablation 全部纳入本 plan，不再拆成独立仿真实验项目。
+- 论文边界：论文改写不是本 plan 的执行主线；本 plan 只生成 `writing_ref/` 写作资产与 `docs/paper_revision_manifest.md`，不假设执行端直接改论文正文。
+- 本版目标：基于主线A，把 paper2 从“静态 Stackelberg + 传统 MEC + 常规 MARL benchmark”升级为“队列/信道/迁移状态依赖动态定价 + game-guided constrained MARL + 可解释实验链”。
+- 关键调整：
+  - 当前模块 14 的 L2/L3 formal convergence 只验证旧模型，不再作为新模型主门禁。
+  - L2/L3 结果只保留为 legacy baseline，不进入新论文主结论。
+  - 新模型实验链统一在模块 20 内实现：N0 smoke、N1 oracle、N2 ablation、N3 OOD。
+- 明确不做：
+  - 不把当前 L2/L3 写成新模型收敛证据。
+  - 不恢复已移除的 `docs_paper/`、`scripts/evaluate.py`、`scripts/generate_report.py`。
+  - 不把 `experiments/`、`results/`、`figures/`、`logs/`、`checkpoints/` 重新纳入 Git tracking。
+  - 不声称数学意义的全局收敛保证。
+  - 不在未收到论文源文件/目标期刊/现有章节差异前直接改论文正文。
 
 ### 变更记录
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|---------|
-| slimming-plan-v1 | 2026-05-02 | paper2 项目瘦身 Phase 1-2：repo hygiene、生成产物 tracking 移除、旧入口/旧工具删除 |
+| slimming-plan-v1 | 2026-05-02 | repo hygiene、生成产物 tracking 移除、旧入口/旧工具删除 |
 | slimming-plan-v2 | 2026-05-03 | 追加 targeted debugging 方案；50k 只作为预验证 |
-| slimming-plan-v3 | 2026-05-03 | 重构为正式工程收敛验证协议：多 seed、100k/200k 门禁、raw/clean/quality report 绑定、禁止把 50k 单 seed 写成收敛证明 |
+| slimming-plan-v3 | 2026-05-03 | 正式工程收敛验证协议：L0/L1/L2/L3、raw/clean/quality report、禁止越级收敛结论 |
+| system-model-overhaul-v4 | 2026-05-04 | 初版系统模型大换血计划；误拆 paper2 与仿真实验为两个项目 |
+| system-model-overhaul-v4.1 | 2026-05-04 | 修正项目边界：paper2 与仿真实验合并；论文改写降级为独立写作资产，不进入代码 dispatch |
 
 ---
 
@@ -27,604 +39,1296 @@
 
 > 执行端读到此区块即可恢复上下文。
 
-- 当前阶段：模块 14 Step 1 待执行
-- 当前模块：模块 14：formal convergence verification protocol
-- 整体进度：`14 / 27`
+- 当前阶段：模块 14R Step 1 待执行。
+- 当前模块：模块 14R：legacy convergence retirement。
+- 整体进度：`14 / 21` 模块进入过执行态；模块 14R、15-21 待执行。
 - 状态：`变更后待执行`
+- 当前背景：
+  - 旧模块 14 已启动 L2 job：`l2_20260504_171744`，PID `26860`。
+  - 用户确认：由于系统模型将大改，当前 L2/L3 对新模型参考意义较小。
+  - 用户确认：paper2 与仿真实验是同一个项目。
+  - 用户说明：论文改写与代码/实验计划有所区别，不应按同一执行链下发。
 - 阻塞项：
-  - `C:\Users\22003\paper2\rl-mec-dashboard` 本机不存在，外部 dashboard 兼容性仍需独立复核。
-  - 当前 50k 单 seed 测试实验只能作为 L1 预筛，不能证明收敛。
-- 当前已知证据：
-  - `convergence_validation_baseline_50k.json`：11 个目标算法，`seed=42`，约 50k steps，全部 `run_status=success`。
-  - 该数据能证明 benchmark 管线跑通，不能证明算法改进已经保证收敛。
-  - 当前仍需关注：
-    - catastrophic/outlier：`IQL`、`VDN`、`IPPO`、`MADDPG`
-    - 非最终通过：`A3C`、`MATD3`、`SAC`、`GRPO`
-    - 仅 L1 候选：`COMA`、`MAPPO`、`TRPO`
-- 重要说明：
-  - 模块 12-13 保持已完成状态，不重复执行。
-  - 本轮只新增模块 14。
-  - 不直接 full 17 重跑。
-  - 不默认启用 `configs/stability_overrides.yaml`。
-  - 不允许在 `docs/` 中写“已保证收敛”，只能写协议限定结论：`verified_converged_under_protocol`。
-  - 如果发现 reward/metric/env 语义错误，立即停止并标记 `NEEDS_ESCALATION`。
+  - 无阻塞新模型开发的必须项。
+  - 论文正文改写需要另行基于论文源文件与用户差异要求生成，不阻塞 paper2 代码/实验计划。
+  - dashboard 兼容性仍是外部复核项，不阻塞主线A系统模型实现。
+- 本版总原则：
+  - 先退役旧收敛门禁，再做模型大改。
+  - 所有新模型默认 `enabled: false`，由 `configs/system_model_mainline_a.yaml` 显式开启。
+  - 新模型另建 smoke → small-oracle → ablation → OOD 的实验链，不复用旧 L2/L3 结论。
+  - 论文主结论只允许引用新模型实验链的结果。
 
 ### Last Iteration Summary
 
-- 已完成 paper2 仓库瘦身 Phase 1-2。
-- 已生成收敛诊断报告与 50k baseline 测试数据。
-- 用户确认本轮采用“工程协议下验证收敛”，不追加数学证明模块。
-- 目标是让下一步工作能够直接判定：算法改进是否通过正式工程收敛门禁。
+- 模块 12-13 已完成仓库瘦身与非核心功能删除。
+- 模块 14 已建立旧模型工程收敛验证协议并启动 L2，但该协议现在降级为 legacy baseline。
+- 本轮进入系统模型大换血：MEC 建模、动态 Stackelberg、game-aware critic / primal-dual MARL、消融/OOD/oracle、理论与论文写作资产同步准备。
 
 ### Pending Decisions
 
-- dashboard 兼容性是否单独复核。
-- 哪些算法通过 L1 后进入 L2/L3。
-- 是否接受未通过 L3 的算法仅作为 ablation/debug 结果，而非论文主图。
+- 旧 L2 进程是否仍在运行；若在运行，执行端应优雅停止并归档 manifest/log。
+- 论文源文件实际位置、目标期刊/模板、当前章节结构、用户所说“论文改写有所区别”的具体差异。
+- 3GPP 派生仿真默认场景暂定 `UMi`；如论文场景偏车联网，后续可切换为 `UMa`/RSU 派生配置。
 
 ---
 
-## 术语与证据等级
+# 历史模块冻结区
 
-| 等级 | 名称 | 输入 | 可写结论 |
-|------|------|------|---------|
-| L0 | offline diagnosis | 历史日志/历史 benchmark JSON | 只能定位问题，不证明改进 |
-| L1 | 50k single-seed test | `seed=42`、约 50k steps | 只能写 `candidate` / `failed_l1` |
-| L2 | 100k multi-seed candidate validation | `seeds=[42,43,44]`、100k steps | 可写 `candidate_converged_under_protocol` |
-| L3 | 200k multi-seed formal validation | `seeds=[42,43,44,45,46]`、200k steps | 可写 `verified_converged_under_protocol` |
+## 模块 1-13：历史已完成模块 `[DONE]`
 
-## 工程收敛判定口径
+- **scope: auto**
+- 状态：保持完成，不重复执行，不回滚瘦身决策。
+- 约束：
+  - 不恢复旧入口。
+  - 不恢复 `docs_paper/` 入仓。
+  - 不恢复 callback 扩展机制。
+  - 不把生成产物纳入 Git tracking。
+- 验证：
+  ```bash
+  test ! -f scripts/evaluate.py
+  test ! -f scripts/generate_report.py
+  test ! -d docs_paper
+  git status --short experiments results figures logs checkpoints | grep -E "^[AM]" && exit 1 || true
+  pytest -q
+  ```
 
-算法只有同时满足以下条件，才可标记 `verified_converged_under_protocol`：
+## 模块 14：formal convergence verification protocol `[SUPERSEDED_FOR_NEW_MODEL]`
 
-1. `run_status=success`，所有 seeds 无失败。
-2. `catastrophic_outlier_count=0`。
-3. reward:
-   - tail window 稳定；
-   - `best_tail_gap <= 0.10`；
-   - tail relative change 不显示持续恶化。
-4. latency / energy:
-   - 相比 L1 baseline 无超过 10% 的反向退化；
-   - deadline miss rate 不显著升高。
-5. comm_score:
-   - 无明显退化；
-   - 若 reward 改善但 comm_score 退化，必须进入 review。
-6. raw diagnostic 图、clean publication 图、quality report 三者一致。
-7. `seeds=[42,43,44,45,46]` 的 median 与 q25-q75 区间稳定。
-8. 结果报告中必须标注 config hash、run id、override id、数据路径。
+- **scope: review**
+- 状态：不删除历史产物，但不再作为新模型主门禁。
+- 处理方式：
+  - 归档为 legacy baseline。
+  - 禁止把旧 L2/L3 结果写入新模型主图或新论文主结论。
+  - 保留旧协议文档用于说明“pre-overhaul convergence baseline”。
 
 ---
 
-# 模块 12：无争议仓库卫生清理 `[DONE]`
-
-## Step 1：生成执行前审计快照 `[DONE]`
-
-- **scope: auto**
-- 已完成：`docs/slimming_audit_phase2.md`
-- 验证：已由模块 13 Step 8 汇总进 `docs/report.md`
-
-## Step 2：从 Git tracking 移除生成产物 `[DONE]`
-
-- **scope: auto**
-- 已完成：`experiments/`、`results/`、`figures/`、`logs/`、`checkpoints/` 从 Git tracking 移除。
-- 验证：`.gitignore` 已覆盖生成产物目录。
-
-## Step 3：删除废弃坏入口 `src/trainer/benchmark.py` `[DONE]`
-
-- **scope: auto**
-- 已完成：删除 `src/trainer/benchmark.py`
-- 验证：`python scripts/benchmark.py --help`
-
-## Step 4：统一 docs 归档并清理 graphify cache `[DONE]`
-
-- **scope: auto**
-- 已完成：`docs/.archive/` 迁移/清理，`graphify-out/cache/` 清理。
-- 验证：repo hygiene 测试覆盖。
-
-## Step 5：移除未使用 dashboard 依赖 `[DONE]`
-
-- **scope: auto**
-- 已完成：从依赖中移除未使用 dashboard 相关依赖。
-- 验证：全量测试通过。
-
-## Step 6：新增仓库卫生测试 `[DONE]`
-
-- **scope: auto**
-- 已完成：`tests/test_repo_hygiene.py`、`tests/test_active_entrypoints.py`
-- 验证：`.venv\Scripts\python.exe -m pytest -q`
-
----
-
-# 模块 13：已确认非核心功能删除 `[DONE / NEEDS_REVIEW ITEMS]`
-
-## Step 1：迁移 `docs_paper/` 到外部写作资料目录 `[DONE / review]`
-
-- **scope: review**
-- 已完成：复制到 `C:\Users\22003\paper2\writing_ref\docs_paper` 并从仓库移除。
-- 待审核：写作资料外迁后仓库删除是否符合预期。
-- 验证：`test -f docs/references/writing_ref_migration.md`
-
-## Step 2：删除 `scripts/evaluate.py` `[DONE]`
-
-- **scope: auto**
-- 已完成：删除旧离线评估入口。
-- 保留：`BaseTrainer.evaluate()`
-- 验证：`test ! -f scripts/evaluate.py`
-
-## Step 3：删除 `scripts/generate_report.py` `[DONE]`
-
-- **scope: auto**
-- 已完成：删除旧报告入口。
-- 当前报告职责：
-  - `scripts/plot_results.py`
-  - `scripts/analyze_convergence_failures.py`
-- 验证：`test ! -f scripts/generate_report.py`
-
-## Step 4：删除 callback 扩展机制 `[DONE / review]`
-
-- **scope: review**
-- 已完成：删除 `src/trainer/callbacks.py` 与旧 callback 调用链。
-- 待审核：dashboard 路径缺失导致外部引用未能完整验证。
-- 验证：`test ! -f src/trainer/callbacks.py`
-
-## Step 5：删除旧 utils 工具 `[DONE / review]`
-
-- **scope: review**
-- 已完成：删除 `src/utils/logger.py`、`src/utils/config.py`、`src/utils/action_utils.py`
-- 待审核：`omegaconf` 删除影响。
-- 验证：`pytest -q`
-
-## Step 6：buffer canonical owner 收敛 `[DONE / review]`
-
-- **scope: review**
-- 保留：`src/utils/buffer.py`
-- 已完成：删除或迁移旧 wrapper 引用。
-- 待审核：`rl_algorithms/utils/buffers.py` wrapper 删除影响。
-- 验证：`pytest -q`
-
-## Step 7：更新 README 与 docs 契约 `[DONE]`
-
-- **scope: auto**
-- 已完成：README/docs 更新为当前核心链路。
-- 验证：`pytest tests/test_docs_contract.py -q`
-
-## Step 8：更新执行报告与进度 `[DONE]`
-
-- **scope: auto**
-- 已完成：`docs/report.md`、`docs/progress.md`、`docs/issues.md`
-- 状态：`NEEDS_REVIEW`
-- 验证：`.venv\Scripts\python.exe -m pytest -q`
-
----
-
-# 模块 14：formal convergence verification protocol
+# 模块 14R：legacy convergence retirement
 
 ## 概述
 
-- 职责：把算法改进从“测试实验可跑”提升为“工程协议下可验证收敛”。
-- 输入：
-  - `convergence_validation_baseline_50k.json`
-  - `benchmark_20260503_005009.log`
-  - `benchmark_20260503_005009.err.log`
-  - `docs/convergence_failure_analysis.md`
-  - `configs/stability_overrides.yaml`
+- 职责：停止旧 L2/L3 对后续开发的阻塞作用，把旧收敛验证降级为 legacy baseline，并建立新模型实验门禁。
+- 前置依赖：已有模块 14 L2 run 信息。
 - 输出：
-  - `docs/formal_convergence_protocol.md`
-  - `docs/l1_baseline_convergence_assessment.md`
-  - `configs/formal_convergence_matrix.yaml`
-  - `docs/l2_candidate_convergence_report.md`
-  - `docs/l3_verified_convergence_report.md`
-  - `docs/convergence_publication_gate.md`
-- 预计步骤数：13
+  - `docs/legacy_convergence_retirement.md`
+  - `docs/convergence_publication_gate.md` 更新
+  - `docs/report.md` 更新
+  - `docs/progress.md` 更新
+- 预计步骤数：5
 
-## Step 1：固化正式收敛验证协议
+## Step 1：检查并优雅停止旧 L2 background job
 
-- **scope: auto**
-- 新增：`docs/formal_convergence_protocol.md`
-- 内容必须包含：
-  - L0/L1/L2/L3 证据等级。
-  - `verified_converged_under_protocol` 的定义。
-  - 50k 单 seed 不能证明收敛的边界。
-  - reward、latency、energy、comm_score、deadline miss rate 的通过阈值。
-  - raw/clean/quality report 三件套绑定要求。
-  - 禁止语句：`guaranteed convergence`、`算法已保证收敛`、`verified_converged` 出现在 L1 报告中。
-- 验证：
-  ```bash
-  test -f docs/formal_convergence_protocol.md
-  grep -n "verified_converged_under_protocol" docs/formal_convergence_protocol.md
-  grep -n "L1" docs/formal_convergence_protocol.md
-  ```
-
-## Step 2：把 50k baseline 转换为 L1 评估报告
-
-- **scope: auto**
-- 输入：
-  - `convergence_validation_baseline_50k.json`
-  - `benchmark_20260503_005009.log`
-  - `benchmark_20260503_005009.err.log`
-- 新增：`docs/l1_baseline_convergence_assessment.md`
-- 新增：`results/l1_baseline_convergence_assessment.json`（生成产物，不纳入 Git）
+- **scope: review**
 - 操作：
-  - 逐算法计算：
-    - `tail_relative_change`
-    - `tail_slope`
-    - `tail_volatility`
-    - `best_tail_gap`
-    - `catastrophic_outlier_count`
-    - `latency_regression`
-    - `energy_regression`
-    - `comm_score_regression`
-  - 标记：
-    - `failed_l1`
-    - `l1_candidate`
-    - `needs_event_audit`
-    - `needs_single_variable_fix`
-- 不允许：
-  - 把任何算法标记为 `verified_converged_under_protocol`。
+  - 检查 PID `26860` 是否仍存在。
+  - 若仍在运行，优雅终止；保留 `experiments/formal_convergence/l2/l2_20260504_171744/manifest.json`、stdout/stderr log、已完成中间结果。
+  - 若已完成，不启动 L3。
+  - 不删除任何已有日志。
+- 新增：`docs/legacy_convergence_retirement.md`
+- 记录：
+  - `run_id`
+  - PID 状态
+  - 停止/完成时间
+  - 已产生文件路径
+  - 降级原因：system model overhaul invalidates old formal gate relevance
 - 验证：
   ```bash
-  test -f docs/l1_baseline_convergence_assessment.md
-  python -m json.tool results/l1_baseline_convergence_assessment.json > NUL
-  grep -R "verified_converged" docs/l1_baseline_convergence_assessment.md && exit 1 || true
+  test -f docs/legacy_convergence_retirement.md
+  grep -n "legacy baseline" docs/legacy_convergence_retirement.md
+  grep -n "must not be used as main claim" docs/legacy_convergence_retirement.md
   ```
 
-## Step 3：补强收敛判定器
-
-- **scope: review**
-- 修改：`scripts/analyze_convergence_failures.py`
-- 新增函数：
-  - `compute_tail_metrics(series, higher_is_better: bool) -> dict`
-  - `classify_evidence_level(run_metadata: dict) -> str`
-  - `classify_formal_convergence(record: dict, protocol: dict) -> dict`
-  - `detect_metric_regression(current: dict, baseline: dict) -> dict`
-- 新增 CLI 参数：
-  ```bash
-  --protocol docs/formal_convergence_protocol.md
-  --evidence-level L1|L2|L3
-  --baseline-json results/l1_baseline_convergence_assessment.json
-  --formal-output results/formal_convergence_decision.json
-  ```
-- 新增测试：`tests/test_formal_convergence_protocol.py`
-- 验证：
-  ```bash
-  pytest tests/test_analyze_convergence_failures.py tests/test_formal_convergence_protocol.py -q
-  python scripts/analyze_convergence_failures.py --help
-  ```
-
-## Step 4：建立正式实验矩阵配置
+## Step 2：更新 publication gate
 
 - **scope: auto**
-- 新增：`configs/formal_convergence_matrix.yaml`
-- 内容：
-  ```yaml
-  evidence_levels:
-    L1:
-      steps: 50000
-      seeds: [42]
-      purpose: screening_only
-    L2:
-      steps: 100000
-      seeds: [42, 43, 44]
-      purpose: candidate_validation
-    L3:
-      steps: 200000
-      seeds: [42, 43, 44, 45, 46]
-      purpose: formal_verification
-  target_algorithms:
-    catastrophic_or_unstable: [IQL, VDN, IPPO, MADDPG]
-    uncertain_or_plateau: [A3C, MATD3, SAC, GRPO]
-    l1_candidates: [COMA, MAPPO, TRPO]
-  gates:
-    reward_best_tail_gap_max: 0.10
-    metric_regression_max: 0.10
-    catastrophic_outlier_count: 0
-    failed_seed_count: 0
-  ```
-- 验证：
-  ```bash
-  python - <<'PY'
-  import yaml
-  p = yaml.safe_load(open("configs/formal_convergence_matrix.yaml", encoding="utf-8"))
-  assert p["evidence_levels"]["L3"]["seeds"] == [42, 43, 44, 45, 46]
-  assert p["gates"]["catastrophic_outlier_count"] == 0
-  PY
-  ```
-
-## Step 5：异常事件审计 gate
-
-- **scope: review**
-- 目标：`IQL`、`VDN`、`IPPO`、`MADDPG`
-- 修改：`scripts/analyze_convergence_failures.py`
-- 新增能力：
-  - 定位 min reward 对应 eval index / timestep。
-  - 读取对应算法 artifact：
-    - `result.json`
-    - `stdout.log`
-    - `stderr.log`
-    - `checkpoints/train_logs.json`
-  - 判断来源：
-    - `environment_metric_bug`
-    - `training_instability`
-    - `evaluation_noise`
-    - `unknown`
-- 新增：`docs/convergence_event_audit.md`
-- 新增：`results/convergence_event_audit.json`
-- 停止条件：
-  - 若来源是 `environment_metric_bug` 或 `unknown`，停止 L2/L3，写 `NEEDS_ESCALATION`。
-  - 只有来源是 `training_instability` 或 `evaluation_noise`，才允许进入 Step 6/7。
-- 验证：
-  ```bash
-  python scripts/analyze_convergence_failures.py --algorithms IQL VDN IPPO MADDPG --formal-output results/convergence_event_audit.json
-  test -f docs/convergence_event_audit.md
-  ```
-
-## Step 6：单变量修复矩阵，不污染默认配置
-
-- **scope: review**
-- 新增：`configs/formal_single_variable_fixes.yaml`
-- 规则：
-  - `configs/stability_overrides.yaml` 必须保持 `enabled: false`。
-  - 每次只启用一个变量族。
-  - 每次修复必须生成 `override_id`。
-  - 不允许一次性叠加多个 override 后宣称有效。
-- 推荐矩阵：
-  ```yaml
-  value_decomposition:
-    algorithms: [IQL, VDN]
-    fixes:
-      - {override_id: vd_lr_half, lr_scale: 0.5}
-      - {override_id: vd_grad_clip_1_0, gradient_clip_norm: 1.0}
-      - {override_id: vd_target_update_slow, target_update_interval_scale: 1.5}
-  on_policy_marl:
-    algorithms: [IPPO, COMA, MAPPO]
-    fixes:
-      - {override_id: marl_lr_half, actor_lr_scale: 0.5, critic_lr_scale: 0.5}
-      - {override_id: marl_grad_clip_0_5, gradient_clip_norm: 0.5}
-      - {override_id: marl_eval_episodes_20, eval_episodes: 20}
-  continuous_actor_critic:
-    algorithms: [MADDPG, MATD3, SAC]
-    fixes:
-      - {override_id: cac_lr_half, actor_lr_scale: 0.5, critic_lr_scale: 0.5}
-      - {override_id: cac_target_tau_half, target_tau_scale: 0.5}
-      - {override_id: cac_replay_warmup_10k, replay_warmup_steps: 10000}
-  conservative_policy:
-    algorithms: [GRPO, TRPO]
-    fixes:
-      - {override_id: cp_lr_0_75, policy_lr_scale: 0.75, value_lr_scale: 0.75}
-  ```
-- 验证：
-  ```bash
-  test -f configs/formal_single_variable_fixes.yaml
-  grep -R "enabled: true" configs/stability_overrides.yaml && exit 1 || true
-  ```
-
-## Step 7：执行 L2 candidate validation
-
-- **scope: review**
-- 前置：
-  - Step 5 无 `environment_metric_bug` 或 `unknown`。
-  - Step 6 已生成单变量候选配置。
-- 目标：
-  - L1 候选：`COMA`、`MAPPO`、`TRPO`
-  - 修复候选：按 Step 6 的最小有效 override 进入
-  - 不稳定算法：`IQL`、`VDN`、`IPPO`、`MADDPG` 必须先通过事件审计
-- 实验参数：
-  ```yaml
-  evidence_level: L2
-  steps: 100000
-  seeds: [42, 43, 44]
-  ```
-- 输出：
-  - `docs/l2_candidate_convergence_report.md`
-  - `results/l2_candidate_convergence_report.json`
-  - `figures/l2_candidate_convergence/`
-- 通过标准：
-  - all seeds success
-  - no catastrophic outlier
-  - reward best-tail gap <= 0.10
-  - latency/energy/comm_score regression <= 0.10
-  - quality report 无 severe unexplained warning
-- 验证：
-  ```bash
-  test -f docs/l2_candidate_convergence_report.md
-  python -m json.tool results/l2_candidate_convergence_report.json > NUL
-  ```
-
-## Step 8：L2 失败分流
-
-- **scope: auto**
-- 新增：`docs/l2_failure_triage.md`
-- 操作：
-  - 对 L2 失败算法按原因分流：
-    - `event_bug`
-    - `training_instability`
-    - `metric_tradeoff`
-    - `insufficient_steps`
-    - `seed_sensitive`
-  - 写入每个算法下一步：
-    - retry same override
-    - try next single-variable override
-    - escalate env/metric
-    - exclude from formal convergence claim
-- 验证：
-  ```bash
-  test -f docs/l2_failure_triage.md
-  grep -n "exclude from formal convergence claim" docs/l2_failure_triage.md
-  ```
-
-## Step 9：执行 L3 formal verification
-
-- **scope: review**
-- 前置：
-  - 仅 L2 通过的算法可进入。
-  - 每个算法只有一个最终配置进入 L3。
-- 实验参数：
-  ```yaml
-  evidence_level: L3
-  steps: 200000
-  seeds: [42, 43, 44, 45, 46]
-  ```
-- 输出：
-  - `docs/l3_verified_convergence_report.md`
-  - `results/l3_verified_convergence_report.json`
-  - `figures/l3_verified_convergence/`
-- 通过标准：
-  - 所有 L3 seeds 成功。
-  - `catastrophic_outlier_count=0`。
-  - reward、latency、energy、comm_score 全部通过协议阈值。
-  - q25-q75 区间稳定，无单 seed 主导结论。
-  - raw diagnostic 图和 clean publication 图结论一致。
-- 验证：
-  ```bash
-  test -f docs/l3_verified_convergence_report.md
-  python -m json.tool results/l3_verified_convergence_report.json > NUL
-  grep -n "verified_converged_under_protocol" docs/l3_verified_convergence_report.md
-  ```
-
-## Step 10：生成 publication gate
-
-- **scope: auto**
-- 新增：`docs/convergence_publication_gate.md`
-- 内容：
-  - 哪些算法可进入论文主图。
-  - 哪些只能进入 appendix/debug。
-  - 哪些必须排除 formal convergence claim。
-  - 每个算法的 evidence level。
-- 规则：
-  - 只有 L3 通过算法可进入 main convergence figure。
-  - L2 通过但 L3 未跑算法只能写 candidate，不进主结论。
-  - L1 通过算法不能写入论文“收敛性验证”段落。
-- 验证：
-  ```bash
-  test -f docs/convergence_publication_gate.md
-  grep -R "L1" docs/convergence_publication_gate.md
-  ```
-
-## Step 11：更新绘图和质量报告绑定
-
-- **scope: review**
-- 修改：`scripts/plot_results.py`
+- 修改：`docs/convergence_publication_gate.md`
 - 要求：
-  - 输出图文件名包含 evidence level：
-    - `l2_convergence_curves_raw_all.png`
-    - `l2_convergence_curves_clean_all.png`
-    - `l3_convergence_curves_raw_all.png`
-    - `l3_convergence_curves_clean_all.png`
-  - quality report 中写入：
-    - `evidence_level`
-    - `run_id`
-    - `seed_set`
-    - `config_hash`
-    - `override_id`
-  - clean 图不得删除 raw 异常证据。
+  - 新增 `legacy_pre_overhaul` evidence level。
+  - 明确旧 L1/L2/L3 只能进入 appendix/debug 或 regression reference。
+  - 新论文主图必须来自模块 20 的新模型实验。
 - 验证：
   ```bash
-  pytest tests/test_convergence_plot.py -q
-  python scripts/plot_results.py --help
+  grep -n "legacy_pre_overhaul" docs/convergence_publication_gate.md
+  grep -n "new system model" docs/convergence_publication_gate.md
   ```
 
-## Step 12：更新 docs 状态
+## Step 3：新增新模型验证等级定义
+
+- **scope: auto**
+- 修改：`docs/formal_convergence_protocol.md`
+- 新增：
+  - `N0`: model smoke check
+  - `N1`: small-scale oracle comparison
+  - `N2`: ablation validation
+  - `N3`: OOD generalization validation
+- 要求：
+  - N0-N3 是新模型实验链，不继承旧 L1-L3 的结论。
+- 验证：
+  ```bash
+  grep -n "N0" docs/formal_convergence_protocol.md
+  grep -n "N3" docs/formal_convergence_protocol.md
+  ```
+
+## Step 4：更新 docs 状态
 
 - **scope: auto**
 - 修改：
   - `docs/report.md`
   - `docs/progress.md`
   - `docs/issues.md`
-  - `docs/convergence_failure_analysis.md`
-- `docs/report.md` 状态规则：
-  - L2 未完成：`IN_PROGRESS`
-  - 事件审计发现 env/metric bug：`NEEDS_ESCALATION`
-  - L2 完成但 L3 未完成：`NEEDS_REVIEW`
-  - L3 完成且 dashboard 未验证：`NEEDS_REVIEW`
-  - L3 完成且 dashboard 验证完成：`READY_FOR_REVIEW`
+- 要求：
+  - `docs/report.md` 状态改为 `IN_PROGRESS`，当前阶段指向模块 14R / 15。
+  - issues 追加旧 L2/L3 降级说明，不标 bug。
 - 验证：
   ```bash
-  pytest tests/test_docs_contract.py -q
-  grep -n "evidence level" docs/report.md
+  grep -n "legacy convergence" docs/report.md
+  grep -n "system-model-overhaul-v4.1" docs/progress.md
   ```
 
-## Step 13：最终验收与防误报检查
+## Step 5：防误报检查
 
 - **scope: auto**
 - 操作：
-  - 全量运行协议相关测试。
-  - 检查 docs 中是否有越级结论。
-  - 检查生成产物是否仍未纳入 Git tracking。
-- 必跑命令：
+  - 检查 docs 中是否仍把旧 L2/L3 写作新模型正式结论。
+  - 检查是否启动了 L3 新任务。
+- 验证：
   ```bash
-  pytest tests/test_convergence_plot.py tests/test_analyze_convergence_failures.py tests/test_formal_convergence_protocol.py tests/test_docs_contract.py -q
-  python scripts/analyze_convergence_failures.py --help
-  python scripts/plot_results.py --help
+  grep -R "verified_converged_under_protocol" docs/ | grep -v "legacy" | grep -v "protocol" && exit 1 || true
+  ps -p 26860 || true
   ```
-- 禁止项检查：
-  ```bash
-  grep -R "guaranteed convergence\|保证收敛" docs/ && exit 1 || true
-  grep -R "verified_converged_under_protocol" docs/l1_* docs/l2_* && exit 1 || true
-  git status --short experiments results figures | grep -E "^[AM]" && exit 1 || true
-  grep -R "enabled: true" configs/stability_overrides.yaml && exit 1 || true
-  ```
-- 完成条件：
-  - L1/L2/L3 证据等级清晰。
-  - 所有算法有明确状态：
-    - `failed_l1`
-    - `needs_event_audit`
-    - `candidate_converged_under_protocol`
-    - `verified_converged_under_protocol`
-    - `excluded_from_formal_claim`
-  - 没有把 50k 单 seed 写成正式收敛证明。
-  - L3 通过算法拥有 raw/clean/quality report 三件套。
-  - 未通过 L3 的算法不得进入论文主结论。
 
 ---
 
-# 模块 14 总体验收
+# 模块 15：MEC 系统模型模块化基座
+
+## 概述
+
+- 职责：新增独立、可测试、可替换的 MEC 系统模型层，覆盖任务模型、队列模型、异构协作边缘、能耗模型、移动性建模、通信双轨模型。
+- 前置依赖：模块 14R 完成。
+- 输出：
+  - `src/mec_model/`
+  - `configs/system_model_mainline_a.yaml`
+  - `tests/test_mec_model_*.py`
+  - `docs/references/ref-mainline-a-system-model.md`
+- 预计步骤数：10
+
+## Step 1：创建 MEC 模型包骨架
+
+- **scope: auto**
+- 新增：
+  - `src/mec_model/__init__.py`
+  - `src/mec_model/types.py`
+  - `src/mec_model/state.py`
+- 在 `types.py` 中定义：
+  - `TaskId = NewType("TaskId", str)`
+  - `NodeId = NewType("NodeId", str)`
+  - `UserId = NewType("UserId", str)`
+  - `ChannelModelType = Literal["analytic", "3gpp_lite", "rayleigh", "pathloss_only"]`
+  - `QueueModelType = Literal["mm1", "mmc", "parallel", "finite_capacity"]`
+- 在 `state.py` 中定义：
+  - `SystemState`
+  - `UserState`
+  - `EdgeNodeState`
+  - `QueueSnapshot`
+  - `MobilitySnapshot`
+  - `ChannelSnapshot`
+  - `MigrationSnapshot`
+- 验证：
+  ```bash
+  python - <<'PY'
+  from src.mec_model.state import SystemState
+  from src.mec_model.types import ChannelModelType
+  print("mec_model import ok")
+  PY
+  ```
+
+## Step 2：实现任务模型
+
+- **scope: review**
+- 新增：`src/mec_model/tasks.py`
+- 必须实现：
+  - `TaskSegment`
+  - `TaskDAGSpec`
+  - `TaskArrivalProcess`
+  - `generate_independent_task_batch(num_users, tasks_per_user, seed)`
+  - `generate_dag_task_batch(num_users, dag_template, seed)`
+  - `validate_task_dag(task_spec)`
+  - `topological_task_order(task_spec)`
+- 设计要求：
+  - 传统标量任务是 `TaskDAGSpec` 的单节点特例。
+  - DAG task 不强制替换 legacy env；通过 config 启用。
+  - 每个 task segment 必含 `data_size_bits`、`cpu_cycles`、`deadline_s`、`predecessors`、`semantic_weight`。
+- 验证：
+  ```bash
+  pytest tests/test_mec_model_tasks.py -q
+  ```
+
+## Step 3：实现多队列/并行队列模型
+
+- **scope: review**
+- 新增：`src/mec_model/queues.py`
+- 必须实现：
+  - `MM1QueueModel`
+  - `MMCQueueModel`
+  - `ParallelQueueApproxModel`
+  - `FiniteCapacityQueueModel`
+  - `compute_waiting_delay(queue_snapshot, model_type)`
+  - `compute_queue_pressure(queue_snapshot)`
+  - `compute_drop_probability(queue_snapshot)`
+  - `estimate_deadline_miss_rate(queue_snapshot, deadline_s)`
+- 设计要求：
+  - legacy 单队列映射到 `MM1QueueModel`。
+  - `rho >= 1` 返回 bounded penalty，不产生 NaN/Inf。
+- 验证：
+  ```bash
+  pytest tests/test_mec_model_queues.py -q
+  ```
+
+## Step 4：实现异构协作边缘模型
+
+- **scope: review**
+- 新增：`src/mec_model/edge_topology.py`
+- 必须实现：
+  - `EdgeNodeSpec`
+  - `CooperationLink`
+  - `CooperativeEdgeGraph`
+  - `select_candidate_edges(system_state, user_id)`
+  - `compute_migration_cost(task_spec, source_node, target_node)`
+  - `compute_cooperation_gain(source_node, target_node, task_spec)`
+- 节点类型：
+  - `BS`
+  - `RSU`
+  - `UAV`
+  - `PEER_DEVICE`
+  - `CLOUD`
+- 设计要求：
+  - 默认只启用 `BS`。
+  - 协作只作为可选扩展，不破坏原 user-BS 两层结构。
+  - 迁移成本包含数据迁移、状态迁移、结果回传。
+- 验证：
+  ```bash
+  pytest tests/test_mec_model_edge_topology.py -q
+  ```
+
+## Step 5：实现能耗模型
+
+- **scope: auto**
+- 新增：`src/mec_model/energy.py`
+- 必须实现：
+  - `EnergyBreakdown`
+  - `compute_local_energy(cpu_cycles, frequency_hz, kappa)`
+  - `compute_tx_energy(tx_power_w, tx_time_s)`
+  - `compute_edge_compute_energy(cpu_cycles, frequency_hz, kappa_edge)`
+  - `compute_migration_energy(data_bits, link_rate_bps, tx_power_w)`
+- 设计要求：
+  - 采用 network-level DVFS abstraction。
+  - 不引入 temperature/leakage/sleep-wakeup 硬件级模型。
+- 验证：
+  ```bash
+  pytest tests/test_mec_model_energy.py -q
+  ```
+
+## Step 6：实现移动性与服务连续性模型
+
+- **scope: review**
+- 新增：`src/mec_model/mobility.py`
+- 必须实现：
+  - `MarkovMobilityModel`
+  - `TraceMobilityModel`
+  - `HandoverEvent`
+  - `ServiceContinuityState`
+  - `sample_next_location(state, action, rng)`
+  - `detect_handover(prev_state, next_state)`
+  - `compute_service_interruption_penalty(handover_event, migration_state)`
+- 设计要求：
+  - 默认 Markov cell transition。
+  - 支持 `no_migration` / `nearest_edge` / `cooperative_migration` 三种策略。
+  - 移动性强度进入 OOD 配置。
+- 验证：
+  ```bash
+  pytest tests/test_mec_model_mobility.py -q
+  ```
+
+## Step 7：实现通信双轨模型
+
+- **scope: review**
+- 新增：`src/mec_model/channel.py`
+- 必须实现：
+  - `AnalyticRateModel`
+  - `ThreeGppLiteRateModel`
+  - `RayleighRateModel`
+  - `PathlossOnlyRateModel`
+  - `compute_shannon_rate_bps(bandwidth_hz, sinr_linear)`
+  - `compute_sinr_linear(tx_power_w, pathloss_linear, interference_w, noise_w)`
+- 理论分析：
+  - `AnalyticRateModel` 使用 pathloss + average SINR + Shannon rate。
+- 仿真：
+  - `ThreeGppLiteRateModel` 使用 UMi/UMa、LoS/NLoS 概率、路径损耗、shadowing 的简化派生模型。
+- 验证：
+  ```bash
+  pytest tests/test_mec_model_channel.py -q
+  ```
+
+## Step 8：新增系统模型配置
+
+- **scope: auto**
+- 新增：`configs/system_model_mainline_a.yaml`
+- 内容：
+  ```yaml
+  system_model:
+    enabled: false
+    task_model: independent
+    queue_model: mm1
+    edge_topology: bs_only
+    cooperation_enabled: false
+    mobility_model: markov
+    channel_model:
+      theory: analytic
+      simulation: 3gpp_lite
+    energy_model: dvfs_network_level
+  compatibility:
+    preserve_legacy_default: true
+    no_effect_on_legacy_convergence_module14: true
+  ```
+- 验证：
+  ```bash
+  python - <<'PY'
+  import yaml
+  cfg = yaml.safe_load(open("configs/system_model_mainline_a.yaml", encoding="utf-8"))
+  assert cfg["system_model"]["enabled"] is False
+  assert cfg["compatibility"]["preserve_legacy_default"] is True
+  PY
+  ```
+
+## Step 9：新增模型层单元测试
+
+- **scope: auto**
+- 新增：
+  - `tests/test_mec_model_tasks.py`
+  - `tests/test_mec_model_queues.py`
+  - `tests/test_mec_model_edge_topology.py`
+  - `tests/test_mec_model_energy.py`
+  - `tests/test_mec_model_mobility.py`
+  - `tests/test_mec_model_channel.py`
+- 验证：
+  ```bash
+  pytest tests/test_mec_model_tasks.py tests/test_mec_model_queues.py tests/test_mec_model_edge_topology.py tests/test_mec_model_energy.py tests/test_mec_model_mobility.py tests/test_mec_model_channel.py -q
+  ```
+
+## Step 10：编写系统模型实现参考
+
+- **scope: auto**
+- 新增：`docs/references/ref-mainline-a-system-model.md`
+- 内容：
+  - 任务模型升级边界。
+  - 队列模型选择。
+  - 异构协作边缘默认关闭。
+  - 能耗模型采用 network-level DVFS。
+  - 移动性策略。
+  - 理论通信模型与仿真通信模型双轨。
+- 验证：
+  ```bash
+  test -f docs/references/ref-mainline-a-system-model.md
+  grep -n "AnalyticRateModel" docs/references/ref-mainline-a-system-model.md
+  grep -n "ThreeGppLiteRateModel" docs/references/ref-mainline-a-system-model.md
+  ```
+
+---
+
+# 模块 16：系统模型与现有环境兼容接入
+
+## 概述
+
+- 职责：把模块 15 的系统模型接入现有环境、reward、benchmark 与配置系统，同时保持 legacy 默认可运行。
+- 前置依赖：模块 15 完成。
+- 输出：
+  - `src/mec_model/adapters.py`
+  - 修改现有 `game_theory_env.py`
+  - 修改 `src/trainer/base_trainer.py`
+  - 修改 `scripts/benchmark.py`
+  - 兼容性测试
+- 预计步骤数：8
+
+## Step 1：定位现有 env canonical owner
+
+- **scope: auto**
+- 操作：
+  - 使用 `git ls-files "*game_theory_env.py"` 定位现有文件。
+  - 预期 canonical 文件名：`game_theory_env.py`。
+  - 若存在多个同名文件，只允许一个作为 canonical owner。
+- 新增：`docs/references/env_owner_audit.md`
+- 验证：
+  ```bash
+  git ls-files "*game_theory_env.py"
+  test -f docs/references/env_owner_audit.md
+  ```
+
+## Step 2：创建 legacy-to-mainline-A adapter
+
+- **scope: review**
+- 新增：`src/mec_model/adapters.py`
+- 必须实现：
+  - `LegacyEnvSnapshot`
+  - `SystemModelAdapter`
+  - `build_system_state_from_legacy_env(env) -> SystemState`
+  - `apply_system_decision_to_legacy_env(env, decision) -> None`
+  - `extract_reward_components(env, system_state) -> dict`
+- 设计要求：
+  - adapter 不直接改训练器。
+  - adapter 负责新旧 state/reward/action 字段映射。
+- 验证：
+  ```bash
+  pytest tests/test_mec_model_adapters.py -q
+  ```
+
+## Step 3：给 env 增加可选 mainline-A 状态字段
+
+- **scope: review**
+- 修改：现有 `game_theory_env.py`
+- 新增/调整方法：
+  - `GameTheoryEnv._load_system_model_config(self)`
+  - `GameTheoryEnv._build_system_state(self)`
+  - `GameTheoryEnv._compute_mainline_a_metrics(self, actions)`
+  - `GameTheoryEnv._compose_observation(self)`
+- 设计要求：
+  - 当 `system_model.enabled=false`，旧 observation shape 与旧 reward 逻辑不变。
+  - 当 `system_model.enabled=true`，observation 增加 queue pressure、channel quality、migration state、edge heterogeneity features。
+- 验证：
+  ```bash
+  pytest tests/test_env_legacy_compat.py tests/test_env_mainline_a_state.py -q
+  ```
+
+## Step 4：升级 reward components
+
+- **scope: review**
+- 修改：
+  - 现有 `game_theory_env.py`
+  - `src/trainer/base_trainer.py`
+- 新增 reward components：
+  - `delay_cost`
+  - `energy_cost`
+  - `queue_penalty`
+  - `migration_penalty`
+  - `deadline_violation_penalty`
+  - `cooperation_gain`
+  - `price_payment`
+  - `provider_revenue`
+  - `constraint_penalty`
+- 要求：
+  - 旧 `comm_score` 仍可计算。
+  - 新 reward 必须可解释地输出每个 component。
+- 验证：
+  ```bash
+  pytest tests/test_reward_components_mainline_a.py -q
+  ```
+
+## Step 5：升级 benchmark 配置入口
+
+- **scope: auto**
+- 修改：`scripts/benchmark.py`
+- 新增参数：
+  - `--system-model-config configs/system_model_mainline_a.yaml`
+  - `--enable-mainline-a`
+  - `--channel-model analytic|3gpp_lite|rayleigh|pathloss_only`
+  - `--queue-model mm1|mmc|parallel|finite_capacity`
+  - `--mobility-intensity low|medium|high`
+- 验证：
+  ```bash
+  python scripts/benchmark.py --help
+  python scripts/benchmark.py --enable-mainline-a --dry-run
+  ```
+
+## Step 6：新增 smoke benchmark
+
+- **scope: auto**
+- 新增：`configs/benchmark_mainline_a_smoke.yaml`
+- 要求：
+  - 2 algorithms
+  - 2 seeds
+  - 1000 steps
+  - analytic channel
+  - mm1 queue
+  - no cooperation
+- 验证：
+  ```bash
+  python scripts/benchmark.py --config configs/benchmark_mainline_a_smoke.yaml --dry-run
+  ```
+
+## Step 7：兼容旧训练入口
+
+- **scope: auto**
+- 操作：
+  - 执行旧 help / dry-run / quick smoke。
+  - 确认 `system_model.enabled=false` 时不改变旧路径。
+- 验证：
+  ```bash
+  python scripts/benchmark.py --help
+  pytest tests/test_active_entrypoints.py tests/test_env_legacy_compat.py -q
+  ```
+
+## Step 8：记录兼容性结论
+
+- **scope: auto**
+- 新增：`docs/mainline_a_compatibility_report.md`
+- 内容：
+  - legacy 默认兼容性。
+  - 新模型启用方式。
+  - 已知不兼容项。
+  - dashboard 仍需外部复核。
+- 验证：
+  ```bash
+  test -f docs/mainline_a_compatibility_report.md
+  grep -n "legacy default" docs/mainline_a_compatibility_report.md
+  ```
+
+---
+
+# 模块 17：状态依赖 Stackelberg 动态定价
+
+## 概述
+
+- 职责：把静态价格升级为队列/信道/迁移状态依赖的动态定价，并输出定理假设与可测试性质。
+- 前置依赖：模块 15-16。
+- 输出：
+  - `src/game_pricing/`
+  - `configs/pricing_dynamic_mainline_a.yaml`
+  - `tests/test_dynamic_pricing.py`
+  - `docs/theory/dynamic_stackelberg_pricing.md`
+- 预计步骤数：8
+
+## Step 1：创建 pricing 包
+
+- **scope: auto**
+- 新增：
+  - `src/game_pricing/__init__.py`
+  - `src/game_pricing/types.py`
+  - `src/game_pricing/dynamic_pricing.py`
+- 定义：
+  - `PricingState`
+  - `PriceVector`
+  - `PricingBounds`
+  - `FollowerDemand`
+  - `ProviderCost`
+- 验证：
+  ```bash
+  python - <<'PY'
+  from src.game_pricing.dynamic_pricing import PricingState
+  print("pricing import ok")
+  PY
+  ```
+
+## Step 2：实现状态依赖价格函数
+
+- **scope: review**
+- 修改/新增：`src/game_pricing/dynamic_pricing.py`
+- 必须实现：
+  - `compute_state_dependent_price(pricing_state, bounds, params) -> PriceVector`
+  - `compute_queue_price_component(queue_pressure, params)`
+  - `compute_channel_price_component(channel_quality, params)`
+  - `compute_migration_price_component(migration_risk, params)`
+  - `clip_price_to_bounds(price, bounds)`
+- 公式结构：
+  - `p_i(t)=clip(p0_i + alpha_q Q_i(t) - alpha_h H_i(t) + alpha_m M_i(t), p_min, p_max)`
+  - `Q`: queue pressure
+  - `H`: channel quality
+  - `M`: migration/handover risk
+- 验证：
+  ```bash
+  pytest tests/test_dynamic_pricing.py -q
+  ```
+
+## Step 3：实现 follower response
+
+- **scope: review**
+- 新增：`src/game_pricing/follower_response.py`
+- 必须实现：
+  - `compute_best_response(user_state, price_vector, system_state)`
+  - `compute_demand_elasticity(user_state, price_vector)`
+  - `project_response_to_constraints(response, constraints)`
+- 要求：
+  - 需求对价格单调非增。
+  - 预算约束、deadline constraint、local CPU constraint 都必须投影。
+- 验证：
+  ```bash
+  pytest tests/test_follower_response.py -q
+  ```
+
+## Step 4：实现 leader objective
+
+- **scope: review**
+- 新增：`src/game_pricing/leader_objective.py`
+- 必须实现：
+  - `compute_provider_revenue(price_vector, demand)`
+  - `compute_provider_cost(system_state, demand)`
+  - `compute_leader_utility(price_vector, demand, system_state)`
+  - `compute_social_welfare(user_utilities, provider_utility)`
+- 验证：
+  ```bash
+  pytest tests/test_leader_objective.py -q
+  ```
+
+## Step 5：实现唯一性/单调性数值检查器
+
+- **scope: review**
+- 新增：`src/game_pricing/theory_checks.py`
+- 必须实现：
+  - `check_demand_price_monotonicity(samples)`
+  - `check_strong_concavity_proxy(hessian_or_fd_matrix)`
+  - `check_unique_best_response_grid(user_state, price_grid)`
+  - `check_price_lipschitz_bound(pricing_policy, state_samples)`
+- 输出：
+  - `results/theory_checks_dynamic_pricing.json`（生成产物，不纳入 Git）
+  - `docs/theory/dynamic_pricing_theory_checks.md`
+- 验证：
+  ```bash
+  pytest tests/test_pricing_theory_checks.py -q
+  ```
+
+## Step 6：新增动态定价配置
+
+- **scope: auto**
+- 新增：`configs/pricing_dynamic_mainline_a.yaml`
+- 内容：
+  ```yaml
+  dynamic_pricing:
+    enabled: false
+    base_price: 1.0
+    bounds: {min: 0.05, max: 10.0}
+    components:
+      queue: {enabled: true, alpha: 0.4}
+      channel: {enabled: true, alpha: 0.2}
+      migration: {enabled: true, alpha: 0.3}
+    constraints:
+      budget_projection: true
+      deadline_projection: true
+      monotonicity_check: true
+  ```
+- 验证：
+  ```bash
+  python - <<'PY'
+  import yaml
+  cfg = yaml.safe_load(open("configs/pricing_dynamic_mainline_a.yaml", encoding="utf-8"))
+  assert cfg["dynamic_pricing"]["enabled"] is False
+  PY
+  ```
+
+## Step 7：接入 env pricing path
+
+- **scope: review**
+- 修改：现有 `game_theory_env.py`
+- 新增方法：
+  - `GameTheoryEnv._compute_dynamic_prices(self, system_state)`
+  - `GameTheoryEnv._compute_follower_responses(self, price_vector, system_state)`
+  - `GameTheoryEnv._compute_pricing_rewards(self, price_vector, responses)`
+- 要求：
+  - `dynamic_pricing.enabled=false` 时保留旧静态价格。
+  - `dynamic_pricing.enabled=true` 时 action/reward 写入 dynamic price metadata。
+- 验证：
+  ```bash
+  pytest tests/test_env_dynamic_pricing.py -q
+  ```
+
+## Step 8：编写理论说明
+
+- **scope: review**
+- 新增：`docs/theory/dynamic_stackelberg_pricing.md`
+- 必含：
+  - follower utility 假设。
+  - leader utility 假设。
+  - 均衡存在性条件。
+  - 唯一性充分条件。
+  - 需求-价格单调性。
+  - 价格更新 Lipschitz 条件。
+  - 与队列/信道/迁移状态耦合的边界。
+- 验证：
+  ```bash
+  test -f docs/theory/dynamic_stackelberg_pricing.md
+  grep -n "Uniqueness" docs/theory/dynamic_stackelberg_pricing.md
+  grep -n "Monotonicity" docs/theory/dynamic_stackelberg_pricing.md
+  ```
+
+---
+
+# 模块 18：game-aware critic 与 primal-dual 多智能体更新
+
+## 概述
+
+- 职责：把动态定价和约束信息注入 MARL 更新，形成主线A算法贡献。
+- 前置依赖：模块 15-17。
+- 输出：
+  - `src/rl_algorithms/game_aware/`
+  - `configs/algorithm_game_aware_pd_marl.yaml`
+  - `tests/test_game_aware_critic.py`
+  - `docs/references/ref-game-aware-constrained-marl.md`
+- 预计步骤数：8
+
+## Step 1：创建 game-aware algorithm 包
+
+- **scope: auto**
+- 新增：
+  - `src/rl_algorithms/game_aware/__init__.py`
+  - `src/rl_algorithms/game_aware/critic_features.py`
+  - `src/rl_algorithms/game_aware/primal_dual.py`
+  - `src/rl_algorithms/game_aware/reward_design.py`
+- 验证：
+  ```bash
+  python - <<'PY'
+  import src.rl_algorithms.game_aware.critic_features
+  print("game-aware import ok")
+  PY
+  ```
+
+## Step 2：实现 critic feature builder
+
+- **scope: review**
+- 新增：`src/rl_algorithms/game_aware/critic_features.py`
+- 必须实现：
+  - `GameAwareCriticFeatures`
+  - `build_critic_features(system_state, price_vector, reward_components)`
+  - `normalize_pricing_features(features, running_stats)`
+  - `mask_unavailable_edges(features, edge_mask)`
+- critic 输入必须包含：
+  - queue pressure
+  - channel quality
+  - migration risk
+  - price vector
+  - follower demand elasticity
+  - constraint residuals
+- 验证：
+  ```bash
+  pytest tests/test_game_aware_critic.py -q
+  ```
+
+## Step 3：实现 primal-dual 更新器
+
+- **scope: review**
+- 新增：`src/rl_algorithms/game_aware/primal_dual.py`
+- 必须实现：
+  - `PrimalDualState`
+  - `ConstraintResiduals`
+  - `PrimalDualUpdater`
+  - `update_dual_variables(residuals)`
+  - `compute_lagrangian_reward(base_reward, residuals, dual_vars)`
+- 约束项：
+  - latency deadline
+  - energy budget
+  - queue stability
+  - migration rate
+  - budget feasibility
+- 验证：
+  ```bash
+  pytest tests/test_primal_dual_update.py -q
+  ```
+
+## Step 4：实现可解释 reward 设计
+
+- **scope: review**
+- 新增：`src/rl_algorithms/game_aware/reward_design.py`
+- 必须实现：
+  - `RewardComponent`
+  - `RewardBreakdown`
+  - `compute_interpretable_reward(reward_components, dual_state, weights)`
+  - `export_reward_explanation(record)`
+- 要求：
+  - 每个 episode 输出 reward component 均值。
+  - 支持 ablation：no_price / no_queue / no_migration / no_dual / no_cooperation。
+- 验证：
+  ```bash
+  pytest tests/test_reward_design_mainline_a.py -q
+  ```
+
+## Step 5：接入现有 trainer
+
+- **scope: review**
+- 修改：`src/trainer/base_trainer.py`
+- 新增方法：
+  - `BaseTrainer._build_game_aware_batch(self, batch)`
+  - `BaseTrainer._apply_primal_dual_update(self, metrics)`
+  - `BaseTrainer._log_reward_breakdown(self, reward_breakdown)`
+- 要求：
+  - `game_aware.enabled=false` 时旧训练流程不变。
+  - `game_aware.enabled=true` 时记录 dual variables 与 constraint residuals。
+- 验证：
+  ```bash
+  pytest tests/test_base_trainer_game_aware.py -q
+  ```
+
+## Step 6：新增算法配置
+
+- **scope: auto**
+- 新增：`configs/algorithm_game_aware_pd_marl.yaml`
+- 内容：
+  ```yaml
+  game_aware:
+    enabled: false
+    critic_features:
+      include_queue: true
+      include_channel: true
+      include_migration: true
+      include_price: true
+      include_elasticity: true
+    primal_dual:
+      enabled: true
+      dual_lr: 0.01
+      dual_clip: [0.0, 20.0]
+    reward_explanation:
+      enabled: true
+      export_every_eval: true
+  ```
+- 验证：
+  ```bash
+  python - <<'PY'
+  import yaml
+  cfg = yaml.safe_load(open("configs/algorithm_game_aware_pd_marl.yaml", encoding="utf-8"))
+  assert cfg["game_aware"]["enabled"] is False
+  PY
+  ```
+
+## Step 7：新增算法 smoke test
+
+- **scope: auto**
+- 新增：`configs/benchmark_game_aware_smoke.yaml`
+- 要求：
+  - `--enable-mainline-a`
+  - `dynamic_pricing.enabled=true`
+  - `game_aware.enabled=true`
+  - 2 algorithms, 2 seeds, 1000 steps
+- 验证：
+  ```bash
+  python scripts/benchmark.py --config configs/benchmark_game_aware_smoke.yaml --dry-run
+  ```
+
+## Step 8：编写算法实现参考
+
+- **scope: auto**
+- 新增：`docs/references/ref-game-aware-constrained-marl.md`
+- 内容：
+  - critic feature schema。
+  - primal-dual update equations。
+  - reward components。
+  - ablation switches。
+- 验证：
+  ```bash
+  test -f docs/references/ref-game-aware-constrained-marl.md
+  grep -n "primal-dual" docs/references/ref-game-aware-constrained-marl.md
+  ```
+
+---
+
+# 模块 19：理论证明与数值验证资产
+
+## 概述
+
+- 职责：把动态定价与 primal-dual MARL 的理论叙述整理成可写入论文的证明资产，同时用数值 checker 防止公式与实现脱节。
+- 前置依赖：模块 17-18。
+- 输出：
+  - `docs/theory/mainline_a_theory_appendix.md`
+  - `src/analysis/theory_validation.py`
+  - `tests/test_theory_validation.py`
+- 预计步骤数：6
+
+## Step 1：建立理论附录骨架
+
+- **scope: review**
+- 新增：`docs/theory/mainline_a_theory_appendix.md`
+- 必含章节：
+  - Problem formulation
+  - State-dependent Stackelberg pricing
+  - Existence of Stackelberg equilibrium
+  - Uniqueness sufficient condition
+  - Monotonicity of demand response
+  - Primal-dual update and constraint residual
+  - Constraint violation probability bound
+  - Convergence-rate discussion under stochastic approximation assumptions
+- 验证：
+  ```bash
+  test -f docs/theory/mainline_a_theory_appendix.md
+  grep -n "Constraint violation probability bound" docs/theory/mainline_a_theory_appendix.md
+  ```
+
+## Step 2：写入唯一性充分条件
+
+- **scope: review**
+- 修改：`docs/theory/mainline_a_theory_appendix.md`
+- 要求：
+  - follower utility 对卸载量严格凹。
+  - demand response 对 price Lipschitz。
+  - leader revenue minus cost 在 price 上强凹或满足 contraction mapping。
+  - 明确“充分条件，不是无条件唯一性”。
+- 验证：
+  ```bash
+  grep -n "sufficient condition" docs/theory/mainline_a_theory_appendix.md
+  grep -n "strong concavity" docs/theory/mainline_a_theory_appendix.md
+  ```
+
+## Step 3：写入单调性与价格状态依赖解释
+
+- **scope: review**
+- 修改：`docs/theory/mainline_a_theory_appendix.md`
+- 要求：
+  - demand 对 price 单调非增。
+  - price 对 queue pressure 单调非降。
+  - price 对 migration risk 单调非降。
+  - price 对 channel quality 的方向必须解释：低质量抬价用于拥塞/风险抑制，或高质量抬价用于资源稀缺收益；二者只能选一种并与实现一致。
+- 验证：
+  ```bash
+  grep -n "monotone non-increasing" docs/theory/mainline_a_theory_appendix.md
+  grep -n "queue pressure" docs/theory/mainline_a_theory_appendix.md
+  ```
+
+## Step 4：写入约束违反概率界
+
+- **scope: review**
+- 修改：`docs/theory/mainline_a_theory_appendix.md`
+- 要求：
+  - 使用 Lyapunov / primal-dual residual 口径写概率界。
+  - 明确 bounded reward、bounded gradients、bounded stochastic noise 假设。
+  - 给出 `O(1/sqrt(T))` 或实现可支撑的保守速率，不写无法证明的强结论。
+- 验证：
+  ```bash
+  grep -n "O(1/sqrt(T))" docs/theory/mainline_a_theory_appendix.md
+  grep -n "bounded stochastic noise" docs/theory/mainline_a_theory_appendix.md
+  ```
+
+## Step 5：实现理论数值 checker
+
+- **scope: auto**
+- 新增：`src/analysis/theory_validation.py`
+- 必须实现：
+  - `validate_price_monotonicity(records)`
+  - `validate_demand_elasticity(records)`
+  - `validate_constraint_residual_trend(records)`
+  - `export_theory_validation_report(records, output_path)`
+- 新增：`tests/test_theory_validation.py`
+- 验证：
+  ```bash
+  pytest tests/test_theory_validation.py -q
+  ```
+
+## Step 6：生成理论验证报告模板
+
+- **scope: auto**
+- 新增：`docs/theory/theory_validation_report_template.md`
+- 内容：
+  - price monotonicity check。
+  - demand elasticity check。
+  - constraint residual trend。
+  - violation rate trend。
+- 验证：
+  ```bash
+  test -f docs/theory/theory_validation_report_template.md
+  grep -n "price monotonicity" docs/theory/theory_validation_report_template.md
+  ```
+
+---
+
+# 模块 20：paper2 内置新模型实验矩阵、消融、oracle 与 OOD 泛化
+
+## 概述
+
+- 职责：在 paper2 项目内建立新模型专属实验链，替代旧 L2/L3 作为论文证据来源。
+- 前置依赖：模块 15-19。
+- 输出：
+  - `configs/experiments/mainline_a_*.yaml`
+  - `scripts/run_mainline_a_experiments.py`
+  - `docs/mainline_a_experiment_protocol.md`
+  - `docs/mainline_a_publication_gate.md`
+- 预计步骤数：10
+
+## Step 1：创建新实验协议
+
+- **scope: review**
+- 新增：`docs/mainline_a_experiment_protocol.md`
+- 定义证据等级：
+  - `N0`: smoke correctness
+  - `N1`: small-scale oracle comparison
+  - `N2`: controlled ablation
+  - `N3`: OOD generalization
+- 要求：
+  - N1 必须有小规模最优值或枚举 oracle。
+  - N2 必须覆盖 no_price/no_queue/no_migration/no_dual/no_cooperation。
+  - N3 必须覆盖用户数、边缘数、移动性强度、信道模型变化。
+- 验证：
+  ```bash
+  test -f docs/mainline_a_experiment_protocol.md
+  grep -n "N1" docs/mainline_a_experiment_protocol.md
+  grep -n "OOD" docs/mainline_a_experiment_protocol.md
+  ```
+
+## Step 2：实现小规模 oracle
+
+- **scope: review**
+- 新增：`src/analysis/small_scale_oracle.py`
+- 必须实现：
+  - `enumerate_offloading_assignments(instance)`
+  - `solve_small_scale_optimum(instance, objective)`
+  - `compare_policy_to_oracle(policy_result, oracle_result)`
+  - `export_oracle_gap_report(records, output_path)`
+- 约束：
+  - 只用于小规模：`num_users <= 4`，`num_edges <= 3`，离散动作。
+  - 输出 optimality gap、constraint violation、runtime。
+- 验证：
+  ```bash
+  pytest tests/test_small_scale_oracle.py -q
+  ```
+
+## Step 3：新增 N0 smoke 配置
+
+- **scope: auto**
+- 新增：`configs/experiments/mainline_a_n0_smoke.yaml`
+- 要求：
+  - users: 4
+  - edges: 2
+  - seeds: [42]
+  - steps: 1000
+  - channel: analytic
+  - queue: mm1
+  - dynamic_pricing: true
+  - game_aware: true
+- 验证：
+  ```bash
+  python scripts/benchmark.py --config configs/experiments/mainline_a_n0_smoke.yaml --dry-run
+  ```
+
+## Step 4：新增 N1 oracle 配置
+
+- **scope: review**
+- 新增：`configs/experiments/mainline_a_n1_oracle.yaml`
+- 要求：
+  - users: [2, 3, 4]
+  - edges: [2, 3]
+  - seeds: [42, 43, 44]
+  - algorithms: baseline_static_stackelberg, MAPPO, game_aware_pd_marl
+  - 输出 oracle gap。
+- 验证：
+  ```bash
+  python scripts/run_mainline_a_experiments.py --config configs/experiments/mainline_a_n1_oracle.yaml --dry-run
+  ```
+
+## Step 5：新增 N2 消融配置
+
+- **scope: review**
+- 新增：`configs/experiments/mainline_a_n2_ablation.yaml`
+- 必须包含：
+  - full_model
+  - no_dynamic_price
+  - no_queue_state
+  - no_channel_state
+  - no_migration_state
+  - no_primal_dual
+  - no_cooperation
+  - analytic_channel_only
+  - 3gpp_lite_channel
+- 验证：
+  ```bash
+  python scripts/run_mainline_a_experiments.py --config configs/experiments/mainline_a_n2_ablation.yaml --dry-run
+  ```
+
+## Step 6：新增 N3 OOD 泛化配置
+
+- **scope: review**
+- 新增：`configs/experiments/mainline_a_n3_ood.yaml`
+- 训练/测试变化：
+  - train: users=20, edges=4, mobility=medium, channel=analytic
+  - test: users=40, edges=6, mobility=high, channel=3gpp_lite
+  - test: queue_model=parallel
+  - test: cooperation_enabled=true
+- 指标：
+  - social welfare
+  - average latency
+  - p95 latency
+  - energy
+  - provider revenue
+  - constraint violation rate
+  - Jain fairness
+  - oracle gap for small cases
+- 验证：
+  ```bash
+  python scripts/run_mainline_a_experiments.py --config configs/experiments/mainline_a_n3_ood.yaml --dry-run
+  ```
+
+## Step 7：实现实验 runner
+
+- **scope: review**
+- 新增：`scripts/run_mainline_a_experiments.py`
+- 必须支持：
+  - `--config`
+  - `--dry-run`
+  - `--stage N0|N1|N2|N3|all`
+  - `--resume`
+  - `--output-root experiments/mainline_a`
+  - `--results-root results/mainline_a`
+- 要求：
+  - 不修改旧 benchmark 语义。
+  - 所有生成产物仍被 `.gitignore` 覆盖。
+- 验证：
+  ```bash
+  python scripts/run_mainline_a_experiments.py --help
+  pytest tests/test_mainline_a_experiment_runner.py -q
+  ```
+
+## Step 8：新增可解释报告生成
+
+- **scope: review**
+- 修改：`scripts/plot_results.py`
+- 新增：
+  - reward breakdown 图。
+  - price vs queue/channel/migration 曲线。
+  - dual variables 曲线。
+  - oracle gap 表。
+  - OOD generalization 表。
+- 验证：
+  ```bash
+  pytest tests/test_mainline_a_plots.py -q
+  python scripts/plot_results.py --help
+  ```
+
+## Step 9：新增新模型 publication gate
+
+- **scope: auto**
+- 新增：`docs/mainline_a_publication_gate.md`
+- 规则：
+  - N0 只证明管线可跑。
+  - N1 进入“small-scale optimality comparison”。
+  - N2 进入 ablation。
+  - N3 进入 robustness/generalization。
+  - 未完成 N1/N2/N3 不得写主线A完整实验结论。
+- 验证：
+  ```bash
+  test -f docs/mainline_a_publication_gate.md
+  grep -n "small-scale optimality" docs/mainline_a_publication_gate.md
+  grep -n "generalization" docs/mainline_a_publication_gate.md
+  ```
+
+## Step 10：全实验 dry-run 验收
+
+- **scope: auto**
+- 操作：
+  - 跑所有 N0-N3 dry-run。
+  - 跑新测试。
+- 验证：
+  ```bash
+  python scripts/run_mainline_a_experiments.py --stage all --dry-run
+  pytest tests/test_mec_model_tasks.py tests/test_mec_model_queues.py tests/test_dynamic_pricing.py tests/test_game_aware_critic.py tests/test_primal_dual_update.py tests/test_small_scale_oracle.py tests/test_mainline_a_experiment_runner.py -q
+  ```
+
+---
+
+# 模块 21：论文写作资产与差异化改写接口
+
+## 概述
+
+- 职责：只生成论文改写资产与待确认差异清单，不直接改论文正文；待用户给出“论文改写有所区别”的具体要求后再进入单独写作迭代。
+- 前置依赖：模块 15-20 的接口和实验协议已确定。
+- 输出：
+  - `writing_ref/paper2_mainline_a_revision/`
+  - `docs/paper_revision_manifest.md`
+  - `docs/paper_revision_pending_questions.md`
+- 预计步骤数：5
+
+## Step 1：创建论文写作资产目录
+
+- **scope: auto**
+- 新增：
+  - `writing_ref/paper2_mainline_a_revision/README.md`
+  - `writing_ref/paper2_mainline_a_revision/model_change_inventory.md`
+  - `writing_ref/paper2_mainline_a_revision/equation_inventory.md`
+  - `writing_ref/paper2_mainline_a_revision/experiment_figure_inventory.md`
+- 注意：
+  - 不直接生成“最终论文改写版”。
+  - 若 `writing_ref/` 当前不入 Git，执行端只本地生成并在 `docs/paper_revision_manifest.md` 记录 SHA-256。
+- 验证：
+  ```bash
+  test -f writing_ref/paper2_mainline_a_revision/model_change_inventory.md
+  ```
+
+## Step 2：生成模型变更清单
+
+- **scope: review**
+- 修改：`writing_ref/paper2_mainline_a_revision/model_change_inventory.md`
+- 必含：
+  - MEC task model changes。
+  - queue model changes。
+  - heterogeneous cooperative edge changes。
+  - energy model changes。
+  - mobility model changes。
+  - analytic vs 3GPP-lite communication model split。
+  - dynamic pricing changes。
+  - game-aware critic / primal-dual changes。
+- 验证：
+  ```bash
+  grep -n "dynamic pricing" writing_ref/paper2_mainline_a_revision/model_change_inventory.md
+  ```
+
+## Step 3：生成公式与图表库存
+
+- **scope: auto**
+- 修改：
+  - `writing_ref/paper2_mainline_a_revision/equation_inventory.md`
+  - `writing_ref/paper2_mainline_a_revision/experiment_figure_inventory.md`
+- 要求：
+  - 只列“应该改哪些公式/图表”，不替用户决定最终论文段落措辞。
+- 验证：
+  ```bash
+  grep -n "primal-dual" writing_ref/paper2_mainline_a_revision/equation_inventory.md
+  grep -n "OOD" writing_ref/paper2_mainline_a_revision/experiment_figure_inventory.md
+  ```
+
+## Step 4：生成论文差异待确认清单
+
+- **scope: auto**
+- 新增：`docs/paper_revision_pending_questions.md`
+- 必问项：
+  - 论文源文件路径。
+  - 目标期刊/会议模板。
+  - 当前稿件是否保留原章节标题。
+  - 用户所说“论文改写有所区别”的具体区别。
+  - 是否允许重写 Introduction / System Model / Theory / Experiments。
+  - 是否已有图表编号或公式编号必须保留。
+- 验证：
+  ```bash
+  test -f docs/paper_revision_pending_questions.md
+  grep -n "论文改写有所区别" docs/paper_revision_pending_questions.md
+  ```
+
+## Step 5：生成 paper revision manifest
+
+- **scope: auto**
+- 新增：`docs/paper_revision_manifest.md`
+- 内容：
+  - 资产路径。
+  - 文件 SHA-256。
+  - 是否进入 Git。
+  - 与模块 15-20 的依赖。
+  - 明确：论文正文改写需等待用户确认差异要求。
+- 验证：
+  ```bash
+  test -f docs/paper_revision_manifest.md
+  grep -n "pending_questions" docs/paper_revision_manifest.md
+  ```
+
+---
+
+# 总体验收
 
 ## 必跑命令
 
 ```bash
-pytest tests/test_convergence_plot.py tests/test_analyze_convergence_failures.py tests/test_formal_convergence_protocol.py tests/test_docs_contract.py -q
-python scripts/analyze_convergence_failures.py --help
-python scripts/plot_results.py --help
-```
-
-## L2 实验命令模板
-
-执行端需按当前 CLI 实际参数适配；若 `scripts/benchmark.py` 不支持，先补 wrapper，不改训练语义。
-
-```bash
-python scripts/benchmark.py --algorithms COMA MAPPO TRPO --total-steps 100000 --seeds 42 43 44 --output-dir experiments/l2_candidate_convergence
-python scripts/benchmark.py --algorithms IQL VDN IPPO MADDPG --total-steps 100000 --seeds 42 43 44 --output-dir experiments/l2_event_checked_convergence
-python scripts/benchmark.py --algorithms A3C MATD3 SAC GRPO --total-steps 100000 --seeds 42 43 44 --output-dir experiments/l2_uncertain_convergence
-```
-
-## L3 实验命令模板
-
-```bash
-python scripts/benchmark.py --algorithms <L2_PASSED_ALGOS> --total-steps 200000 --seeds 42 43 44 45 46 --output-dir experiments/l3_verified_convergence
-```
-
-## 必须产物
-
-```text
-docs/formal_convergence_protocol.md
-docs/l1_baseline_convergence_assessment.md
-docs/convergence_event_audit.md
-docs/l2_candidate_convergence_report.md
-docs/l2_failure_triage.md
-docs/l3_verified_convergence_report.md
-docs/convergence_publication_gate.md
-configs/formal_convergence_matrix.yaml
-configs/formal_single_variable_fixes.yaml
-results/l1_baseline_convergence_assessment.json
-results/l2_candidate_convergence_report.json
-results/l3_verified_convergence_report.json
-figures/l2_candidate_convergence/
-figures/l3_verified_convergence/
+pytest tests/test_mec_model_tasks.py tests/test_mec_model_queues.py tests/test_mec_model_edge_topology.py tests/test_mec_model_energy.py tests/test_mec_model_mobility.py tests/test_mec_model_channel.py -q
+pytest tests/test_dynamic_pricing.py tests/test_follower_response.py tests/test_leader_objective.py tests/test_pricing_theory_checks.py -q
+pytest tests/test_game_aware_critic.py tests/test_primal_dual_update.py tests/test_reward_design_mainline_a.py -q
+pytest tests/test_small_scale_oracle.py tests/test_mainline_a_experiment_runner.py tests/test_theory_validation.py -q
+python scripts/benchmark.py --help
+python scripts/run_mainline_a_experiments.py --stage all --dry-run
 ```
 
 ## 成功判定
 
-- 能直接回答每个算法是否通过 `verified_converged_under_protocol`。
-- 不能回答“数学意义保证收敛”，除非后续新增理论证明模块。
-- 任何算法未通过 L3，不得写入论文主图或主结论。
-- L3 通过算法必须具备 raw 图、clean 图、quality report、config hash、run id、seed set。
+- paper2 与仿真实验已统一在一个计划内。
+- 当前旧 L2/L3 不再阻塞新模型。
+- `src/mec_model/` 可独立测试。
+- `src/game_pricing/` 可独立测试。
+- game-aware critic / primal-dual 更新可开关接入。
+- legacy 默认路径仍可运行。
+- 新模型 N0/N1/N2/N3 实验链有 dry-run 与 publication gate。
+- 论文只生成写作资产与差异待确认清单，不直接按代码执行链改正文。

@@ -260,6 +260,17 @@ def make_env(
         for k in ("num_edge_servers", "max_steps"):
             if env_overrides.get(k) is not None:
                 env_kwargs[k] = int(env_overrides[k])
+        for k in (
+            "system_model_config",
+            "dynamic_pricing_config",
+            "channel_model",
+            "queue_model",
+            "mobility_intensity",
+        ):
+            if env_overrides.get(k) is not None:
+                env_kwargs[k] = env_overrides[k]
+        if env_overrides.get("enable_mainline_a") is not None:
+            env_kwargs["enable_mainline_a"] = bool(env_overrides["enable_mainline_a"])
     gt_cfg = game_theory_config or {}
     if gt_cfg:
         env_kwargs["shapley_samples"] = int(gt_cfg.get("shapley_samples", 128))
@@ -803,6 +814,12 @@ def _resolve_env_overrides(
     num_edge_servers: Optional[int],
     multi_agent_count: Optional[int],
     max_steps: Optional[int],
+    system_model_config: Optional[str] = None,
+    dynamic_pricing_config: Optional[str] = None,
+    enable_mainline_a: bool = False,
+    channel_model: Optional[str] = None,
+    queue_model: Optional[str] = None,
+    mobility_intensity: Optional[str] = None,
 ) -> Dict[str, Any]:
     resolved: Dict[str, Any] = {}
     if scale:
@@ -816,7 +833,53 @@ def _resolve_env_overrides(
         resolved["num_agents_multi"] = int(multi_agent_count)
     if max_steps is not None:
         resolved["max_steps"] = int(max_steps)
+    if system_model_config is not None:
+        resolved["system_model_config"] = system_model_config
+    if dynamic_pricing_config is not None:
+        resolved["dynamic_pricing_config"] = dynamic_pricing_config
+    if enable_mainline_a:
+        resolved["enable_mainline_a"] = True
+    if channel_model is not None:
+        resolved["channel_model"] = channel_model
+    if queue_model is not None:
+        resolved["queue_model"] = queue_model
+    if mobility_intensity is not None:
+        resolved["mobility_intensity"] = mobility_intensity
     return resolved
+
+
+def _coerce_list(value: Any, default: Optional[List[Any]] = None) -> List[Any]:
+    """Coerce config scalar/list values to a list."""
+    if value is None:
+        return list(default or [])
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def _load_benchmark_cli_config(path: Optional[str]) -> Dict[str, Any]:
+    """Load optional benchmark config."""
+    if path is None:
+        return {}
+    return load_config(path)
+
+
+def _dry_run_payload(args, file_cfg: Dict[str, Any], algorithms: List[str]) -> Dict[str, Any]:
+    """Build a dry-run payload without starting training."""
+    benchmark_cfg = file_cfg.get("benchmark", {})
+    system_model_cfg = file_cfg.get("system_model", {})
+    return {
+        "dry_run": True,
+        "algorithms": algorithms,
+        "seeds": args.seeds or _coerce_list(file_cfg.get("seeds"), [42]),
+        "timesteps": args.timesteps or file_cfg.get("steps") or benchmark_cfg.get("steps"),
+        "enable_mainline_a": bool(args.enable_mainline_a or system_model_cfg.get("enabled", False)),
+        "system_model_config": args.system_model_config,
+        "channel_model": args.channel_model or system_model_cfg.get("channel"),
+        "queue_model": args.queue_model or system_model_cfg.get("queue"),
+        "mobility_intensity": args.mobility_intensity,
+        "config": args.config,
+    }
 
 
 def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
@@ -1067,6 +1130,8 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
 
 def main():
     p = argparse.ArgumentParser(description="GRPO_MEC Benchmark")
+    p.add_argument("--config", type=str, default=None)
+    p.add_argument("--dry-run", action="store_true")
     p.add_argument("--algorithms", type=str, nargs="+", default=None)
     p.add_argument("--all", action="store_true")
     p.add_argument("--include-heuristics", action="store_true")
@@ -1092,7 +1157,54 @@ def main():
     p.add_argument("--efx-enabled", type=str, default=None, choices=["true", "false"])
     p.add_argument("--cpnet-enabled", type=str, default=None, choices=["true", "false"])
     p.add_argument("--efx-transfer-rate", type=float, default=None)
+    p.add_argument("--system-model-config", type=str, default="configs/system_model_mainline_a.yaml")
+    p.add_argument("--dynamic-pricing-config", type=str, default="configs/pricing_dynamic_mainline_a.yaml")
+    p.add_argument("--enable-mainline-a", action="store_true")
+    p.add_argument(
+        "--channel-model",
+        type=str,
+        choices=["analytic", "3gpp_lite", "rayleigh", "pathloss_only"],
+        default=None,
+    )
+    p.add_argument(
+        "--queue-model",
+        type=str,
+        choices=["mm1", "mmc", "parallel", "finite_capacity"],
+        default=None,
+    )
+    p.add_argument(
+        "--mobility-intensity",
+        type=str,
+        choices=["low", "medium", "high"],
+        default=None,
+    )
     args = p.parse_args()
+
+    file_cfg = _load_benchmark_cli_config(args.config)
+    cfg_algorithms = _coerce_list(file_cfg.get("algorithms") or file_cfg.get("benchmark", {}).get("algorithms"))
+    if args.all:
+        algorithms = list(ALL_ALGOS)
+    elif args.algorithms:
+        algorithms = [_canonical_algorithm_name(a) for a in args.algorithms]
+    elif cfg_algorithms:
+        algorithms = [_canonical_algorithm_name(str(a)) for a in cfg_algorithms]
+    elif args.dry_run:
+        algorithms = ["GRPO"]
+    else:
+        algorithms = []
+
+    if args.config and file_cfg:
+        if args.timesteps is None and (file_cfg.get("steps") or file_cfg.get("benchmark", {}).get("steps")):
+            args.timesteps = int(file_cfg.get("steps") or file_cfg.get("benchmark", {}).get("steps"))
+        if args.seeds == [42] and (file_cfg.get("seeds") or file_cfg.get("benchmark", {}).get("seeds")):
+            args.seeds = [int(seed) for seed in _coerce_list(file_cfg.get("seeds") or file_cfg.get("benchmark", {}).get("seeds"))]
+        if file_cfg.get("system_model", {}).get("enabled"):
+            args.enable_mainline_a = True
+
+    if args.dry_run:
+        print("DRY RUN benchmark")
+        print(yaml.safe_dump(_dry_run_payload(args, file_cfg, algorithms), sort_keys=True))
+        return
 
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -1123,10 +1235,8 @@ def main():
         logger.info("Stderr log file: %s", stderr_log_file)
 
         if args.all:
-            algorithms = list(ALL_ALGOS)
             logger.info("Running all %s algorithms", len(algorithms))
-        elif args.algorithms:
-            algorithms = [_canonical_algorithm_name(a) for a in args.algorithms]
+        elif algorithms:
             logger.info("Running algorithms: %s", algorithms)
         else:
             p.print_help()
@@ -1164,6 +1274,12 @@ def main():
             num_edge_servers=args.num_edge_servers,
             multi_agent_count=args.multi_agent_count,
             max_steps=args.max_steps,
+            system_model_config=args.system_model_config,
+            dynamic_pricing_config=args.dynamic_pricing_config,
+            enable_mainline_a=args.enable_mainline_a,
+            channel_model=args.channel_model,
+            queue_model=args.queue_model,
+            mobility_intensity=args.mobility_intensity,
         )
 
         try:

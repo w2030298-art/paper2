@@ -1,0 +1,10 @@
+name: mainline_a_smoke
+algorithms: [GRPO, MAPPO]
+seeds: [42, 43]
+steps: 1000
+system_model:
+  enabled: true
+  channel: analytic
+  queue: mm1
+  cooperation_enabled: false
+

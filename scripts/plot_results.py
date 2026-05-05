@@ -104,6 +104,73 @@ def _pick_first_numeric(record: Dict[str, Any], keys: List[str]) -> float | None
     return None
 
 
+def build_reward_breakdown_series(results: List[Dict[str, Any]]) -> Dict[str, List[float]]:
+    """Collect reward breakdown series from mainline-A result records."""
+    series: Dict[str, List[float]] = {}
+    for record in results:
+        breakdown = record.get("reward_breakdown") or record.get("mainline_a_reward_components") or {}
+        if not isinstance(breakdown, dict):
+            continue
+        for key, value in breakdown.items():
+            numeric = _to_float(value)
+            if numeric is not None:
+                series.setdefault(str(key), []).append(numeric)
+    return series
+
+
+def build_price_state_series(results: List[Dict[str, Any]]) -> Dict[str, List[float]]:
+    """Collect price and state-coupling series."""
+    keys = ["price", "queue_pressure", "channel_quality", "migration_risk"]
+    return {
+        key: [value for value in (_to_float(record.get(key)) for record in results) if value is not None]
+        for key in keys
+    }
+
+
+def build_dual_variable_series(results: List[Dict[str, Any]]) -> Dict[str, List[float]]:
+    """Collect dual-variable time series."""
+    series: Dict[str, List[float]] = {}
+    for record in results:
+        duals = record.get("dual_variables", {})
+        if isinstance(duals, dict):
+            for key, value in duals.items():
+                numeric = _to_float(value)
+                if numeric is not None:
+                    series.setdefault(str(key), []).append(numeric)
+    return series
+
+
+def build_oracle_gap_table(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Build oracle-gap table rows."""
+    rows = []
+    for record in results:
+        if "optimality_gap" in record or "oracle_gap" in record:
+            rows.append(
+                {
+                    "algorithm": record.get("algorithm", "unknown"),
+                    "optimality_gap": record.get("optimality_gap", record.get("oracle_gap")),
+                    "constraint_violation": record.get("constraint_violation", 0.0),
+                }
+            )
+    return rows
+
+
+def build_ood_generalization_table(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Build OOD generalization table rows."""
+    rows = []
+    for record in results:
+        if record.get("stage") == "N3" or record.get("ood"):
+            rows.append(
+                {
+                    "algorithm": record.get("algorithm", "unknown"),
+                    "social_welfare": record.get("social_welfare"),
+                    "average_latency": record.get("average_latency"),
+                    "constraint_violation_rate": record.get("constraint_violation_rate"),
+                }
+            )
+    return rows
+
+
 def _pick_latency_metric(record: Dict[str, Any]) -> float | None:
     return _pick_first_numeric(
         record,

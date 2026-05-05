@@ -1,0 +1,16 @@
+game_aware:
+  enabled: false
+  critic_features:
+    include_queue: true
+    include_channel: true
+    include_migration: true
+    include_price: true
+    include_elasticity: true
+  primal_dual:
+    enabled: true
+    dual_lr: 0.01
+    dual_clip: [0.0, 20.0]
+  reward_explanation:
+    enabled: true
+    export_every_eval: true
+

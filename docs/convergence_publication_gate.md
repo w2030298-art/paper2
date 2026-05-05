@@ -1,27 +1,31 @@
 # Convergence Publication Gate
 
-> plan.md version: slimming-plan-v3 | evidence policy: L3-only main convergence claim
+> plan.md version: system-model-overhaul-v4.1 | evidence policy: new system model gates only
+
+## Evidence Levels
+
+| Level | Source | Allowed Placement |
+|-------|--------|-------------------|
+| legacy_pre_overhaul | Old L1/L2/L3 convergence artifacts from the pre-overhaul model | appendix, debug note, or regression reference only |
+| N0 | Mainline-A model smoke check | pipeline correctness only |
+| N1 | Mainline-A small-scale oracle comparison | small-scale optimality comparison |
+| N2 | Mainline-A controlled ablation | ablation evidence |
+| N3 | Mainline-A OOD generalization | robustness/generalization evidence |
 
 ## Gate Rule
 
-Only L3-passing algorithms can enter the paper main convergence figure or main convergence conclusion. L2-passing algorithms can be described as candidates. L1-only algorithms can be used for screening or debugging evidence only.
+Old L1/L2/L3 results are now `legacy_pre_overhaul`. They may document the pre-overhaul convergence baseline, but they must not be used as a new system model main claim. New paper main figures and main conclusions must come from module 20 mainline-A experiments under the new system model.
 
 ## Current Decision
 
-| Algorithm | Current Evidence | Publication Placement | Reason |
-|-----------|------------------|-----------------------|--------|
-| A3C | L1 | appendix/debug only | needs single-variable fix and L2/L3 |
-| COMA | L1 | appendix/debug only | L1 candidate only |
-| GRPO | L1 | appendix/debug only | needs single-variable fix and L2/L3 |
-| IPPO | L1 + event audit | appendix/debug only | L3 not run |
-| IQL | L1 + event audit | appendix/debug only | L3 not run |
-| MADDPG | L1 + event audit | appendix/debug only | L3 not run |
-| MAPPO | L1 | appendix/debug only | L1 candidate only |
-| MATD3 | L1 | appendix/debug only | needs single-variable fix and L2/L3 |
-| SAC | L1 | appendix/debug only | needs single-variable fix and L2/L3 |
-| TRPO | L1 | appendix/debug only | L1 candidate only |
-| VDN | L1 + event audit | appendix/debug only | L3 not run |
+| Artifact Family | Current Evidence | Publication Placement | Reason |
+|-----------------|------------------|-----------------------|--------|
+| Old L1/L2/L3 convergence | legacy_pre_overhaul | appendix/debug/regression reference only | system model overhaul changes observation, reward, pricing, and experiment gates |
+| Mainline-A N0 | pending | not a main conclusion | smoke correctness only |
+| Mainline-A N1 | pending | pending | oracle comparison not run |
+| Mainline-A N2 | pending | pending | ablation not run |
+| Mainline-A N3 | pending | pending | OOD generalization not run |
 
 ## Main Figure Eligibility
 
-No algorithm is eligible for the main convergence figure in the current repository state because no L3 multi-seed formal validation has been executed.
+No new system model result is eligible for a main figure until the module 20 N1/N2/N3 chain has produced reviewed evidence.

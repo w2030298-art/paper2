@@ -1,0 +1,21 @@
+dynamic_pricing:
+  enabled: false
+  base_price: 1.0
+  bounds:
+    min: 0.05
+    max: 10.0
+  components:
+    queue:
+      enabled: true
+      alpha: 0.4
+    channel:
+      enabled: true
+      alpha: 0.2
+    migration:
+      enabled: true
+      alpha: 0.3
+  constraints:
+    budget_projection: true
+    deadline_projection: true
+    monotonicity_check: true
+

@@ -87,6 +87,12 @@ class BaseTrainer(ABC):
 
         os.makedirs(save_dir, exist_ok=True)
 
+        self.game_aware_enabled = bool(getattr(agent, "game_aware_enabled", False))
+        self.game_aware_logs: Dict[str, List[float]] = {
+            "dual_variable_mean": [],
+            "constraint_residual_mean": [],
+        }
+
     def _set_seed(self, seed: int):
         """设置随机种子"""
         np.random.seed(seed)
@@ -103,6 +109,43 @@ class BaseTrainer(ABC):
     def _update_step(self, rollout_data: Dict[str, Any]) -> Dict[str, float]:
         """执行一次更新"""
         pass
+
+    def _build_game_aware_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+        """Attach game-aware metadata without changing the legacy batch."""
+        if not self.game_aware_enabled:
+            return batch
+        enriched = dict(batch)
+        enriched["game_aware"] = {
+            "enabled": True,
+            "reward_components": batch.get("reward_components", {}),
+            "constraint_residuals": batch.get("constraint_residuals", {}),
+        }
+        return enriched
+
+    def _apply_primal_dual_update(self, metrics: Dict[str, float]) -> Dict[str, float]:
+        """Record primal-dual metrics when game-aware mode is enabled."""
+        if not self.game_aware_enabled:
+            return metrics
+        residual_values = [
+            float(value)
+            for key, value in metrics.items()
+            if "residual" in key or "violation" in key
+        ]
+        residual_mean = float(np.mean(residual_values)) if residual_values else 0.0
+        dual_mean = float(metrics.get("dual_variable_mean", 0.0))
+        self.game_aware_logs["constraint_residual_mean"].append(residual_mean)
+        self.game_aware_logs["dual_variable_mean"].append(dual_mean)
+        updated = dict(metrics)
+        updated["game_aware/constraint_residual_mean"] = residual_mean
+        updated["game_aware/dual_variable_mean"] = dual_mean
+        return updated
+
+    def _log_reward_breakdown(self, reward_breakdown: Dict[str, float]) -> None:
+        """Log reward component means for explainable reward reporting."""
+        for key, value in reward_breakdown.items():
+            if isinstance(value, (int, float)):
+                log_key = f"reward_breakdown/{key}"
+                self.train_logs.setdefault(log_key, []).append(float(value))
 
     def train(self) -> Dict[str, List[float]]:
         """
@@ -128,6 +171,9 @@ class BaseTrainer(ABC):
 
                 # 更新
                 update_info = self._update_step(rollout_data)
+                update_info = self._apply_primal_dual_update(update_info)
+                if isinstance(rollout_data.get("reward_breakdown"), dict):
+                    self._log_reward_breakdown(rollout_data["reward_breakdown"])
                 self.update_count += 1
 
                 # 记录
