@@ -19,7 +19,8 @@ from .base_agent import BaseAgent
 from .utils.networks import ActorNetwork
 from src.utils.buffer import RolloutBuffer
 from .game_theory_utils import (
-    apply_shapley_reward_scaling,
+    align_first_dim,
+    apply_shapley_credit_assignment,
     inject_game_hints,
     prepare_eq_actions_continuous,
 )
@@ -150,11 +151,12 @@ class GRPOAgent(BaseAgent):
         old_log_probs = old_log_probs.view(-1)
 
         if self.use_shapley_credit and "shapley_values" in batch_data:
-            rewards = apply_shapley_reward_scaling(
-                rewards=rewards,
+            rewards = apply_shapley_credit_assignment(
+                team_reward=rewards.sum(),
                 shapley_values=batch_data["shapley_values"],
-                enabled=True,
-            )
+            ).view(-1)
+            if rewards.shape[0] != old_log_probs.shape[0]:
+                rewards = align_first_dim(rewards.view(-1, 1), old_log_probs.shape[0]).view(-1)
         if self.ctde_with_hints and "game_hints" in batch_data:
             states = inject_game_hints(
                 states=states,

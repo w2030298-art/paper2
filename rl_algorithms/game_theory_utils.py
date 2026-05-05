@@ -32,12 +32,54 @@ def align_first_dim(tensor: torch.Tensor, target_rows: int) -> torch.Tensor:
     return tensor.index_select(0, row_idx)
 
 
+def apply_shapley_credit_assignment(
+    team_reward: torch.Tensor | float,
+    shapley_values: Any,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Redistribute a team reward with the paper-form Shapley credit formula.
+
+    The contract is r_i = phi_i * R_team / sum_j phi_j. When the denominator
+    is numerically zero, the team reward is split uniformly across agents.
+    """
+    if isinstance(team_reward, torch.Tensor):
+        device = team_reward.device
+        team = team_reward.to(dtype=torch.float32)
+    else:
+        device = torch.device("cpu")
+        team = torch.as_tensor(team_reward, dtype=torch.float32)
+
+    shapley = to_float_tensor(shapley_values, device)
+    if shapley is None:
+        return team.clone()
+    if shapley.numel() == 0:
+        return torch.zeros_like(shapley)
+
+    team = team.to(device=device, dtype=shapley.dtype)
+    if team.ndim > 0 and shapley.ndim > 1 and team.numel() == shapley.shape[0]:
+        team_by_row = team.reshape(shapley.shape[0], *([1] * (shapley.ndim - 1)))
+        denom = shapley.reshape(shapley.shape[0], -1).sum(dim=-1)
+        denom = denom.reshape(shapley.shape[0], *([1] * (shapley.ndim - 1)))
+        uniform = team_by_row / max(float(shapley[0].numel()), 1.0)
+        uniform_assignment = torch.ones_like(shapley) * uniform
+        use_uniform = torch.abs(denom) <= eps
+        safe_denom = torch.where(use_uniform, torch.ones_like(denom), denom)
+        proportional_assignment = shapley * team_by_row / safe_denom
+        return torch.where(use_uniform, uniform_assignment, proportional_assignment)
+
+    team_scalar = team.sum()
+    denom_scalar = shapley.sum()
+    if torch.abs(denom_scalar) <= eps:
+        return torch.full_like(shapley, team_scalar / float(shapley.numel()))
+    return shapley * team_scalar / denom_scalar
+
+
 def apply_shapley_reward_scaling(
     rewards: torch.Tensor,
     shapley_values: Any,
     enabled: bool,
 ) -> torch.Tensor:
-    """Scale rewards by Shapley coefficients while preserving reward shape."""
+    """Legacy multiplicative Shapley scaling for historical ablations."""
     if not enabled:
         return rewards
     shapley = to_float_tensor(shapley_values, rewards.device)
@@ -73,6 +115,15 @@ def apply_shapley_reward_scaling(
     while coeff.ndim < rewards.ndim:
         coeff = coeff.unsqueeze(-1)
     return rewards * coeff
+
+
+def apply_legacy_shapley_reward_scaling(
+    rewards: torch.Tensor,
+    shapley_values: Any,
+    enabled: bool,
+) -> torch.Tensor:
+    """Compatibility alias for the legacy multiplicative Shapley scaling."""
+    return apply_shapley_reward_scaling(rewards, shapley_values, enabled)
 
 
 def inject_game_hints(

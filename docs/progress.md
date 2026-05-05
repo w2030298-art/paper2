@@ -3,7 +3,7 @@
 ## 当前状态
 - 当前阶段：slimming-plan-v3 模块 14 formal convergence verification protocol
 - 最后更新：2026-05-04
-- 状态：NEEDS_REVIEW，L1 预筛已生成；L2/L3 多 seed 长时验证尚未执行，无算法进入论文主图或主结论
+- 状态：IN_PROGRESS，L2 100k x 3 seeds 长时验证已启动；L1 仍仅为预筛，无算法进入论文主图或主结论
 
 ## 模块进度
 
@@ -127,7 +127,7 @@
 - [x] Step 4: 建立正式实验矩阵配置 ✅ 2026-05-04 [auto]
 - [x] Step 5: 异常事件审计 gate ✅ 2026-05-04 [review]
 - [x] Step 6: 单变量修复矩阵，不污染默认配置 ✅ 2026-05-04 [review]
-- [ ] Step 7: 执行 L2 candidate validation -> blocked：100k x 3 seeds 长时训练未在当前回合启动 [review]
+- [ ] Step 7: 执行 L2 candidate validation -> running：`l2_20260504_171744` / PID `26860`，等待 100k x 3 seeds 完成 [review]
 - [x] Step 8: L2 失败分流规则与当前 routing 已记录 ✅ 2026-05-04 [auto]
 - [ ] Step 9: 执行 L3 formal verification -> blocked：依赖 L2 通过算法与 200k x 5 seeds 长时训练 [review]
 - [x] Step 10: 生成 publication gate（当前无 L3 通过算法）✅ 2026-05-04 [auto]
@@ -138,4 +138,4 @@
 ## 已知问题
 
 - `C:\Users\22003\paper2\rl-mec-dashboard` 本机不存在，外部 dashboard 兼容性需在有该仓库的环境复核。
-- 模块 14 v3 L2/L3 实际训练尚未启动；当前只完成 protocol、L1 预筛、event audit、single-variable fix 矩阵、plot metadata 和 publication gate。
+- 模块 14 v3 L2 实际训练已启动；当前等待 `logs/formal_convergence/l2_20260504_171744.out.log` 与 `results/l2_candidate_convergence_report.json` 更新。

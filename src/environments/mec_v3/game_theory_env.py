@@ -33,6 +33,7 @@ from src.environments.mec_v2.base_env import BaseMECEnv, MECRewardShaper
 
 
 EPS = 1e-8
+EFX_TRANSFER_CAP = 0.05
 
 
 class OptimalPricingMechanism:
@@ -573,10 +574,11 @@ class EFXFairAllocation:
             delta = 0.5 * self.transfer_rate * deficit
             transfers[i] += float(delta)
             transfers[j] -= float(delta)
+            transfers = np.clip(transfers, -EFX_TRANSFER_CAP, EFX_TRANSFER_CAP)
             is_efx, violation = self.check_efx(allocation, valuations, transfers)
             n_iter += 1
 
-        transfers = transfers.astype(np.float32)
+        transfers = np.clip(transfers, -EFX_TRANSFER_CAP, EFX_TRANSFER_CAP).astype(np.float32)
         return EFXRepairResult(
             transfers=transfers,
             is_efx=bool(is_efx),
@@ -1621,7 +1623,7 @@ class GameTheoryMECEnv(BaseMECEnv):
                 penalty=projection_terms[i].penalty,
                 barrier=projection_terms[i].barrier,
             )
-            fair_transfer = float(np.clip(efx_result.transfers[i], -0.05, 0.05))
+            fair_transfer = float(np.clip(efx_result.transfers[i], -EFX_TRANSFER_CAP, EFX_TRANSFER_CAP))
             r += fair_transfer
             terms["r_fair"] = fair_transfer
             terms["r_fair_raw"] = float(efx_result.transfers[i])
