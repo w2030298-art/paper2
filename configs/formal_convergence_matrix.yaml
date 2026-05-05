@@ -1,0 +1,24 @@
+evidence_levels:
+  L1:
+    steps: 50000
+    seeds: [42]
+    purpose: screening_only
+  L2:
+    steps: 100000
+    seeds: [42, 43, 44]
+    purpose: candidate_validation
+  L3:
+    steps: 200000
+    seeds: [42, 43, 44, 45, 46]
+    purpose: formal_verification
+
+target_algorithms:
+  catastrophic_or_unstable: [IQL, VDN, IPPO, MADDPG]
+  uncertain_or_plateau: [A3C, MATD3, SAC, GRPO]
+  l1_candidates: [COMA, MAPPO, TRPO]
+
+gates:
+  reward_best_tail_gap_max: 0.10
+  metric_regression_max: 0.10
+  catastrophic_outlier_count: 0
+  failed_seed_count: 0

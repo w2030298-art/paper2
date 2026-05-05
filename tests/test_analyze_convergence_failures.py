@@ -149,6 +149,8 @@ def test_cli_help() -> None:
 
     assert "--quality-report" in completed.stdout
     assert "convergence_failure_matrix" in completed.stdout
+    assert "--evidence-level" in completed.stdout
+    assert "--formal-output" in completed.stdout
 
 
 def test_stability_overrides_yaml_is_candidate_only() -> None:

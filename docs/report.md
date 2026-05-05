@@ -2,32 +2,35 @@
 
 ## STATUS: NEEDS_REVIEW
 
-> 上次更新: 2026-05-02 | plan.md 版本:slimming-plan-v1
+> 上次更新: 2026-05-04 | plan.md 版本:slimming-plan-v3
 
 ## Last Execution
 - 来源: dispatch:patch
-- 摘要: 已执行 paper2 项目瘦身 Phase 1-2：完成 repo hygiene、生成产物 Git tracking 移除、`docs_paper/` 外迁校验、废弃入口和旧工具删除。`rl-mec-dashboard` 在指定路径不存在，外部 dashboard 兼容性需 review。
+- 摘要: 已 merge-back `slimming-plan-v3`，旧 `slimming-plan-v2` 归档到 `docs/archive/plan-slimming-plan-v2-before-v3-20260504.md`，并清空本轮 inbox。模块 14 已重构为 formal convergence verification protocol：L1 只作为预筛，L2/L3 改为 100k/200k 多 seed 工程门禁，未给任何算法写正式收敛通过结论。
 
 ## Completed
-- [x] 模块 12 Step 1-6：审计、产物 tracking 移除、坏入口删除、docs/archive 统一、graphify cache 清理、hygiene 测试 (commit 未提交)
-- [x] 模块 13 Step 1-8：`docs_paper/` 迁移、旧 evaluate/report/callback/utils/buffer wrapper 删除、README/docs/report/progress 更新 (commit 未提交)
-- [x] 保留 `src/comm/`、`scripts/backup_experiment.py`、`src/utils/buffer.py` (commit 未提交)
-- [x] 验证通过：`.venv\Scripts\python.exe -m pytest -q`，166 passed；四个主入口 `--help` 全部通过 (commit 未提交)
+- [x] 模块 14 Step 1：新增 `docs/formal_convergence_protocol.md`，固化 L0/L1/L2/L3 与 `verified_converged_under_protocol` 口径 (commit 未提交)
+- [x] 模块 14 Step 2：生成 `docs/l1_baseline_convergence_assessment.md`，50k single-seed 仅标记 `l1_candidate` / `failed_l1` / event audit / single-variable fix (commit 未提交)
+- [x] 模块 14 Step 3：补强 `scripts/analyze_convergence_failures.py` 与 `tests/test_formal_convergence_protocol.py`，新增 formal decision helpers 与 CLI 参数 (commit 未提交)
+- [x] 模块 14 Step 4/6：新增 `configs/formal_convergence_matrix.yaml` 与 `configs/formal_single_variable_fixes.yaml`；`configs/stability_overrides.yaml` 保持 `enabled: false` (commit 未提交)
+- [x] 模块 14 Step 5：更新 `docs/convergence_event_audit.md`，`IQL/VDN/IPPO/MADDPG` 当前归类为 training instability，未发现 reward/metric/env 语义错误证据 (commit 未提交)
+- [x] 模块 14 Step 8/10/11：新增 L2 failure triage、L3-only publication gate，并让 plot quality report 支持 evidence metadata (commit 未提交)
 
 ## In Review
-- [ ] 模块 13 Step 1：写作资料外迁后仓库删除 — 待审核
-- [ ] 模块 13 Step 4：删除 callback 扩展机制 — 待审核
-- [ ] 模块 13 Step 5：删除旧 utils 工具与 `omegaconf` — 待审核
-- [ ] 模块 13 Step 6：删除 `rl_algorithms/utils/buffers.py` wrapper — 待审核
-- [ ] 外部 dashboard 兼容性：`C:\Users\22003\paper2\rl-mec-dashboard` 本机不存在，需在目标仓库可用环境复核
+- [ ] 模块 14 Step 3/5/11 为 review scope，需审核 formal classifier、event audit 口径和 plot metadata 绑定。
+- [ ] 模块 13 Step 1/4/5/6 仍为历史 review items。
+- [ ] 外部 dashboard 兼容性仍需在 `C:\Users\22003\paper2\rl-mec-dashboard` 可用环境复核。
 
 ## Blocked
-- [ ] dashboard grep 完整验证 — 指定外部仓库路径不存在
+- [ ] L2 100k multi-seed validation — 需要长时计算窗口，当前只建立门禁和报告骨架。
+- [ ] L3 200k multi-seed formal validation — 依赖 L2 通过算法；当前无算法可进入论文主图或主结论。
+- [ ] 全目录 forbidden phrase 原样 grep — `docs/plan.md` 本身包含禁止语句示例；实际防误报检查需排除 plan/archive 指令文本，只检查执行产物。
 
 ## Discovered Issues
-- `rg.exe` 在当前 Windows 环境中返回 Access denied，本轮改用 `git grep` 与 PowerShell `Select-String`。
-- `rl-mec-dashboard` 不在本机指定路径，审计文档已记录缺失状态。
+- evidence level 状态：当前只有 L1 预筛证据；L2/L3 尚未执行。
+- L1 baseline 当前仅 3 个算法为 `l1_candidate`：`COMA/MAPPO/TRPO`；`IQL/VDN/IPPO/MADDPG` 需要 event audit；`A3C/MATD3/SAC/GRPO` 需要 single-variable fix 候选。
+- 未执行 L2/L3 前，没有任何算法可标记为 `verified_converged_under_protocol`。
 
 ## Recommendations
-- 在包含 `C:\Users\22003\paper2\rl-mec-dashboard` 的环境重跑 audit grep，确认 dashboard 不依赖已删除 callback/utils/report/evaluate 入口。
-- review 通过后再提交瘦身变更；本轮未删除本地实验数据，只移除了 Git tracking。
+- 在单独计算窗口运行 L2 100k 多 seed；L2 通过后再挑选唯一配置进入 L3 200k。
+- L3 未通过的算法只进入 appendix/debug，不进入论文主 convergence figure 或主结论。

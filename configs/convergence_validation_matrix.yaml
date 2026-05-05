@@ -1,0 +1,33 @@
+schema_version: 1
+default:
+  seeds: [42, 43, 44]
+  eval_interval: 1000
+  eval_episodes: 10
+  output_root: experiments/convergence_validation
+  no_full_17: true
+
+phases:
+  baseline_50k:
+    steps: 50000
+    use_stability_overrides: false
+    algorithms: [A3C, COMA, GRPO, IPPO, IQL, MADDPG, MAPPO, MATD3, SAC, TRPO, VDN]
+
+  override_50k:
+    steps: 50000
+    use_stability_overrides: true
+    mode: single_family_only
+    families:
+      on_policy_high_variance: [A3C, COMA, IPPO, MAPPO]
+      continuous_actor_critic: [SAC, MADDPG, MATD3]
+      value_decomposition: [VDN, IQL]
+      conservative_policy_update: [GRPO, TRPO]
+
+  expansion_100k:
+    steps: 100000
+    enter_only_if: [improving, bad_plateau_with_small_gap, converged_good]
+    use_best_validated_override: true
+
+  expansion_200k:
+    steps: 200000
+    enter_only_if: [improving_after_100k]
+    use_best_validated_override: true

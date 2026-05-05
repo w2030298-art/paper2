@@ -424,8 +424,8 @@ def _write_convergence_quality_report(report: list[dict], output_dir: Path) -> N
     lines = [
         "# Convergence Quality Report",
         "",
-        "| Algorithm | Seed | Metric | Status | Policy | Outliers | Ratio | Notes |",
-        "|-----------|------|--------|--------|--------|----------|-------|-------|",
+        "| Algorithm | Seed | Metric | Evidence | Status | Policy | Outliers | Ratio | Notes |",
+        "|-----------|------|--------|----------|--------|--------|----------|-------|-------|",
     ]
     for record in report:
         notes = []
@@ -439,11 +439,12 @@ def _write_convergence_quality_report(report: list[dict], output_dir: Path) -> N
         ratio = record.get("outlier_ratio")
         ratio_text = "NA" if ratio is None else f"{float(ratio):.3f}"
         lines.append(
-            "| {algorithm} | {seed} | {metric} | {run_status} | {outlier_policy} | "
-            "{outlier_count} | {ratio} | {notes} |".format(
+            "| {algorithm} | {seed} | {metric} | {evidence_level} | {run_status} | "
+            "{outlier_policy} | {outlier_count} | {ratio} | {notes} |".format(
                 algorithm=record.get("algorithm", "unknown"),
                 seed=record.get("seed", "unknown"),
                 metric=record.get("metric", "unknown"),
+                evidence_level=record.get("evidence_level", "NA"),
                 run_status=record.get("run_status", "unknown"),
                 outlier_policy=record.get("outlier_policy", "none"),
                 outlier_count=record.get("outlier_count", 0),
@@ -849,6 +850,11 @@ def plot_convergence_curves(
     outlier_policy: str = "winsorize",
     include_algorithms: set[str] | None = None,
     exclude_algorithms: set[str] | None = None,
+    evidence_level: str | None = None,
+    run_id: str | None = None,
+    seed_set: list[int] | None = None,
+    config_hash: str | None = None,
+    override_id: str | None = None,
 ) -> None:
     """Plot diagnostic and publication convergence curves with quality reports."""
     if mode not in {"raw", "clean", "both"}:
@@ -887,10 +893,11 @@ def plot_convergence_curves(
         _write_convergence_quality_report(quality_records, output_dir)
         return
 
+    prefix = f"{evidence_level.lower()}_" if evidence_level else ""
     if mode in {"raw", "both"}:
         _plot_convergence_figure(
             selected_data,
-            output_dir / f"convergence_curves_raw_all.{fmt}",
+            output_dir / f"{prefix}convergence_curves_raw_all.{fmt}",
             clean=False,
             aggregate=aggregate,
             outlier_policy=outlier_policy,
@@ -900,13 +907,24 @@ def plot_convergence_curves(
     if mode in {"clean", "both"}:
         _plot_convergence_figure(
             selected_data,
-            output_dir / f"convergence_curves_clean_all.{fmt}",
+            output_dir / f"{prefix}convergence_curves_clean_all.{fmt}",
             clean=True,
             aggregate=aggregate,
             outlier_policy=outlier_policy,
             quality_records=quality_records,
             record_quality=True,
         )
+    metadata = {
+        "evidence_level": evidence_level,
+        "run_id": run_id,
+        "seed_set": seed_set,
+        "config_hash": config_hash,
+        "override_id": override_id,
+    }
+    for record in quality_records:
+        for key, value in metadata.items():
+            if value is not None:
+                record[key] = value
     _write_convergence_quality_report(quality_records, output_dir)
 
 
@@ -1089,7 +1107,14 @@ def plot_weight_sensitivity(results: List[Dict], output_dir: Path, fmt: str = "p
 def main():
     parser = argparse.ArgumentParser(description="Plot Benchmark Results")
     parser.add_argument("--input", type=str, required=True, help="benchmark JSON path")
-    parser.add_argument("--output", type=str, default="figures", help="output directory")
+    parser.add_argument(
+        "--output",
+        "--output-dir",
+        dest="output",
+        type=str,
+        default="figures",
+        help="output directory",
+    )
     parser.add_argument("--format", type=str, default="png", choices=["png", "pdf", "svg"])
     parser.add_argument("--convergence-mode", choices=["raw", "clean", "both"], default="both")
     parser.add_argument("--convergence-aggregate", choices=["median", "mean"], default="median")
@@ -1100,6 +1125,11 @@ def main():
     )
     parser.add_argument("--convergence-include", nargs="*", default=None)
     parser.add_argument("--convergence-exclude", nargs="*", default=None)
+    parser.add_argument("--evidence-level", choices=["L1", "L2", "L3"], default=None)
+    parser.add_argument("--run-id", default=None)
+    parser.add_argument("--seed-set", nargs="*", type=int, default=None)
+    parser.add_argument("--config-hash", default=None)
+    parser.add_argument("--override-id", default=None)
     args = parser.parse_args()
 
     output_dir = Path(args.output)
@@ -1121,6 +1151,11 @@ def main():
         outlier_policy=args.convergence_outlier_policy,
         include_algorithms=set(args.convergence_include) if args.convergence_include else None,
         exclude_algorithms=set(args.convergence_exclude) if args.convergence_exclude else None,
+        evidence_level=args.evidence_level,
+        run_id=args.run_id,
+        seed_set=args.seed_set,
+        config_hash=args.config_hash,
+        override_id=args.override_id,
     )
     plot_composite_ranking(results, output_dir, args.format)
     plot_radar_chart(results, output_dir, args.format)

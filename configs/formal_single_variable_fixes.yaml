@@ -1,0 +1,32 @@
+schema_version: 1
+activation_rule: candidate_only
+default_config_guard:
+  stability_overrides_enabled: false
+  each_run_uses_one_variable_family: true
+  require_override_id: true
+
+value_decomposition:
+  algorithms: [IQL, VDN]
+  fixes:
+    - {override_id: vd_lr_half, lr_scale: 0.5}
+    - {override_id: vd_grad_clip_1_0, gradient_clip_norm: 1.0}
+    - {override_id: vd_target_update_slow, target_update_interval_scale: 1.5}
+
+on_policy_marl:
+  algorithms: [IPPO, COMA, MAPPO]
+  fixes:
+    - {override_id: marl_lr_half, actor_lr_scale: 0.5, critic_lr_scale: 0.5}
+    - {override_id: marl_grad_clip_0_5, gradient_clip_norm: 0.5}
+    - {override_id: marl_eval_episodes_20, eval_episodes: 20}
+
+continuous_actor_critic:
+  algorithms: [MADDPG, MATD3, SAC]
+  fixes:
+    - {override_id: cac_lr_half, actor_lr_scale: 0.5, critic_lr_scale: 0.5}
+    - {override_id: cac_target_tau_half, target_tau_scale: 0.5}
+    - {override_id: cac_replay_warmup_10k, replay_warmup_steps: 10000}
+
+conservative_policy:
+  algorithms: [GRPO, TRPO]
+  fixes:
+    - {override_id: cp_lr_0_75, policy_lr_scale: 0.75, value_lr_scale: 0.75}

@@ -178,3 +178,23 @@ class TestConvergenceCurves:
 
         assert np.isnan(clean[-1])
         assert stats["outlier_count"] == 1
+
+    def test_evidence_level_output_names_and_quality_metadata(self, tmp_path):
+        """Evidence-scoped plots should bind raw/clean outputs to report metadata."""
+        plot_convergence_curves(
+            _make_mock_results(),
+            tmp_path,
+            fmt="png",
+            evidence_level="L2",
+            run_id="run-l2",
+            seed_set=[42, 43, 44],
+            config_hash="abc123",
+            override_id="none",
+        )
+
+        assert (tmp_path / "l2_convergence_curves_raw_all.png").exists()
+        assert (tmp_path / "l2_convergence_curves_clean_all.png").exists()
+        report = json.loads((tmp_path / "convergence_quality_report.json").read_text())
+        assert report
+        assert all(record.get("evidence_level") == "L2" for record in report)
+        assert all(record.get("run_id") == "run-l2" for record in report)
