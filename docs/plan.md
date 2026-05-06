@@ -49,23 +49,21 @@
 
 > 执行端读到此区块即可恢复上下文。
 
-- 当前阶段：项目边界修正待执行；先执行模块 22，再进入 Mainline-A final review。
-- 当前模块：模块 22 `project-boundary-cleanup`。
-- 整体进度：模块 14R-20 已有实现资产并进入 `DONE_PENDING_FINAL_REVIEW`；模块 21 已判定为 `REMOVED_OUT_OF_SCOPE`；模块 22 待执行。
-- 状态：`CHANGE_PENDING_EXECUTION`
+- 当前阶段：模块 22 project-boundary-cleanup completed；模块 23 Mainline-A experiment final review pending。
+- 当前模块：模块 23 Mainline-A experiment final review。
+- 整体进度：模块 14R-20 已有实现资产并进入 `DONE_PENDING_FINAL_REVIEW`；模块 21 已判定为 `REMOVED_OUT_OF_SCOPE`；模块 22 completed。
+- 状态：`NEEDS_REVIEW`
 - 当前背景：
-  - 用户已确认：`paper2` 不承载论文相关更改。
-  - 用户已确认：`paper2` 是对比算法实验项目。
-  - 当前 v4.1 文档仍包含论文改写、写作资产、论文主结论等边界错误，需要清理。
+  - `paper2` 项目边界已修正为对比算法实验 / 仿真实验项目。
+  - `writing_ref/paper2_mainline_a_revision/` 已从 Git tracking 删除。
+  - 论文相关更改（论文正文改写、论文主结论写作、写作资产维护）不再属于本项目。
   - Mainline-A N0/N1/N2/N3 artifact-level gate review 已完成，但 final review scope 仍未关闭。
 - 阻塞项：
-  - dashboard 兼容性仍是外部复核项，不阻塞本次边界清理。
-  - N2 ignored result artifact 缺 `evidence_level` 元数据字段；因 `results/` 必须 ignored，本次不修改本地结果产物。
+  - dashboard 兼容性仍是外部复核项，不阻塞 final review。
 - 本版总原则：
   - 本项目只负责对比算法实验资产。
-  - 论文相关资产若存在于 Git tracking，必须删除或归档到项目外部；不得继续由 paper2 docs/status 维护。
-  - 不改 Mainline-A 核心代码，除非发现代码中硬编码论文写作路径。
-  - 不运行新的正式训练，只做边界清理与验证。
+  - 不改 Mainline-A 核心代码。
+  - 不运行新的正式训练。
 
 ### Last Iteration Summary
 
@@ -74,6 +72,7 @@
 - 模块 15-19 已实现 Mainline-A 实验所需的系统模型、动态定价、game-aware MARL、理论/数值验证 helper。
 - 模块 20 已完成 N0/N1/N2/N3 对比实验链与 artifact-level gate review。
 - 模块 21 原计划为论文写作资产，现根据用户确认移出 paper2 项目范围。
+- 模块 22 已完成 project-boundary-cleanup：删除 `writing_ref/paper2_mainline_a_revision/` 4 个 tracked 文件，同步 progress/report/issues 到 v4.2 边界。
 
 ### Pending Decisions
 
