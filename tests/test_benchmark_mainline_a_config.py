@@ -1,10 +1,15 @@
 """Tests for Mainline-A benchmark config binding."""
 
 from argparse import Namespace
+from pathlib import Path
+import subprocess
+import sys
 
 from scripts.benchmark import _apply_benchmark_cli_config
 from scripts.benchmark import _canonical_algorithm_name
 from scripts.benchmark import load_config
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_mainline_a_n0_config_applies_training_defaults() -> None:
@@ -39,3 +44,27 @@ def test_mainline_a_n0_config_applies_training_defaults() -> None:
 def test_game_aware_pd_marl_alias_uses_registered_mappo() -> None:
     """The N0 label maps to the existing game-aware MAPPO training path."""
     assert _canonical_algorithm_name("game_aware_pd_marl") == "MAPPO"
+
+
+def test_mainline_a_n1_config_benchmark_dry_run_is_parse_only() -> None:
+    """N1 config should be parseable by benchmark dry-run without training."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "benchmark.py"),
+            "--config",
+            "configs/experiments/mainline_a_n1_oracle.yaml",
+            "--dry-run",
+        ],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "baseline_static_stackelberg" in result.stdout
+    assert "queue_model: mm1" in result.stdout
+    assert "DRY RUN benchmark" in result.stdout

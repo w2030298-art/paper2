@@ -887,9 +887,9 @@ def _apply_benchmark_cli_config(args, file_cfg: Dict[str, Any]) -> None:
         args.timesteps = int(file_cfg.get("steps") or benchmark_cfg.get("steps"))
     if args.seeds == [42] and (file_cfg.get("seeds") or benchmark_cfg.get("seeds")):
         args.seeds = [int(seed) for seed in _coerce_list(file_cfg.get("seeds") or benchmark_cfg.get("seeds"))]
-    if args.num_edge_servers is None and file_cfg.get("edges") is not None:
+    if args.num_edge_servers is None and file_cfg.get("edges") is not None and not isinstance(file_cfg.get("edges"), list):
         args.num_edge_servers = int(file_cfg["edges"])
-    if args.multi_agent_count is None and file_cfg.get("users") is not None:
+    if args.multi_agent_count is None and file_cfg.get("users") is not None and not isinstance(file_cfg.get("users"), list):
         args.multi_agent_count = int(file_cfg["users"])
     if file_cfg.get("system_model", {}).get("enabled"):
         args.enable_mainline_a = True
