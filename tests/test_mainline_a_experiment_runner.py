@@ -1,17 +1,27 @@
 """Tests for the mainline-A experiment runner."""
 
 from argparse import Namespace
+import json
+import math
 from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
+from scripts.run_mainline_a_experiments import N2_REQUIRED_ABLATIONS
+from scripts.run_mainline_a_experiments import N2_REQUIRED_METRICS
+from scripts.run_mainline_a_experiments import build_n2_ablation_matrix
 from scripts.run_mainline_a_experiments import resolve_plans
 from scripts.run_mainline_a_experiments import load_experiment_config
 from scripts.run_mainline_a_experiments import build_n1_case_matrix
 from scripts.run_mainline_a_experiments import run_n1_oracle_validation
+from scripts.run_mainline_a_experiments import run_n2_ablation_validation
 from scripts.run_mainline_a_experiments import validate_n1_oracle_config
+from scripts.run_mainline_a_experiments import validate_n2_ablation_config
 
 ROOT = Path(__file__).resolve().parents[1]
+N2_CONFIG = ROOT / "configs" / "experiments" / "mainline_a_n2_ablation.yaml"
 
 
 def test_runner_resolves_all_stage_plans() -> None:
@@ -44,7 +54,13 @@ def test_default_stage_configs_are_tracked_files() -> None:
 def test_runner_stage_all_dry_run_cli() -> None:
     """The public dry-run CLI should resolve all stages without training."""
     result = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "run_mainline_a_experiments.py"), "--stage", "all", "--dry-run"],
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "run_mainline_a_experiments.py"),
+            "--stage",
+            "all",
+            "--dry-run",
+        ],
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -105,3 +121,78 @@ def test_n1_oracle_runner_writes_stable_report(tmp_path) -> None:
     assert all(record["stage"] == "N1" for record in result["records"])
     assert all(record["oracle_gap"] is not None for record in result["records"])
     assert all(record["constraint_violation"] >= 0.0 for record in result["records"])
+
+
+def test_n2_dry_run_plan_exposes_ablation_matrix() -> None:
+    """N2 dry-run should expose every ablation and the concrete switches."""
+    args = Namespace(
+        config=str(N2_CONFIG),
+        dry_run=True,
+        stage="N2",
+        resume=False,
+        output_root="experiments/mainline_a",
+        results_root="results/mainline_a",
+    )
+
+    plans = resolve_plans(args)
+
+    assert len(plans) == 1
+    plan = plans[0]
+    assert plan["stage"] == "N2"
+    assert plan["ablations"] == list(N2_REQUIRED_ABLATIONS)
+    assert plan["planned_record_count"] == 27
+    assert plan["results_path"].endswith("n2_ablation")
+    assert all("switches" in item for item in plan["ablation_matrix"])
+    assert all("dynamic_pricing" in item["switches"] for item in plan["ablation_matrix"])
+
+
+def test_n2_config_rejects_label_without_switch_mapping() -> None:
+    """N2 ablations must be backed by explicit switch mappings."""
+    config = load_experiment_config(N2_CONFIG)
+    config["ablations"] = [*config["ablations"], "label_only"]
+
+    with pytest.raises(ValueError, match="unknown ablation"):
+        validate_n2_ablation_config(config)
+
+    matrix = build_n2_ablation_matrix(
+        load_experiment_config(N2_CONFIG)
+    )
+    assert {item["ablation"] for item in matrix} == set(N2_REQUIRED_ABLATIONS)
+
+
+def test_n2_preflight_writes_required_metrics_and_schema(tmp_path) -> None:
+    """N2 preflight should write one seed per ablation with finite required metrics."""
+    config = load_experiment_config(N2_CONFIG)
+
+    result = run_n2_ablation_validation(config, tmp_path, preflight=True, preflight_steps=32)
+    summary = result["summary"]
+    records = result["records"]
+
+    assert summary["status"] == "ok"
+    assert summary["run_type"] == "preflight"
+    assert summary["record_count"] == len(N2_REQUIRED_ABLATIONS)
+    assert Path(summary["records_path"]).is_file()
+    assert Path(summary["matrix_path"]).is_file()
+    assert summary["benchmark_alias_overwrite"] is False
+    schemas = {tuple(sorted(record["metrics"])) for record in records}
+    assert len(schemas) == 1
+    for record in records:
+        for metric in N2_REQUIRED_METRICS:
+            assert metric in record["metrics"]
+            assert math.isfinite(float(record["metrics"][metric]))
+
+
+def test_n2_controlled_ablation_does_not_overwrite_benchmark_alias(tmp_path) -> None:
+    """N2 outputs should stay under n2_ablation and preserve benchmark alias files."""
+    config = load_experiment_config(N2_CONFIG)
+    sentinel = tmp_path / "benchmark.json"
+    sentinel.write_text(json.dumps({"keep": True}), encoding="utf-8")
+
+    result = run_n2_ablation_validation(config, tmp_path)
+
+    assert sentinel.read_text(encoding="utf-8") == '{"keep": true}'
+    assert result["summary"]["run_type"] == "controlled"
+    assert result["summary"]["record_count"] == 27
+    assert "full_model" in result["summary"]["metric_means"]
+    assert "no_dynamic_price" in result["summary"]["metric_deltas_vs_full_model"]
+    assert Path(result["summary"]["output_dir"]).name == "n2_ablation"
