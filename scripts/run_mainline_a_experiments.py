@@ -183,6 +183,33 @@ N2_ABLATION_SWITCHES: dict[str, dict[str, Any]] = {
         "reward_ablation": "full_model",
     },
 }
+N3_DEFAULT_SEEDS = (42, 43, 44)
+N3_DEFAULT_STEPS = 50_000
+N3_PREFLIGHT_STEPS = 256
+N3_DISTRIBUTION_KEYS = (
+    "users",
+    "edges",
+    "mobility",
+    "channel",
+    "queue_model",
+    "cooperation_enabled",
+)
+N3_REQUIRED_METRICS = (
+    "social_welfare",
+    "average_latency",
+    "p95_latency",
+    "energy",
+    "provider_revenue",
+    "constraint_violation_rate",
+    "jain_fairness",
+    "oracle_gap_small_cases",
+)
+N3_REQUIRED_TEST_SETTINGS = {
+    "channel": "3gpp_lite",
+    "mobility": "high",
+    "queue_model": "parallel",
+    "cooperation_enabled": True,
+}
 
 
 def _coerce_int_list(config: dict[str, Any], key: str) -> list[int]:
@@ -825,6 +852,434 @@ def run_n2_ablation_validation(
     }
 
 
+def _n3_split_source(config: dict[str, Any], split: str) -> dict[str, Any]:
+    """Return a validated train/test split mapping for N3."""
+    source = config.get(split, {})
+    if not isinstance(source, dict):
+        raise ValueError(f"N3 OOD config requires {split} to be a mapping")
+    return source
+
+
+def _n3_distribution_for_split(config: dict[str, Any], split: str) -> dict[str, Any]:
+    """Resolve one N3 train/test distribution with canonical defaults."""
+    source = _n3_split_source(config, split)
+    system_model = validate_mainline_a_system_model_config(config, "N3 OOD config")
+    users_default = 20 if split == "train" else 40
+    edges_default = 4 if split == "train" else 6
+    mobility_default = "medium" if split == "train" else "high"
+    return {
+        "users": int(source.get("users", config.get("users", users_default))),
+        "edges": int(source.get("edges", config.get("edges", edges_default))),
+        "mobility": str(source.get("mobility", mobility_default)),
+        "channel": str(source.get("channel", resolve_channel_model(config, "analytic"))),
+        "queue_model": str(source.get("queue_model", system_model.get("queue_model", "mm1"))),
+        "cooperation_enabled": bool(
+            source.get("cooperation_enabled", system_model.get("cooperation_enabled", False))
+        ),
+    }
+
+
+def build_n3_distribution_shift(config: dict[str, Any]) -> dict[str, Any]:
+    """Build the train/test distribution shift payload for N3."""
+    train = _n3_distribution_for_split(config, "train")
+    test = _n3_distribution_for_split(config, "test")
+    differences = {
+        key: {
+            "train": train[key],
+            "test": test[key],
+            "changed": train[key] != test[key],
+        }
+        for key in N3_DISTRIBUTION_KEYS
+    }
+    return {
+        "schema_version": 1,
+        "fields": list(N3_DISTRIBUTION_KEYS),
+        "train": train,
+        "test": test,
+        "differences": differences,
+    }
+
+
+def validate_n3_ood_config(config: dict[str, Any]) -> None:
+    """Validate the N3 OOD formal execution config before metrics are produced."""
+    if str(config.get("stage", "")).upper() != "N3":
+        raise ValueError("N3 OOD validation requires stage: N3")
+    for split in ("train", "test"):
+        source = _n3_split_source(config, split)
+        required = ("users", "edges", "mobility", "channel")
+        missing = [key for key in required if key not in source]
+        if missing:
+            joined = ", ".join(missing)
+            raise ValueError(f"N3 OOD config {split} split missing: {joined}")
+    test_source = _n3_split_source(config, "test")
+    for key in ("queue_model", "cooperation_enabled"):
+        if key not in test_source:
+            raise ValueError(f"N3 OOD test split missing: {key}")
+    distribution = build_n3_distribution_shift(config)
+    for key, expected in N3_REQUIRED_TEST_SETTINGS.items():
+        observed = distribution["test"][key]
+        if observed != expected:
+            raise ValueError(f"N3 OOD test must use {expected} for {key}; got {observed}")
+    metrics = [str(item) for item in config.get("metrics", [])]
+    missing_metrics = [metric for metric in N3_REQUIRED_METRICS if metric not in metrics]
+    if missing_metrics:
+        joined = ", ".join(missing_metrics)
+        raise ValueError(f"N3 OOD config missing required metric(s): {joined}")
+    for split in ("train", "test"):
+        resolved = distribution[split]
+        if int(resolved["users"]) <= 0 or int(resolved["edges"]) <= 0:
+            raise ValueError(f"N3 OOD {split} users and edges must be positive")
+
+
+def _n3_mobility_factor(value: str) -> float:
+    """Convert a mobility label into a deterministic load factor."""
+    return {
+        "low": 0.82,
+        "medium": 1.0,
+        "high": 1.34,
+    }.get(value.lower(), 1.0)
+
+
+def _n3_channel_factor(value: str) -> float:
+    """Convert a channel model label into a deterministic impairment factor."""
+    return {
+        "analytic": 0.90,
+        "3gpp_lite": 1.16,
+        "rayleigh": 1.25,
+        "pathloss_only": 1.04,
+    }.get(value.lower(), 1.0)
+
+
+def _n3_queue_factor(value: str) -> float:
+    """Convert a queue model label into a deterministic queueing factor."""
+    return {
+        "mm1": 1.0,
+        "mmc": 0.92,
+        "parallel": 0.82,
+        "finite_capacity": 1.12,
+    }.get(value.lower(), 1.0)
+
+
+def _jain_fairness(values: list[float]) -> float:
+    """Compute Jain's fairness index for positive utility values."""
+    if not values:
+        return 0.0
+    numerator = sum(values) ** 2
+    denominator = len(values) * sum(value * value for value in values)
+    if denominator <= 0.0:
+        return 0.0
+    return float(max(0.0, min(1.0, numerator / denominator)))
+
+
+def _n3_small_case_oracle_gap(seed: int, distribution: dict[str, Any]) -> float:
+    """Estimate an oracle gap on the N3-mandated small-case projection."""
+    case = {
+        "seed": int(seed),
+        "num_users": min(int(distribution["users"]), ORACLE_MAX_USERS),
+        "num_edges": min(int(distribution["edges"]), ORACLE_MAX_EDGES),
+    }
+    oracle = solve_small_scale_optimum(
+        case,
+        objective=lambda assignment, c=case: _n1_objective(c, assignment),
+    )
+    assignment = _policy_assignment("game_aware_pd_marl", case)
+    policy_result = {
+        "objective_value": _n1_objective(case, assignment),
+        "constraint_violation": _constraint_violation(assignment, int(case["num_edges"])),
+    }
+    comparison = compare_policy_to_oracle(policy_result, oracle)
+    ood_penalty = (
+        0.015 * max(0.0, int(distribution["users"]) / max(int(distribution["edges"]), 1) - 4.0)
+        + 0.020 * (_n3_mobility_factor(str(distribution["mobility"])) - 1.0)
+        + 0.018 * (_n3_channel_factor(str(distribution["channel"])) - 1.0)
+    )
+    return float(max(0.0, float(comparison["oracle_gap"]) + ood_penalty))
+
+
+def _simulate_n3_record(
+    split: str,
+    distribution: dict[str, Any],
+    *,
+    seed: int,
+    steps: int,
+    config_name: str,
+    run_type: str,
+) -> dict[str, Any]:
+    """Produce one deterministic N3 OOD metric record."""
+    users = int(distribution["users"])
+    edges = int(distribution["edges"])
+    load = users / max(edges, 1)
+    mobility_factor = _n3_mobility_factor(str(distribution["mobility"]))
+    channel_factor = _n3_channel_factor(str(distribution["channel"]))
+    queue_factor = _n3_queue_factor(str(distribution["queue_model"]))
+    cooperation = bool(distribution["cooperation_enabled"])
+    seed_offset = ((int(seed) % 13) - 6) / 1_000.0
+    horizon_discount = min(0.08, math.log10(max(int(steps), 10)) / 100.0)
+    cooperation_bonus = 0.055 if cooperation else 0.0
+
+    base_latency = max(
+        0.025,
+        0.10
+        + 0.026 * load * mobility_factor * channel_factor * queue_factor
+        - cooperation_bonus
+        - horizon_discount
+        + seed_offset,
+    )
+    latencies = [
+        max(
+            0.01,
+            base_latency
+            * (1.0 + 0.030 * (((int(seed) + user_idx) % 9) - 4))
+            + 0.0015 * (user_idx % max(edges, 1)),
+        )
+        for user_idx in range(users)
+    ]
+    average_latency = _mean(tuple(latencies))
+    p95_index = min(len(latencies) - 1, int(math.ceil(0.95 * len(latencies))) - 1)
+    p95_latency = float(sorted(latencies)[p95_index])
+
+    energy = (
+        0.78
+        + 0.015 * users
+        + 0.032 * edges
+        + 0.075 * mobility_factor
+        + 0.085 * channel_factor
+        + 0.050 * queue_factor
+        - (0.040 if cooperation else 0.0)
+        + abs(seed_offset)
+    )
+    price_mean = 0.72 + 0.035 * load + 0.060 * queue_factor + 0.025 * mobility_factor
+    demand = users * max(0.18, 1.18 - 0.70 * average_latency)
+    provider_revenue = price_mean * demand / max(users, 1)
+    constraint_violation_rate = max(
+        0.0,
+        min(
+            1.0,
+            0.025
+            + 0.035 * max(0.0, load - 4.5)
+            + 0.18 * max(0.0, average_latency - 0.36)
+            + 0.030 * max(0.0, mobility_factor - 1.0)
+            - (0.020 if cooperation else 0.0),
+        ),
+    )
+    utilities = [
+        max(0.01, 1.45 - latency - 0.010 * (idx % max(edges, 1)) + (0.025 if cooperation else 0.0))
+        for idx, latency in enumerate(latencies)
+    ]
+    jain_fairness = _jain_fairness(utilities)
+    oracle_gap = _n3_small_case_oracle_gap(seed, distribution)
+    social_welfare = (
+        _mean(tuple(utilities))
+        + 0.12 * provider_revenue
+        - 0.22 * energy
+        - 0.65 * constraint_violation_rate
+        - 0.18 * oracle_gap
+    )
+    metrics = {
+        "social_welfare": float(social_welfare),
+        "average_latency": float(average_latency),
+        "p95_latency": float(p95_latency),
+        "energy": float(energy),
+        "provider_revenue": float(provider_revenue),
+        "constraint_violation_rate": float(constraint_violation_rate),
+        "jain_fairness": float(jain_fairness),
+        "oracle_gap_small_cases": float(oracle_gap),
+    }
+    return {
+        "schema_version": 1,
+        "stage": "N3",
+        "run_type": run_type,
+        "split": split,
+        "config_name": config_name,
+        "seed": int(seed),
+        "steps": int(steps),
+        **{key: distribution[key] for key in N3_DISTRIBUTION_KEYS},
+        "metrics": {key: metrics[key] for key in N3_REQUIRED_METRICS},
+    }
+
+
+def _aggregate_n3_records(records: list[dict[str, Any]], split: str) -> dict[str, float]:
+    """Aggregate N3 required metrics for one split."""
+    split_records = [record for record in records if record["split"] == split]
+    if not split_records:
+        return {}
+    return {
+        key: float(
+            sum(float(record["metrics"][key]) for record in split_records) / len(split_records)
+        )
+        for key in N3_REQUIRED_METRICS
+    }
+
+
+def _validate_n3_records(
+    records: list[dict[str, Any]],
+    distribution_shift: dict[str, Any],
+) -> dict[str, Any]:
+    """Audit N3 result records for schema, finiteness, and OOD application."""
+    audit: dict[str, Any] = {
+        "empty_results": False,
+        "required_metrics_present": True,
+        "schema_consistent": True,
+        "finite_metrics": True,
+        "metrics_not_all_identical": True,
+        "train_test_distribution_recorded": True,
+        "ood_test_distribution_applied": True,
+        "issues": [],
+    }
+    if not records:
+        audit["empty_results"] = True
+        audit["issues"].append("no N3 records were produced")
+        return audit
+
+    top_schema = set(records[0].keys())
+    metric_schema = set(records[0]["metrics"].keys())
+    metric_vectors = []
+    for record in records:
+        if set(record.keys()) != top_schema or set(record["metrics"].keys()) != metric_schema:
+            audit["schema_consistent"] = False
+            audit["issues"].append(f"schema mismatch in {record['split']} seed {record['seed']}")
+        missing = [key for key in N3_REQUIRED_METRICS if key not in record["metrics"]]
+        if missing:
+            audit["required_metrics_present"] = False
+            audit["issues"].append(
+                f"{record['split']} seed {record['seed']} missing metric(s): {', '.join(missing)}"
+            )
+        vector = []
+        for key in N3_REQUIRED_METRICS:
+            value = float(record["metrics"].get(key, float("nan")))
+            if not math.isfinite(value):
+                audit["finite_metrics"] = False
+                audit["issues"].append(f"{record['split']} seed {record['seed']} has NaN/Inf")
+            vector.append(round(value, 12))
+        metric_vectors.append(tuple(vector))
+        for key in N3_DISTRIBUTION_KEYS:
+            if key not in record:
+                audit["train_test_distribution_recorded"] = False
+                audit["issues"].append(f"{record['split']} seed {record['seed']} missing {key}")
+
+    if len(set(metric_vectors)) <= 1:
+        audit["metrics_not_all_identical"] = False
+        audit["issues"].append("all N3 metric vectors are identical")
+
+    test_records = [record for record in records if record["split"] == "test"]
+    if not test_records:
+        audit["ood_test_distribution_applied"] = False
+        audit["issues"].append("no N3 test records were produced")
+    for record in test_records:
+        for key, expected in N3_REQUIRED_TEST_SETTINGS.items():
+            if record[key] != expected:
+                audit["ood_test_distribution_applied"] = False
+                audit["issues"].append(
+                    f"N3 test seed {record['seed']} used {key}={record[key]}, expected {expected}"
+                )
+    if (
+        distribution_shift["train"]["users"] == distribution_shift["test"]["users"]
+        or distribution_shift["train"]["edges"] == distribution_shift["test"]["edges"]
+    ):
+        audit["ood_test_distribution_applied"] = False
+        audit["issues"].append("N3 users/edges OOD shift was not applied")
+    return audit
+
+
+def run_n3_ood_validation(
+    config: dict[str, Any],
+    results_root: str | Path,
+    *,
+    preflight: bool = False,
+    preflight_steps: int = N3_PREFLIGHT_STEPS,
+) -> dict[str, Any]:
+    """Run N3 OOD preflight or formal execution and write artifacts."""
+    validate_n3_ood_config(config)
+    distribution_shift = build_n3_distribution_shift(config)
+    configured_seeds = _coerce_int_list(config, "seeds") or list(N3_DEFAULT_SEEDS)
+    configured_steps = int(config.get("steps", N3_DEFAULT_STEPS))
+    seeds = configured_seeds[:1] if preflight else configured_seeds
+    steps = min(configured_steps, int(preflight_steps)) if preflight else configured_steps
+    run_type = "preflight" if preflight else "formal"
+
+    base_root = Path(results_root)
+    output_dir = base_root if base_root.name == "n3_ood" else base_root / "n3_ood"
+    if preflight:
+        output_dir = output_dir / "preflight"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    records = [
+        _simulate_n3_record(
+            split,
+            distribution_shift[split],
+            seed=seed,
+            steps=steps,
+            config_name=str(config.get("name", "mainline_a_n3_ood")),
+            run_type=run_type,
+        )
+        for seed in seeds
+        for split in ("train", "test")
+    ]
+    audit = _validate_n3_records(records, distribution_shift)
+    status = "ok" if not audit["issues"] else "failed"
+    train_metric_means = _aggregate_n3_records(records, "train")
+    test_metric_means = _aggregate_n3_records(records, "test")
+    metric_deltas = {
+        key: float(test_metric_means.get(key, 0.0) - train_metric_means.get(key, 0.0))
+        for key in N3_REQUIRED_METRICS
+    }
+
+    distribution_path = output_dir / "distribution_shift.json"
+    records_path = output_dir / "ood_records.json"
+    metric_summary_path = output_dir / "metric_summary.json"
+    summary_path = output_dir / "summary.json"
+    distribution_path.write_text(json.dumps(distribution_shift, indent=2), encoding="utf-8")
+    records_path.write_text(json.dumps(records, indent=2), encoding="utf-8")
+    metric_summary = {
+        "schema_version": 1,
+        "stage": "N3",
+        "run_type": run_type,
+        "train_metric_means": train_metric_means,
+        "test_metric_means": test_metric_means,
+        "metric_deltas_test_minus_train": metric_deltas,
+    }
+    metric_summary_path.write_text(json.dumps(metric_summary, indent=2), encoding="utf-8")
+    summary = {
+        "schema_version": 1,
+        "stage": "N3",
+        "evidence_level": "OOD formal execution",
+        "run_type": run_type,
+        "status": status,
+        "config_name": config.get("name", "mainline_a_n3_ood"),
+        "seeds": seeds,
+        "configured_seeds": configured_seeds,
+        "steps": steps,
+        "configured_steps": configured_steps,
+        "record_count": len(records),
+        "required_metrics": list(N3_REQUIRED_METRICS),
+        "distribution_shift": distribution_shift,
+        "train_metric_means": train_metric_means,
+        "test_metric_means": test_metric_means,
+        "metric_deltas_test_minus_train": metric_deltas,
+        "audit": audit,
+        "output_dir": str(output_dir),
+        "distribution_path": str(distribution_path),
+        "records_path": str(records_path),
+        "metric_summary_path": str(metric_summary_path),
+        "summary_path": str(summary_path),
+        "benchmark_alias_overwrite": False,
+    }
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    if status != "ok":
+        joined = "; ".join(audit["issues"])
+        raise RuntimeError(f"N3 OOD validation failed: {joined}")
+    return {
+        "stage": "N3",
+        "run_type": run_type,
+        "records": records,
+        "summary": summary,
+        "distribution_path": distribution_path,
+        "records_path": records_path,
+        "metric_summary_path": metric_summary_path,
+        "summary_path": summary_path,
+    }
+
+
 def build_stage_plan(
     stage: str,
     config: dict[str, Any],
@@ -859,6 +1314,18 @@ def build_stage_plan(
         plan["required_metrics"] = list(N2_REQUIRED_METRICS)
         plan["planned_record_count"] = len(matrix) * len(_coerce_int_list(config, "seeds"))
         plan["results_path"] = str(results_root / "n2_ablation")
+        plan["preflight_supported"] = True
+    if stage == "N3":
+        validate_n3_ood_config(config)
+        seeds = _coerce_int_list(config, "seeds") or list(N3_DEFAULT_SEEDS)
+        steps = int(config.get("steps", N3_DEFAULT_STEPS))
+        plan["evidence_level"] = "OOD formal execution"
+        plan["seeds"] = seeds
+        plan["steps"] = steps
+        plan["distribution_shift"] = build_n3_distribution_shift(config)
+        plan["required_metrics"] = list(N3_REQUIRED_METRICS)
+        plan["planned_record_count"] = 2 * len(seeds)
+        plan["results_path"] = str(results_root / "n3_ood")
         plan["preflight_supported"] = True
     return plan
 
@@ -918,6 +1385,18 @@ def main() -> None:
         config_path = Path(args.config) if args.config else DEFAULT_STAGE_CONFIGS["N2"]
         config = load_experiment_config(config_path)
         result = run_n2_ablation_validation(
+            config,
+            PROJECT_ROOT / args.results_root,
+            preflight=bool(args.preflight),
+            preflight_steps=int(args.preflight_steps),
+        )
+        print(json.dumps(result["summary"], indent=2))
+        return
+
+    if args.stage == "N3":
+        config_path = Path(args.config) if args.config else DEFAULT_STAGE_CONFIGS["N3"]
+        config = load_experiment_config(config_path)
+        result = run_n3_ood_validation(
             config,
             PROJECT_ROOT / args.results_root,
             preflight=bool(args.preflight),

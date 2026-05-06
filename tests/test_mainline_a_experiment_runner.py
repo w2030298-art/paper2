@@ -12,18 +12,22 @@ import pytest
 from scripts.run_mainline_a_experiments import (
     N2_REQUIRED_ABLATIONS,
     N2_REQUIRED_METRICS,
+    N3_REQUIRED_METRICS,
     build_n1_case_matrix,
     build_n2_ablation_matrix,
     load_experiment_config,
     resolve_plans,
     run_n1_oracle_validation,
     run_n2_ablation_validation,
+    run_n3_ood_validation,
     validate_n1_oracle_config,
     validate_n2_ablation_config,
+    validate_n3_ood_config,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 N2_CONFIG = ROOT / "configs" / "experiments" / "mainline_a_n2_ablation.yaml"
+N3_CONFIG = ROOT / "configs" / "experiments" / "mainline_a_n3_ood.yaml"
 
 
 def test_runner_resolves_all_stage_plans() -> None:
@@ -219,3 +223,81 @@ def test_n2_controlled_probe_does_not_create_missing_benchmark_alias(tmp_path) -
 
     assert not benchmark_alias.exists()
     assert result["summary"]["benchmark_alias_overwrite"] is False
+
+
+def test_n3_dry_run_plan_exposes_ood_distribution() -> None:
+    """N3 dry-run should expose train/test distribution and required metrics."""
+    args = Namespace(
+        config=str(N3_CONFIG),
+        dry_run=True,
+        stage="N3",
+        resume=False,
+        output_root="experiments/mainline_a",
+        results_root="results/mainline_a",
+    )
+
+    plans = resolve_plans(args)
+
+    assert len(plans) == 1
+    plan = plans[0]
+    assert plan["stage"] == "N3"
+    assert plan["evidence_level"] == "OOD formal execution"
+    assert plan["required_metrics"] == list(N3_REQUIRED_METRICS)
+    assert plan["distribution_shift"]["train"]["users"] == 20
+    assert plan["distribution_shift"]["test"]["users"] == 40
+    assert plan["distribution_shift"]["test"]["channel"] == "3gpp_lite"
+    assert plan["distribution_shift"]["test"]["mobility"] == "high"
+    assert plan["distribution_shift"]["test"]["queue_model"] == "parallel"
+    assert plan["distribution_shift"]["test"]["cooperation_enabled"] is True
+    assert plan["results_path"].endswith("n3_ood")
+    assert plan["preflight_supported"] is True
+
+
+def test_n3_config_requires_actual_ood_test_distribution() -> None:
+    """N3 config should reject label-only OOD tests that miss required test knobs."""
+    config = load_experiment_config(N3_CONFIG)
+    validate_n3_ood_config(config)
+
+    config["test"]["channel"] = "analytic"
+    with pytest.raises(ValueError, match="3gpp_lite"):
+        validate_n3_ood_config(config)
+
+
+def test_n3_preflight_writes_required_metrics_and_audit(tmp_path) -> None:
+    """N3 preflight should write finite metrics and verify the OOD test settings."""
+    config = load_experiment_config(N3_CONFIG)
+
+    result = run_n3_ood_validation(config, tmp_path, preflight=True, preflight_steps=32)
+    summary = result["summary"]
+    records = result["records"]
+
+    assert summary["status"] == "ok"
+    assert summary["run_type"] == "preflight"
+    assert summary["record_count"] == 2
+    assert Path(summary["records_path"]).is_file()
+    assert Path(summary["distribution_path"]).is_file()
+    assert summary["benchmark_alias_overwrite"] is False
+    assert summary["audit"]["ood_test_distribution_applied"] is True
+    assert not summary["audit"]["issues"]
+    schemas = {tuple(sorted(record["metrics"])) for record in records}
+    assert schemas == {tuple(sorted(N3_REQUIRED_METRICS))}
+    for record in records:
+        for metric in N3_REQUIRED_METRICS:
+            assert metric in record["metrics"]
+            assert math.isfinite(float(record["metrics"][metric]))
+
+
+def test_n3_formal_execution_stays_under_n3_output_dir(tmp_path) -> None:
+    """N3 formal execution should not create or overwrite a benchmark alias."""
+    config = load_experiment_config(N3_CONFIG)
+    sentinel = tmp_path / "benchmark.json"
+    sentinel.write_text(json.dumps({"keep": True}), encoding="utf-8")
+
+    result = run_n3_ood_validation(config, tmp_path)
+
+    assert sentinel.read_text(encoding="utf-8") == '{"keep": true}'
+    assert result["summary"]["run_type"] == "formal"
+    assert result["summary"]["record_count"] == 6
+    assert Path(result["summary"]["output_dir"]).name == "n3_ood"
+    assert "social_welfare" in result["summary"]["test_metric_means"]
+    assert result["summary"]["audit"]["metrics_not_all_identical"] is True
