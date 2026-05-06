@@ -5,7 +5,7 @@
 - 当前计划版本: `system-model-overhaul-v4.2`
 - 最后更新: 2026-05-06
 - 状态: NEEDS_REVIEW
-- 当前阶段: 项目边界修正进行中；模块 22 `project-boundary-cleanup` 执行中；模块 14R-20 Mainline-A 对比算法实验链已实现，等待 final review。
+- 当前阶段: 模块 22 project-boundary-cleanup completed；模块 23 Mainline-A experiment final review pending。
 - 执行边界: `paper2` 只承载对比算法实验 / 仿真实验；N0 为 smoke evidence，N1 为 small-scale oracle evidence，N2 为 deterministic controlled probe，N3 为 OOD formal execution evidence；不维护论文正文、写作资产或论文主结论。
 
 ## 模块进度

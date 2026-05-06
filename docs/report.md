@@ -8,7 +8,7 @@
 
 - 来源: dispatch:patch (`system-model-overhaul-v4.2`)
 - 摘要: 执行项目边界修正。Merge-back v4.1→archive, 推广 v4.2 inbox plan。执行模块 22 `project-boundary-cleanup`：审计并删除 tracked 论文写作资产（`writing_ref/paper2_mainline_a_revision/` 4 个文件），同步 progress/report/issues 状态。`paper2` 现在明确定位为对比算法实验项目，不承载论文正文、写作资产或论文主结论。
-- 当前阶段: 模块 22 执行中；Mainline-A 对比算法实验链 review scope 等待用户/Web 审核。
+- 当前阶段: 模块 22 project-boundary-cleanup completed；模块 23 Mainline-A experiment final review pending。
 
 ## Completed
 
@@ -26,7 +26,7 @@
 - [ ] 模块 20B N1 small-scale oracle validation — N1_DONE_PENDING_REVIEW。
 - [ ] 模块 20B N2 deterministic controlled probe — N2_DONE_PENDING_REVIEW。
 - [ ] 模块 20B N3 OOD formal execution — N3_DONE_PENDING_REVIEW。
-- [ ] 模块 22 project-boundary-cleanup — 待用户/Web 审核。
+- [x] 模块 22 project-boundary-cleanup — completed。
 - [ ] 模块 23 Mainline-A experiment final review — `PENDING_AFTER_MODULE_22`。
 
 ## Blocked
