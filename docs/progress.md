@@ -5,8 +5,8 @@
 - 当前计划版本：`system-model-overhaul-v4.1`
 - 最后更新：2026-05-05
 - 状态：NEEDS_REVIEW
-- 当前阶段：Mainline-A Critical/High review fixes completed; review scope 等待用户/Web 审核。
-- 执行边界：本轮只跑 dry-run 与单元测试；正式 N0/N1/N2/N3 训练未启动。
+- 当前阶段：Mainline-A N0 smoke completed; N0_DONE_PENDING_REVIEW，review scope 仍等待用户/Web 审核。
+- 执行边界：本轮只启动 N0 smoke；N1/N2/N3 未启动，未跑 full 17。
 
 ## 模块进度
 
@@ -50,7 +50,8 @@
 
 - [x] 20A experiment infrastructure: N0/N1/N2/N3 configs、small-scale oracle、experiment runner、plot helpers、publication gate 和 dry-run 验收已实现。✅ 2026-05-05 [DONE_PENDING_REVIEW]
 - [x] C-1 fixed：`configs/experiments/mainline_a_n0/n1/n2/n3*.yaml` 进入可跟踪配置路径，runner 默认路径 clean checkout 可解析。✅ 2026-05-05
-- [ ] 20B N0/N1/N2/N3 formal execution: NOT_STARTED，本轮未启动正式训练。
+- [x] 20B N0 formal smoke: N0_DONE_PENDING_REVIEW。✅ 2026-05-05
+- [ ] 20B N1/N2/N3 formal execution: NOT_STARTED，本轮未启动 N1/N2/N3。
 
 ### 模块 21：论文写作资产与差异化改写接口
 
@@ -59,4 +60,4 @@
 ## 已知问题
 
 - 外部 dashboard 兼容性仍需在 `C:\Users\22003\paper2\rl-mec-dashboard` 可用环境复核。
-- 正式 N0/N1/N2/N3 实验未启动；当前结果只能证明 runner/config/test 行为可复现。
+- 正式 N0 smoke 已完成并等待审核；N1/N2/N3 实验未启动。

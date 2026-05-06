@@ -61,6 +61,9 @@ ALGORITHM_CLASSES = {
 ON_POLICY = {"GRPO", "PPO", "A3C", "TRPO", "SimPO", "MAPPO", "COMA", "IPPO"}
 OFF_POLICY = {"SAC", "DDQN", "DDPG", "TD3", "QMIX", "VDN", "MADDPG", "IQL", "MATD3"}
 ALL_ALGOS = list(ALGORITHM_CLASSES.keys())
+ALGORITHM_ALIASES = {
+    "game_aware_pd_marl": "MAPPO",
+}
 ALGO_ENV_MAP = {
     "A3C": "MEC-v1-game-theory-discrete-ma",
     "SimPO": "MEC-v1-game-theory-discrete-ma",
@@ -101,6 +104,7 @@ def _canonical_algorithm_name(name: str) -> str:
     """Return the registered algorithm name, accepting case-insensitive input."""
     lookup = {algo.lower(): algo for algo in ALL_ALGOS}
     lookup.update({algo.lower(): algo for algo in HEURISTIC_ALGOS})
+    lookup.update(ALGORITHM_ALIASES)
     return lookup.get(str(name).lower(), name)
 
 
@@ -669,16 +673,19 @@ def benchmark_single(
         env_overrides=env_overrides,
     )
     agent = create_agent(name, env, cfg, device, game_theory_overrides=game_theory_overrides)
+    if game_theory_overrides and game_theory_overrides.get("game_aware_enabled") is not None:
+        setattr(agent, "game_aware_enabled", bool(game_theory_overrides["game_aware_enabled"]))
     TrainerCls = OnPolicyTrainer if name in ON_POLICY else OffPolicyTrainer
     tc = cfg.get("training", {})
     ec = cfg.get("evaluation", {})
     lc = cfg.get("logging", {})
     ac = cfg.get("algorithm", {})
     total_ts = override_ts if override_ts is not None else tc.get("total_timesteps", 100000)
+    rollout_steps = min(int(tc.get("rollout_steps", 2048)), int(total_ts))
     eval_ep = override_ep if override_ep is not None else ec.get("num_episodes", 10)
     trainer_kwargs = dict(
         env=env, agent=agent, total_timesteps=total_ts,
-        rollout_steps=tc.get("rollout_steps", 2048),
+        rollout_steps=rollout_steps,
         eval_interval=lc.get("eval_interval", 5000), eval_episodes=eval_ep,
         save_interval=lc.get("save_interval", 50000),
         save_dir=lc.get("checkpoint_dir", "checkpoints/" + name.lower()),
@@ -871,6 +878,31 @@ def _load_benchmark_cli_config(path: Optional[str]) -> Dict[str, Any]:
     return config
 
 
+def _apply_benchmark_cli_config(args, file_cfg: Dict[str, Any]) -> None:
+    """Apply experiment config defaults to benchmark CLI arguments."""
+    if not file_cfg:
+        return
+    benchmark_cfg = file_cfg.get("benchmark", {})
+    if args.timesteps is None and (file_cfg.get("steps") or benchmark_cfg.get("steps")):
+        args.timesteps = int(file_cfg.get("steps") or benchmark_cfg.get("steps"))
+    if args.seeds == [42] and (file_cfg.get("seeds") or benchmark_cfg.get("seeds")):
+        args.seeds = [int(seed) for seed in _coerce_list(file_cfg.get("seeds") or benchmark_cfg.get("seeds"))]
+    if args.num_edge_servers is None and file_cfg.get("edges") is not None:
+        args.num_edge_servers = int(file_cfg["edges"])
+    if args.multi_agent_count is None and file_cfg.get("users") is not None:
+        args.multi_agent_count = int(file_cfg["users"])
+    if file_cfg.get("system_model", {}).get("enabled"):
+        args.enable_mainline_a = True
+        if args.system_model_config == "configs/system_model_mainline_a.yaml":
+            args.system_model_config = args.config
+    if file_cfg.get("dynamic_pricing") and args.dynamic_pricing_config == "configs/pricing_dynamic_mainline_a.yaml":
+        args.dynamic_pricing_config = args.config
+    if args.queue_model is None:
+        args.queue_model = resolve_queue_model(file_cfg)
+    if args.channel_model is None:
+        args.channel_model = resolve_channel_model(file_cfg)
+
+
 def _dry_run_payload(args, file_cfg: Dict[str, Any], algorithms: List[str]) -> Dict[str, Any]:
     """Build a dry-run payload without starting training."""
     benchmark_cfg = file_cfg.get("benchmark", {})
@@ -895,7 +927,8 @@ def _dry_run_payload(args, file_cfg: Dict[str, Any], algorithms: List[str]) -> D
 def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                  timesteps=None, episodes=None, device="auto",
                  output_file=None, verbose=True, game_theory_overrides: Optional[Dict[str, Any]] = None,
-                 env_overrides: Optional[Dict[str, Any]] = None):
+                 env_overrides: Optional[Dict[str, Any]] = None,
+                 sync_latest_alias: bool = True):
     """
     运行多算法对比评测 (GameTheory 环境唯一)。
 
@@ -1130,10 +1163,14 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
     if output_file:
         op = Path(output_file)
         _write_results_json(op, all_results)
-        _sync_latest_results_alias(op, all_results)
+        if sync_latest_alias:
+            _sync_latest_results_alias(op, all_results)
         if verbose:
             print(f"\nResults saved to: {op}")
-            print(f"Latest alias updated: {project_root / 'results' / 'benchmark.json'}")
+            if sync_latest_alias:
+                print(f"Latest alias updated: {project_root / 'results' / 'benchmark.json'}")
+            else:
+                print("Latest alias not updated")
     print("Benchmark finished")
     return all_results
 
@@ -1153,6 +1190,7 @@ def main():
     p.add_argument("--seeds", type=int, nargs="+", default=[42])
     p.add_argument("--device", type=str, default="auto")
     p.add_argument("--output", type=str, default=None)  # 自动生成带时间戳的文件名
+    p.add_argument("--no-latest-alias", action="store_true")
     p.add_argument("--quiet", action="store_true")
     p.add_argument("--scale", type=str, choices=["small", "medium", "large"], default=None)
     p.add_argument("--num-edge-servers", type=int, default=None)
@@ -1204,12 +1242,7 @@ def main():
         algorithms = []
 
     if args.config and file_cfg:
-        if args.timesteps is None and (file_cfg.get("steps") or file_cfg.get("benchmark", {}).get("steps")):
-            args.timesteps = int(file_cfg.get("steps") or file_cfg.get("benchmark", {}).get("steps"))
-        if args.seeds == [42] and (file_cfg.get("seeds") or file_cfg.get("benchmark", {}).get("seeds")):
-            args.seeds = [int(seed) for seed in _coerce_list(file_cfg.get("seeds") or file_cfg.get("benchmark", {}).get("seeds"))]
-        if file_cfg.get("system_model", {}).get("enabled"):
-            args.enable_mainline_a = True
+        _apply_benchmark_cli_config(args, file_cfg)
 
     if args.dry_run:
         print("DRY RUN benchmark")
@@ -1276,6 +1309,7 @@ def main():
             "efx_enabled": _parse_optional_bool(args.efx_enabled),
             "cpnet_enabled": _parse_optional_bool(args.cpnet_enabled),
             "efx_transfer_rate": args.efx_transfer_rate,
+            "game_aware_enabled": file_cfg.get("game_aware", {}).get("enabled") if file_cfg else None,
         }
         logger.info("Game theory config: %s", gt_overrides)
 
@@ -1305,6 +1339,7 @@ def main():
                 not args.quiet,
                 game_theory_overrides=gt_overrides,
                 env_overrides=env_overrides,
+                sync_latest_alias=not args.no_latest_alias,
             )
             logger.info("Benchmark finished")
             logger.info("Benchmark completed successfully. Results saved to: %s", args.output)
