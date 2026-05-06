@@ -5,8 +5,8 @@
 - 当前计划版本: `system-model-overhaul-v4.1`
 - 最后更新: 2026-05-06
 - 状态: NEEDS_REVIEW
-- 当前阶段: Mainline-A N3 OOD formal execution completed; N3_DONE_PENDING_REVIEW，review scope 仍等待用户/Web 审核。
-- 执行边界: 本轮只执行 N3 OOD；N0/N1/N2 保持既有 review 状态且未重跑；N2 继续只作为 deterministic controlled probe，不升级为 training-grade / publication-grade ablation evidence。
+- 当前阶段: Mainline-A experiment artifact-level gate review completed; N0/N1/N2/N3 均为 DONE_PENDING_FINAL_REVIEW，review scope 仍等待用户/Web final review。
+- 执行边界: 本轮只做 GitHub tracked docs 修复；未改本地工作区，未把 `results/` 纳入 Git tracking；N2 继续只作为 deterministic controlled probe，不升级为 training-grade / publication-grade ablation evidence。
 
 ## 模块进度
 
@@ -50,11 +50,12 @@
 
 - [x] 20A experiment infrastructure: N0/N1/N2/N3 configs、small-scale oracle、experiment runner、plot helpers、publication gate 和 dry-run 验收已实现。✅ 2026-05-05 [DONE_PENDING_REVIEW]
 - [x] C-1 fixed: `configs/experiments/mainline_a_n0/n1/n2/n3*.yaml` 进入可跟踪配置路径，runner 默认路径 clean checkout 可解析。✅ 2026-05-05
-- [x] 20B N0 formal smoke: N0_DONE_PENDING_REVIEW。✅ 2026-05-05
-- [x] 20B N1 small-scale oracle validation: N1_DONE_PENDING_REVIEW。✅ 2026-05-05
-- [x] 20B N2 deterministic controlled probe: N2_DONE_PENDING_REVIEW。✅ 2026-05-05
-- [x] 20B N2 review fix H-1/M-1/M-2/L-1: N2_DONE_PENDING_REVIEW。✅ 2026-05-05
-- [x] 20B N3 OOD formal execution: N3_DONE_PENDING_REVIEW。✅ 2026-05-06
+- [x] 20B N0 formal smoke: DONE_PENDING_FINAL_REVIEW。✅ 2026-05-06
+- [x] 20B N1 small-scale oracle validation: DONE_PENDING_FINAL_REVIEW。✅ 2026-05-06
+- [x] 20B N2 deterministic controlled probe: DONE_PENDING_FINAL_REVIEW。✅ 2026-05-06
+- [x] 20B N2 review fix H-1/M-1/M-2/L-1: DONE_PENDING_FINAL_REVIEW。✅ 2026-05-06
+- [x] 20B N3 OOD formal execution: DONE_PENDING_FINAL_REVIEW。✅ 2026-05-06
+- [x] 20B experiment gate review: `docs/mainline_a_experiment_gate_review.md` generated from uploaded ignored results artifacts。✅ 2026-05-06 [DONE_PENDING_FINAL_REVIEW]
 
 ### 模块 21: 论文写作资产与差异化改写接口
 
@@ -63,4 +64,5 @@
 ## 已知问题
 
 - 外部 dashboard 兼容性仍需在 `C:\Users\22003\paper2\rl-mec-dashboard` 可用环境复核。
-- N0/N1/N2/N3 均已完成本地执行并进入 pending review；这些结果在 review scope 关闭前不得升级为论文主结论。
+- Uploaded ignored `results/mainline_a/n2_ablation/summary.json` lacks the newer `evidence_level: deterministic controlled probe` field. This is documented in `docs/mainline_a_experiment_gate_review.md`; `results/` remains ignored and should be regenerated locally later if artifact metadata parity is required.
+- N0/N1/N2/N3 均已完成 artifact-level gate review；这些结果在 final review scope 关闭前不得升级为论文主结论。
