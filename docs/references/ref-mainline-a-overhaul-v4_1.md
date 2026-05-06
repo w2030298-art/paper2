@@ -5,7 +5,7 @@
 本版修正两个边界：
 
 1. `paper2` 与仿真实验是同一个项目。所有 benchmark、oracle、ablation、OOD、plot、publication gate 均纳入 `docs/inbox/plan.md` 的模块 20，不再拆出单独仿真实验项目。
-2. 论文改写与代码/实验计划不同步执行。本轮只生成写作资产、公式库存、图表库存与待确认问题，不直接改论文正文，也不输出独立论文 dispatch。
+2. paper2 是对比算法实验 / 仿真实验项目，不承载论文正文改写或写作资产维护。本轮只按实验项目标准生成 config/dry-run/gate review 证据。
 
 ## 目标定位
 
@@ -104,14 +104,13 @@ p_i(t)=clip(p0_i + alpha_q Q_i(t) - alpha_h H_i(t) + alpha_m M_i(t), p_min, p_ma
 
 主图必须来自 N1/N2/N3，而不是 legacy L2/L3。
 
-## 论文改写处理方式
+## 实验证据输出
 
-本轮只生成：
+N0/N1/N2/N3 实验链只按对比算法实验标准输出：
 
-- `writing_ref/paper2_mainline_a_revision/model_change_inventory.md`
-- `writing_ref/paper2_mainline_a_revision/equation_inventory.md`
-- `writing_ref/paper2_mainline_a_revision/experiment_figure_inventory.md`
-- `docs/paper_revision_pending_questions.md`
-- `docs/paper_revision_manifest.md`
+- results/mainline_a/n0_smoke/ — smoke evidence
+- results/mainline_a/n1_oracle/ — small-scale oracle evidence
+- results/mainline_a/n2_ablation/ — deterministic controlled probe evidence
+- results/mainline_a/n3_ood/ — OOD formal execution evidence
 
-不直接生成论文正文 patch。论文改写需用户补充“有所区别”的具体差异后再进入单独写作迭代。
+不把实验结果过度解释为论文主结论。论文正文改写不在 paper2 项目范围内。

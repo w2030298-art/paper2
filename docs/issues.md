@@ -58,3 +58,11 @@
 - [Fixed] M-1: `results/benchmark.json` 缺失时缺少保护测试 — 已补测试确认 N2 deterministic controlled probe 不会创建该 alias。
 - [Fixed] M-2: 重复 ablation label 未显式拒绝 — 已补测试并在 `validate_n2_ablation_config()` 中拒绝重复 label。
 - [Fixed] L-1: docs 状态和报告表述需同步 — 已更新 `docs/mainline_a_n2_ablation_report.md`、`docs/report.md`、`docs/progress.md`，状态保持 `N2_DONE_PENDING_REVIEW`，N3 仍 `NOT_STARTED`。
+
+## 2026-05-06 System Model Overhaul v4.2
+
+- [Fixed] Boundary-v4.2-paper-scope: `paper2` 项目边界修正为对比算法实验项目；论文相关更改（论文正文改写、论文主结论写作、`writing_ref/` 写作资产维护、论文 revision manifest）移出 paper2 项目范围。
+- [Fixed] Boundary-v4.2-tracked-assets: `writing_ref/paper2_mainline_a_revision/` 4 个 tracked 文件已 `git rm`。
+- [Fixed] Boundary-v4.2-module-21: 模块 21 论文写作资产标记为 `REMOVED_OUT_OF_SCOPE`。
+- [Info] M14R-legacy-convergence-retirement: 旧 L2/L3 已降级为 `legacy_pre_overhaul` baseline；旧结果不得进入 Mainline-A 对比算法正式实验结论。
+- [Needs Review] Mainline-A-review-scope: 模块 14R-20 对比算法实验链已实现，等待 final review。

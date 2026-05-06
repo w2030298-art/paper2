@@ -2,11 +2,11 @@
 
 ## 当前状态
 
-- 当前计划版本: `system-model-overhaul-v4.1`
+- 当前计划版本: `system-model-overhaul-v4.2`
 - 最后更新: 2026-05-06
 - 状态: NEEDS_REVIEW
-- 当前阶段: Mainline-A N3 OOD formal execution completed; N3_DONE_PENDING_REVIEW，review scope 仍等待用户/Web 审核。
-- 执行边界: 本轮只执行 N3 OOD；N0/N1/N2 保持既有 review 状态且未重跑；N2 继续只作为 deterministic controlled probe，不升级为 training-grade / publication-grade ablation evidence。
+- 当前阶段: 项目边界修正进行中；模块 22 `project-boundary-cleanup` 执行中；模块 14R-20 Mainline-A 对比算法实验链已实现，等待 final review。
+- 执行边界: `paper2` 只承载对比算法实验 / 仿真实验；N0 为 smoke evidence，N1 为 small-scale oracle evidence，N2 为 deterministic controlled probe，N3 为 OOD formal execution evidence；不维护论文正文、写作资产或论文主结论。
 
 ## 模块进度
 
@@ -56,11 +56,20 @@
 - [x] 20B N2 review fix H-1/M-1/M-2/L-1: N2_DONE_PENDING_REVIEW。✅ 2026-05-05
 - [x] 20B N3 OOD formal execution: N3_DONE_PENDING_REVIEW。✅ 2026-05-06
 
-### 模块 21: 论文写作资产与差异化改写接口
+### 模块 21: 论文写作资产与差异化改写接口 `[REMOVED_OUT_OF_SCOPE]`
 
-- [x] Step 1-5: `writing_ref/paper2_mainline_a_revision/`、pending questions 和 revision manifest 已生成；未改论文正文。✅ 2026-05-05 [DONE_PENDING_REVIEW]
+- [x] v4.2 边界修正：该模块已从 paper2 项目范围移除。`writing_ref/paper2_mainline_a_revision/` 已从 Git tracking 删除，论文相关更改不再属于本项目。✅ 2026-05-06
+
+### 模块 22: project-boundary-cleanup
+
+- [x] Step 1: 审计论文相关入仓痕迹 ✅ 2026-05-06
+- [x] Step 2: 更新计划元信息与 Status ✅ 2026-05-06
+- [x] Step 3: 删除 tracked 论文写作资产 ✅ 2026-05-06
+- [x] Step 4: 同步 progress/report/issues 状态 ✅ 2026-05-06
+- [x] Step 5: 改写实验 gate 文档中的论文措辞 ✅ 2026-05-06
+- [x] Step 6: 最终边界验证 ✅ 2026-05-06
 
 ## 已知问题
 
 - 外部 dashboard 兼容性仍需在 `C:\Users\22003\paper2\rl-mec-dashboard` 可用环境复核。
-- N0/N1/N2/N3 均已完成本地执行并进入 pending review；这些结果在 review scope 关闭前不得升级为论文主结论。
+- N0/N1/N2/N3 均已完成本地执行并进入 pending review；这些结果在 review scope 关闭前不得升级为正式 benchmark 结论或过度解释实验结果。
