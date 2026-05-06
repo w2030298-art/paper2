@@ -9,6 +9,18 @@ from pathlib import Path
 import time
 from typing import Callable, Iterable, Sequence
 
+ORACLE_GAP_REPORT_SCHEMA_VERSION = 1
+ORACLE_GAP_REQUIRED_KEYS = (
+    "stage",
+    "seed",
+    "num_users",
+    "num_edges",
+    "policy_label",
+    "oracle_gap",
+    "constraint_violation",
+    "runtime_s",
+)
+
 
 @dataclass(frozen=True)
 class OracleResult:
@@ -55,14 +67,46 @@ def compare_policy_to_oracle(policy_result: dict[str, float], oracle_result: Ora
     violation = float(policy_result.get("constraint_violation", 0.0))
     return {
         "optimality_gap": gap,
+        "oracle_gap": gap,
         "constraint_violation": violation,
         "oracle_runtime_s": oracle_result.runtime_s,
     }
 
 
-def export_oracle_gap_report(records: Sequence[dict[str, float]], output_path: str | Path) -> None:
+def validate_oracle_gap_records(records: Sequence[dict]) -> list[dict]:
+    """Validate and normalize oracle-gap report records."""
+    normalized = []
+    for index, record in enumerate(records):
+        missing = [key for key in ORACLE_GAP_REQUIRED_KEYS if key not in record]
+        if missing:
+            raise ValueError(f"oracle gap record {index} missing required keys: {', '.join(missing)}")
+        item = dict(record)
+        for key in (
+            "oracle_gap",
+            "constraint_violation",
+            "runtime_s",
+            "oracle_runtime_s",
+            "policy_runtime_s",
+            "oracle_objective",
+            "policy_objective",
+        ):
+            if key in item and item[key] is not None:
+                value = float(item[key])
+                if value != value or value in (float("inf"), float("-inf")):
+                    raise ValueError(f"oracle gap record {index} has non-finite {key}: {item[key]}")
+                item[key] = value
+        normalized.append(item)
+    return normalized
+
+
+def export_oracle_gap_report(records: Sequence[dict], output_path: str | Path) -> None:
     """Export oracle comparison records."""
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(list(records), indent=2), encoding="utf-8")
-
+    normalized = validate_oracle_gap_records(records)
+    payload = {
+        "schema_version": ORACLE_GAP_REPORT_SCHEMA_VERSION,
+        "record_count": len(normalized),
+        "records": normalized,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
