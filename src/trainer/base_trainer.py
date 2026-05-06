@@ -92,6 +92,11 @@ class BaseTrainer(ABC):
             "dual_variable_mean": [],
             "constraint_residual_mean": [],
         }
+        self.primal_dual_updater = None
+        if self.game_aware_enabled:
+            from src.rl_algorithms.game_aware.primal_dual import PrimalDualUpdater
+
+            self.primal_dual_updater = PrimalDualUpdater()
 
     def _set_seed(self, seed: int):
         """设置随机种子"""
@@ -123,21 +128,46 @@ class BaseTrainer(ABC):
         return enriched
 
     def _apply_primal_dual_update(self, metrics: Dict[str, float]) -> Dict[str, float]:
-        """Record primal-dual metrics when game-aware mode is enabled."""
+        """Update primal-dual state and record metrics when game-aware mode is enabled."""
         if not self.game_aware_enabled:
             return metrics
+        from src.rl_algorithms.game_aware.primal_dual import ConstraintResiduals
+
+        residual_payload = metrics.get("constraint_residuals")
+        if isinstance(residual_payload, dict):
+            residuals = ConstraintResiduals(
+                latency_deadline=float(residual_payload.get("latency_deadline", 0.0)),
+                energy_budget=float(residual_payload.get("energy_budget", 0.0)),
+                queue_stability=float(residual_payload.get("queue_stability", 0.0)),
+                migration_rate=float(residual_payload.get("migration_rate", 0.0)),
+                budget_feasibility=float(residual_payload.get("budget_feasibility", 0.0)),
+            )
+        else:
+            residuals = ConstraintResiduals(
+                latency_deadline=float(metrics.get("latency_deadline_residual", metrics.get("violation_latency_mean", 0.0))),
+                energy_budget=float(metrics.get("energy_budget_residual", metrics.get("violation_energy_mean", 0.0))),
+                queue_stability=float(metrics.get("queue_stability_residual", metrics.get("constraint_residual", 0.0))),
+                migration_rate=float(metrics.get("migration_rate_residual", 0.0)),
+                budget_feasibility=float(metrics.get("budget_feasibility_residual", 0.0)),
+            )
+        if self.primal_dual_updater is not None:
+            dual_state = self.primal_dual_updater.update_dual_variables(residuals)
+        else:
+            dual_state = None
         residual_values = [
             float(value)
-            for key, value in metrics.items()
-            if "residual" in key or "violation" in key
+            for value in residuals.as_dict().values()
         ]
         residual_mean = float(np.mean(residual_values)) if residual_values else 0.0
-        dual_mean = float(metrics.get("dual_variable_mean", 0.0))
+        dual_values = list(dual_state.dual_variables.values()) if dual_state is not None else []
+        dual_mean = float(np.mean(dual_values)) if dual_values else 0.0
         self.game_aware_logs["constraint_residual_mean"].append(residual_mean)
         self.game_aware_logs["dual_variable_mean"].append(dual_mean)
         updated = dict(metrics)
         updated["game_aware/constraint_residual_mean"] = residual_mean
         updated["game_aware/dual_variable_mean"] = dual_mean
+        for key, value in (dual_state.dual_variables if dual_state is not None else {}).items():
+            updated[f"game_aware/dual/{key}"] = float(value)
         return updated
 
     def _log_reward_breakdown(self, reward_breakdown: Dict[str, float]) -> None:

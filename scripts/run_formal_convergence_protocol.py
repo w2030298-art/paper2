@@ -11,7 +11,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import yaml
 
@@ -120,6 +120,8 @@ def _ensure_stability_overrides_disabled(path: Path = STABILITY_OVERRIDES_PATH) 
 
 def _l1_decisions(path: Path = L1_ASSESSMENT_PATH) -> dict[str, str]:
     """Load L1 decisions by algorithm."""
+    if not path.exists():
+        return {}
     payload = _load_json(path)
     decisions: dict[str, str] = {}
     for record in _coerce_records(payload):
@@ -145,22 +147,24 @@ def select_l2_algorithms(
     matrix: dict[str, Any],
     *,
     requested: Sequence[str] | None = None,
+    l1_decisions: Mapping[str, str] | None = None,
+    event_allowed: set[str] | None = None,
 ) -> tuple[list[str], dict[str, str]]:
     """Select L2 algorithms from L1 and event-audit gates."""
-    l1_decisions = _l1_decisions()
-    event_allowed = _event_audit_allows_l2()
+    resolved_l1_decisions = dict(l1_decisions or {})
+    resolved_event_allowed = set(event_allowed or set())
     target_groups = matrix.get("target_algorithms", {})
     selected: list[str] = []
     deferred: dict[str, str] = {}
 
     for algorithm in target_groups.get("l1_candidates", []):
-        if l1_decisions.get(algorithm) == "l1_candidate":
+        if resolved_l1_decisions.get(algorithm) == "l1_candidate":
             selected.append(str(algorithm))
         else:
             deferred[str(algorithm)] = "not_l1_candidate"
 
     for algorithm in target_groups.get("catastrophic_or_unstable", []):
-        if str(algorithm) in event_allowed:
+        if str(algorithm) in resolved_event_allowed:
             selected.append(str(algorithm))
         else:
             deferred[str(algorithm)] = "event_audit_not_allowing_l2"
@@ -201,6 +205,8 @@ def build_formal_run_plan(
     phase: str,
     run_id: str | None = None,
     algorithms: Sequence[str] | None = None,
+    l1_decisions: Mapping[str, str] | None = None,
+    event_allowed: set[str] | None = None,
 ) -> FormalRunPlan:
     """Build a formal L2/L3 benchmark plan."""
     _ensure_stability_overrides_disabled()
@@ -214,7 +220,12 @@ def build_formal_run_plan(
     level_cfg = matrix["evidence_levels"][evidence_level]
     resolved_run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
     if evidence_level == "L2":
-        selected, deferred = select_l2_algorithms(matrix, requested=algorithms)
+        selected, deferred = select_l2_algorithms(
+            matrix,
+            requested=algorithms,
+            l1_decisions=l1_decisions if l1_decisions is not None else _l1_decisions(),
+            event_allowed=event_allowed if event_allowed is not None else _event_audit_allows_l2(),
+        )
         result_path = PROJECT_ROOT / "results" / "l2_candidate_convergence_results.json"
         figure_dir = PROJECT_ROOT / "figures" / "l2_candidate_convergence"
         manifest_path = PROJECT_ROOT / "experiments" / "formal_convergence" / "l2" / resolved_run_id / "manifest.json"
@@ -377,10 +388,10 @@ def run_formal_plan(plan: FormalRunPlan, *, dry_run: bool, no_submit: bool, auto
     print(f"manifest: {plan.manifest_path.relative_to(PROJECT_ROOT)}")
     print(f"result_path: {plan.result_path.relative_to(PROJECT_ROOT)}")
     print(f"figure_dir: {plan.figure_dir.relative_to(PROJECT_ROOT)}")
+    if dry_run or no_submit:
+        return 0
     if not plan.algorithms:
         _write_not_run_report(plan, "no algorithms passed the previous gate")
-        return 0
-    if dry_run or no_submit:
         return 0
 
     completed = subprocess.run(plan.command, cwd=PROJECT_ROOT, check=False)

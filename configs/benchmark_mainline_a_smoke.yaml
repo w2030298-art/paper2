@@ -4,7 +4,8 @@ seeds: [42, 43]
 steps: 1000
 system_model:
   enabled: true
-  channel: analytic
-  queue: mm1
+  queue_model: mm1
+  channel_model:
+    theory: analytic
+    simulation: analytic
   cooperation_enabled: false
-

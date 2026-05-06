@@ -5,46 +5,58 @@
 - 当前计划版本：`system-model-overhaul-v4.1`
 - 最后更新：2026-05-05
 - 状态：NEEDS_REVIEW
-- 当前阶段：模块 14R-21 已按 v4.1 执行；review scope 项等待用户/Web 审核。
+- 当前阶段：Mainline-A Critical/High review fixes completed; review scope 等待用户/Web 审核。
+- 执行边界：本轮只跑 dry-run 与单元测试；正式 N0/N1/N2/N3 训练未启动。
 
 ## 模块进度
 
 ### 模块 1-13：历史已完成模块
-- [x] 保持完成状态；未恢复旧入口、未恢复 `docs_paper/`、未恢复 generated artifact tracking。✅ 2026-05-05
+
+- [x] 保持完成状态；未恢复旧入口、`docs_paper/` 或 generated artifact tracking。✅ 2026-05-05
 
 ### 模块 14：formal convergence verification protocol
+
 - [x] 已降级为 pre-overhaul legacy baseline。✅ 2026-05-05
-- [x] 旧 L2 run `l2_20260504_171744` 已停止；旧 L3 未启动。✅ 2026-05-05
+- [x] C-2 fixed：formal convergence 单测改为 fixtures / 显式参数，不依赖 ignored `results/` 产物。✅ 2026-05-05
 
 ### 模块 14R：legacy convergence retirement
-- [x] Step 1: 检查并停止旧 L2 background job。✅ 2026-05-05 [review]
-- [x] Step 2: 更新 publication gate，新增 `legacy_pre_overhaul`。✅ 2026-05-05 [auto]
-- [x] Step 3: 在 protocol 中定义 N0/N1/N2/N3 新模型实验链。✅ 2026-05-05 [auto]
-- [x] Step 4: 更新 docs 状态、issues 和 report。✅ 2026-05-05 [auto]
-- [x] Step 5: 完成旧结论防误报检查。✅ 2026-05-05 [auto]
 
-### 模块 15：MEC 系统模型模块化基座
-- [x] Step 1-10: 新增 `src/mec_model/`、配置、测试和系统模型参考。✅ 2026-05-05 [review items pending]
+- [x] Step 1-5: legacy convergence retirement docs/status 已完成。✅ 2026-05-05 [DONE_PENDING_REVIEW]
+
+### 模块 15：MEC 系统模型模块化基底
+
+- [x] Step 1-10: `src/mec_model/`、配置、测试和参考资产已实现。✅ 2026-05-05 [DONE_PENDING_REVIEW]
 
 ### 模块 16：系统模型与现有环境兼容接入
-- [x] Step 1-8: 新增 owner audit、adapter、可选 mainline-A state/reward、benchmark dry-run 参数和兼容性报告。✅ 2026-05-05 [review items pending]
+
+- [x] Step 1-8: env adapter、Mainline-A state/reward/benchmark dry-run 接入已实现。✅ 2026-05-05 [DONE_PENDING_REVIEW]
+- [x] H-3/H-4 fixed：adapter decision 可写入 env 价格路径，reward components 使用 step 行为指标，行为级测试已补充。✅ 2026-05-05
 
 ### 模块 17：状态依赖 Stackelberg 动态定价
-- [x] Step 1-8: 新增 `src/game_pricing/`、dynamic pricing、follower/leader/theory checks、env pricing path 和理论说明。✅ 2026-05-05 [review items pending]
+
+- [x] Step 1-8: `src/game_pricing/`、dynamic pricing、follower response、theory checks 和 env pricing path 已实现。✅ 2026-05-05 [DONE_PENDING_REVIEW]
+- [x] H-2/H-4 fixed：Mainline-A schema 统一为 `queue_model` 与 `channel_model.{theory,simulation}`，旧 `queue/channel` 字段会被拒绝。✅ 2026-05-05
 
 ### 模块 18：game-aware critic 与 primal-dual 多智能体更新
-- [x] Step 1-8: 新增 `src/rl_algorithms/game_aware/`、critic features、primal-dual updater、reward design、trainer hooks、配置和参考。✅ 2026-05-05 [review items pending]
+
+- [x] Step 1-8: `src/rl_algorithms/game_aware/`、critic features、primal-dual updater、reward design、trainer hooks、配置和参考已实现。✅ 2026-05-05 [DONE_PENDING_REVIEW]
+- [x] H-3/H-4 fixed：BaseTrainer game-aware hook 现在调用 `PrimalDualUpdater.update_dual_variables()` 并暴露 dual state 行为测试。✅ 2026-05-05
 
 ### 模块 19：理论证明与数值验证资产
-- [x] Step 1-6: 新增 theory appendix、pricing/theory validation helpers、测试和报告模板。✅ 2026-05-05 [review items pending]
+
+- [x] Step 1-6: theory appendix、pricing/theory validation helpers、测试和报告模板已实现。✅ 2026-05-05 [DONE_PENDING_REVIEW]
 
 ### 模块 20：paper2 内置新模型实验矩阵
-- [x] Step 1-10: 新增 N0/N1/N2/N3 configs、small-scale oracle、experiment runner、plot helpers、publication gate 和 dry-run 验收。✅ 2026-05-05 [review items pending]
+
+- [x] 20A experiment infrastructure: N0/N1/N2/N3 configs、small-scale oracle、experiment runner、plot helpers、publication gate 和 dry-run 验收已实现。✅ 2026-05-05 [DONE_PENDING_REVIEW]
+- [x] C-1 fixed：`configs/experiments/mainline_a_n0/n1/n2/n3*.yaml` 进入可跟踪配置路径，runner 默认路径 clean checkout 可解析。✅ 2026-05-05
+- [ ] 20B N0/N1/N2/N3 formal execution: NOT_STARTED，本轮未启动正式训练。
 
 ### 模块 21：论文写作资产与差异化改写接口
-- [x] Step 1-5: 新增 `writing_ref/paper2_mainline_a_revision/`、pending questions 和 revision manifest；未改论文正文。✅ 2026-05-05 [review items pending]
+
+- [x] Step 1-5: `writing_ref/paper2_mainline_a_revision/`、pending questions 和 revision manifest 已生成；未改论文正文。✅ 2026-05-05 [DONE_PENDING_REVIEW]
 
 ## 已知问题
 
 - 外部 dashboard 兼容性仍需在 `C:\Users\22003\paper2\rl-mec-dashboard` 可用环境复核。
-- 本轮仅执行 dry-run 和单元测试；N0/N1/N2/N3 正式实验未启动。
+- 正式 N0/N1/N2/N3 实验未启动；当前结果只能证明 runner/config/test 行为可复现。

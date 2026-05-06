@@ -39,24 +39,24 @@
 
 > 执行端读到此区块即可恢复上下文。
 
-- 当前阶段：模块 14R Step 1 待执行。
-- 当前模块：模块 14R：legacy convergence retirement。
-- 整体进度：`14 / 21` 模块进入过执行态；模块 14R、15-21 待执行。
-- 状态：`变更后待执行`
+- 当前阶段：Mainline-A review fix completed for C-1/C-2/H-1/H-2/H-3/H-4; awaiting user/Web review.
+- 当前模块：模块 14R-21 已进入实现/修复态；review scope 项为 `DONE_PENDING_REVIEW`，正式 N0/N1/N2/N3 训练仍为 `NOT_STARTED`。
+- 整体进度：`21 / 21` 模块已有实现资产；实验基础设施已 dry-run，正式实验结果未产生。
+- 状态：`NEEDS_REVIEW`
 - 当前背景：
-  - 旧模块 14 已启动 L2 job：`l2_20260504_171744`，PID `26860`。
+  - 旧模块 14 的 L2 job `l2_20260504_171744` 已停止并降级为 legacy baseline。
   - 用户确认：由于系统模型将大改，当前 L2/L3 对新模型参考意义较小。
   - 用户确认：paper2 与仿真实验是同一个项目。
   - 用户说明：论文改写与代码/实验计划有所区别，不应按同一执行链下发。
 - 阻塞项：
-  - 无阻塞新模型开发的必须项。
+  - Critical/High 审查项已修复并通过 dry-run/单元测试；仍需用户/Web 审核 review scope。
   - 论文正文改写需要另行基于论文源文件与用户差异要求生成，不阻塞 paper2 代码/实验计划。
   - dashboard 兼容性仍是外部复核项，不阻塞主线A系统模型实现。
 - 本版总原则：
   - 先退役旧收敛门禁，再做模型大改。
   - 所有新模型默认 `enabled: false`，由 `configs/system_model_mainline_a.yaml` 显式开启。
   - 新模型另建 smoke → small-oracle → ablation → OOD 的实验链，不复用旧 L2/L3 结论。
-  - 论文主结论只允许引用新模型实验链的结果。
+  - 论文主结论只允许引用新模型实验链的正式结果；当前只有 dry-run 和单元测试，不得写作正式实验结论。
 
 ### Last Iteration Summary
 
@@ -66,7 +66,8 @@
 
 ### Pending Decisions
 
-- 旧 L2 进程是否仍在运行；若在运行，执行端应优雅停止并归档 manifest/log。
+- 用户/Web 审核 C-1/C-2/H-1/H-2/H-3/H-4 修复结果。
+- 正式 N0/N1/N2/N3 训练是否开启，以及对应算力/时间窗口。
 - 论文源文件实际位置、目标期刊/模板、当前章节结构、用户所说“论文改写有所区别”的具体差异。
 - 3GPP 派生仿真默认场景暂定 `UMi`；如论文场景偏车联网，后续可切换为 `UMa`/RSU 派生配置。
 

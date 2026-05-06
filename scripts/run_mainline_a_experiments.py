@@ -13,6 +13,15 @@ import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.mec_model.config_schema import (  # noqa: E402
+    resolve_channel_model,
+    resolve_queue_model,
+    validate_mainline_a_system_model_config,
+)
+
 DEFAULT_STAGE_CONFIGS = {
     "N0": PROJECT_ROOT / "configs/experiments/mainline_a_n0_smoke.yaml",
     "N1": PROJECT_ROOT / "configs/experiments/mainline_a_n1_oracle.yaml",
@@ -26,17 +35,29 @@ def load_experiment_config(path: str | Path) -> dict[str, Any]:
     cfg_path = Path(path)
     if not cfg_path.is_absolute():
         cfg_path = PROJECT_ROOT / cfg_path
-    return yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    config = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    legacy_keys = sorted(key for key in ("queue", "channel") if key in config)
+    if legacy_keys:
+        joined = ", ".join(legacy_keys)
+        raise ValueError(f"{cfg_path}: legacy top-level field(s) {joined} are not allowed")
+    validate_mainline_a_system_model_config(config, str(cfg_path))
+    return config
 
 
 def build_stage_plan(stage: str, config: dict[str, Any], output_root: Path, results_root: Path) -> dict[str, Any]:
     """Build a serializable execution plan for one stage."""
+    system_model = validate_mainline_a_system_model_config(config, f"stage {stage}")
     return {
         "stage": stage,
         "name": config.get("name", f"mainline_a_{stage.lower()}"),
         "algorithms": config.get("algorithms", ["game_aware_pd_marl"]),
         "seeds": config.get("seeds", [42]),
         "steps": config.get("steps", 1000),
+        "system_model": {
+            "enabled": bool(system_model.get("enabled", False)),
+            "queue_model": resolve_queue_model(config),
+            "channel_model": resolve_channel_model(config),
+        },
         "output_root": str(output_root),
         "results_root": str(results_root),
         "dry_run_supported": True,
@@ -88,4 +109,3 @@ def main() -> None:
 if __name__ == "__main__":
     sys.path.insert(0, str(PROJECT_ROOT))
     main()
-

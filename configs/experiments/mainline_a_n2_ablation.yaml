@@ -1,0 +1,20 @@
+name: mainline_a_n2_ablation
+stage: N2
+seeds: [42, 43, 44]
+steps: 50000
+system_model:
+  enabled: true
+  queue_model: mm1
+  channel_model:
+    theory: analytic
+    simulation: 3gpp_lite
+ablations:
+  - full_model
+  - no_dynamic_price
+  - no_queue_state
+  - no_channel_state
+  - no_migration_state
+  - no_primal_dual
+  - no_cooperation
+  - analytic_channel_only
+  - 3gpp_lite_channel

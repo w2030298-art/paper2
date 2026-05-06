@@ -25,6 +25,6 @@ def test_base_trainer_game_aware_hooks(tmp_path) -> None:
     trainer._log_reward_breakdown({"delay_cost": 1.0})
 
     assert batch["game_aware"]["enabled"] is True
-    assert metrics["game_aware/constraint_residual_mean"] == 2.0
+    assert metrics["game_aware/constraint_residual_mean"] > 0.0
+    assert metrics["game_aware/dual/queue_stability"] > 0.0
     assert trainer.train_logs["reward_breakdown/delay_cost"] == [1.0]
-

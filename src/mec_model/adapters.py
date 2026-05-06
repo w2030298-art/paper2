@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
+
 from .state import (
     ChannelSnapshot,
     EdgeNodeState,
@@ -90,13 +92,32 @@ def build_system_state_from_legacy_env(env: Any) -> SystemState:
         time_step=int(getattr(env, "current_step", 0)),
         users=users,
         edge_nodes=edge_nodes,
-        metadata={"legacy_env": type(env).__name__},
+        metadata={
+            "legacy_env": type(env).__name__,
+            "deadline_s": float(getattr(env, "latency_budget", 1.0)),
+            "energy_budget": float(getattr(env, "energy_budget", 10.0)),
+        },
     )
 
 
 def apply_system_decision_to_legacy_env(env: Any, decision: dict[str, Any]) -> None:
-    """Store a decision for the next legacy env step."""
-    setattr(env, "last_mainline_a_decision", dict(decision))
+    """Apply a mainline-A decision to fields consumed by the next env step."""
+    normalized = dict(decision)
+    setattr(env, "last_mainline_a_decision", normalized)
+    setattr(env, "mainline_a_pending_decision", normalized)
+
+    price_values = (
+        normalized.get("price_vector")
+        or normalized.get("dynamic_prices")
+        or normalized.get("prices")
+    )
+    if price_values is not None:
+        prices = np.asarray(tuple(price_values), dtype=np.float32)
+        num_edges = int(getattr(env, "_num_edge_servers", prices.size))
+        if prices.size != num_edges:
+            raise ValueError(f"price decision length {prices.size} does not match {num_edges} edges")
+        setattr(env, "latest_equilibrium_prices", prices.copy())
+        setattr(env, "mainline_a_applied_price_vector", tuple(float(value) for value in prices))
 
 
 def extract_reward_components(env: Any, system_state: SystemState) -> dict[str, float]:
@@ -104,16 +125,28 @@ def extract_reward_components(env: Any, system_state: SystemState) -> dict[str, 
     avg_latency = float(getattr(env, "total_latency", 0.0)) / max(1, int(getattr(env, "task_completed", 0)))
     avg_energy = float(getattr(env, "total_energy", 0.0)) / max(1, int(getattr(env, "task_completed", 0)))
     queue_penalty = sum(node.queue.queue_length for node in system_state.edge_nodes.values())
-    price_payment = sum(node.price for node in system_state.edge_nodes.values())
+    prices = getattr(env, "latest_equilibrium_prices", None)
+    price_payment = float(np.sum(prices)) if prices is not None else sum(node.price for node in system_state.edge_nodes.values())
+    latency_components = list(getattr(env, "last_latency_components", []) or [])
+    deadline_penalty = float(
+        np.mean([float(item.get("deadline_miss", 0.0)) for item in latency_components])
+    ) if latency_components else 0.0
+    migration_penalty = float(
+        np.mean([1.0 - float(item.get("nearest_server_selected", 1.0)) for item in latency_components])
+    ) if latency_components else 0.0
+    cooperation_gain = float(getattr(env, "last_cooperation_gain", 0.0))
+    constraint_penalty = float(
+        max(0.0, deadline_penalty)
+        + max(0.0, float(np.mean(getattr(env, "rho", [0.0]))) - 1.0)
+    )
     return {
         "delay_cost": avg_latency,
         "energy_cost": avg_energy,
         "queue_penalty": float(queue_penalty),
-        "migration_penalty": 0.0,
-        "deadline_violation_penalty": 0.0,
-        "cooperation_gain": 0.0,
+        "migration_penalty": migration_penalty,
+        "deadline_violation_penalty": deadline_penalty,
+        "cooperation_gain": cooperation_gain,
         "price_payment": float(price_payment),
         "provider_revenue": float(price_payment),
-        "constraint_penalty": 0.0,
+        "constraint_penalty": constraint_penalty,
     }
-

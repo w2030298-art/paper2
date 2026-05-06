@@ -1,0 +1,8 @@
+{
+  "records": [
+    {"algorithm": "IQL", "decision": "allow_l2_l3_gate"},
+    {"algorithm": "VDN", "decision": "allow_l2_l3_gate"},
+    {"algorithm": "IPPO", "decision": "allow_l2_l3_gate"},
+    {"algorithm": "MADDPG", "decision": "allow_l2_l3_gate"}
+  ]
+}

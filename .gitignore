@@ -96,15 +96,15 @@ data/
 Thumbs.db
 
 # Experiment orchestration
-experiments/
-experiments/.index.sqlite3
-experiments/**/*.lock
-experiments/**/control/
-experiments/**/process.json
-experiments/**/logs/
-experiments/**/artifacts/**/*.pt
-experiments/**/artifacts/**/*.pth
-experiments/**/artifacts/**/*.ckpt
+/experiments/
+/experiments/.index.sqlite3
+/experiments/**/*.lock
+/experiments/**/control/
+/experiments/**/process.json
+/experiments/**/logs/
+/experiments/**/artifacts/**/*.pt
+/experiments/**/artifacts/**/*.pth
+/experiments/**/artifacts/**/*.ckpt
 
 # Generated figures and results (can regenerate from data)
 figures/

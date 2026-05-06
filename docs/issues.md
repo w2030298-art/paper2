@@ -40,3 +40,14 @@
 - [Needs Review] M14R-L2-stop: 旧 L2 run `l2_20260504_171744` 的 PID `26860` 已停止，manifest/log 保留；旧 L3 未启动。该操作属于 review scope，需审核。
 - [Info] Docs-cleanup: 旧 L1/L2/L3 结果报告与历史 convergence reassessment reference 已迁入 `docs/archive/legacy-convergence-20260505/`。
 - [Needs Review] Mainline-A-review-scope: 模块 15-20 涉及 MEC model、dynamic pricing、env adapter、game-aware primal-dual、theory assets 和 N0/N1/N2/N3 experiment chain，均含 review scope 项，等待用户/Web 审核。
+
+## 2026-05-05 Mainline-A Review Fix
+
+- [Fixed] C-1: Mainline-A 默认实验 runner 引用未入仓配置 — 已补齐 `configs/experiments/mainline_a_n0/n1/n2/n3*.yaml` 并调整 ignore 规则，默认 dry-run 可解析。
+- [Fixed] C-2: formal convergence 单测依赖 ignored `results/` 产物 — 已改为 fixtures / 显式参数，缺失 runtime artifacts 时 dry-run 不再阻断单测。
+- [Fixed] H-1: `docs/plan.md`、`docs/progress.md`、`docs/report.md` 状态不一致 — 已同步为 C/H fix completed、NEEDS_REVIEW、正式实验 NOT_STARTED。
+- [Fixed] H-2: Mainline-A config schema 不一致 — 已统一为 `queue_model` 与 `channel_model.{theory,simulation}`，旧 `queue/channel` 字段会被拒绝。
+- [Fixed] H-3: env/pricing/reward/primal-dual 未形成可测试闭环 — 已让 adapter decision 写入 env price path，reward components 读取 step 行为指标，trainer hook 更新 dual state。
+- [Fixed] H-4: 行为级测试不足 — 已补 runner dry-run、dynamic pricing reward path、reward components、primal-dual hook 和 active entrypoint 测试。
+- [Fixed] H-1-docs-contract: clean checkout 验证发现 `docs/README.md` 与 `docs/slimming_audit_phase2.md` 缺失 — 已补回 docs contract 与 dashboard audit 最小文档。
+- [Fixed] H-1-stale-l2-processes: 旧 L2 benchmark 子进程 PID 26016 / 21904 仍占用 `logs/` — 已停止，避免与本轮“不启动正式训练”边界冲突。

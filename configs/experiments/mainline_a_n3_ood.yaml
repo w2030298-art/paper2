@@ -1,0 +1,29 @@
+name: mainline_a_n3_ood
+stage: N3
+system_model:
+  enabled: true
+  queue_model: parallel
+  channel_model:
+    theory: analytic
+    simulation: 3gpp_lite
+train:
+  users: 20
+  edges: 4
+  mobility: medium
+  channel: analytic
+test:
+  users: 40
+  edges: 6
+  mobility: high
+  channel: 3gpp_lite
+  queue_model: parallel
+  cooperation_enabled: true
+metrics:
+  - social_welfare
+  - average_latency
+  - p95_latency
+  - energy
+  - provider_revenue
+  - constraint_violation_rate
+  - jain_fairness
+  - oracle_gap_small_cases

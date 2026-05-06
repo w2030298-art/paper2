@@ -33,6 +33,11 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.utils.composite_score import CompositeScorer  # noqa: E402
+from src.mec_model.config_schema import (  # noqa: E402
+    resolve_channel_model,
+    resolve_queue_model,
+    validate_mainline_a_system_model_config,
+)
 
 ALGORITHM_CLASSES = {
     "GRPO": ("rl_algorithms.grpo", "GRPOAgent"),
@@ -861,13 +866,17 @@ def _load_benchmark_cli_config(path: Optional[str]) -> Dict[str, Any]:
     """Load optional benchmark config."""
     if path is None:
         return {}
-    return load_config(path)
+    config = load_config(path)
+    validate_mainline_a_system_model_config(config, path)
+    return config
 
 
 def _dry_run_payload(args, file_cfg: Dict[str, Any], algorithms: List[str]) -> Dict[str, Any]:
     """Build a dry-run payload without starting training."""
     benchmark_cfg = file_cfg.get("benchmark", {})
-    system_model_cfg = file_cfg.get("system_model", {})
+    system_model_cfg = validate_mainline_a_system_model_config(file_cfg, args.config or "benchmark config")
+    channel_model = args.channel_model or resolve_channel_model(file_cfg)
+    queue_model = args.queue_model or resolve_queue_model(file_cfg)
     return {
         "dry_run": True,
         "algorithms": algorithms,
@@ -875,8 +884,9 @@ def _dry_run_payload(args, file_cfg: Dict[str, Any], algorithms: List[str]) -> D
         "timesteps": args.timesteps or file_cfg.get("steps") or benchmark_cfg.get("steps"),
         "enable_mainline_a": bool(args.enable_mainline_a or system_model_cfg.get("enabled", False)),
         "system_model_config": args.system_model_config,
-        "channel_model": args.channel_model or system_model_cfg.get("channel"),
-        "queue_model": args.queue_model or system_model_cfg.get("queue"),
+        "channel_model": channel_model,
+        "queue_model": queue_model,
+        "resolved_system_model": system_model_cfg,
         "mobility_intensity": args.mobility_intensity,
         "config": args.config,
     }

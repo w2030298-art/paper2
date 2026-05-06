@@ -31,10 +31,12 @@ from gymnasium import spaces
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from src.environments.mec_v2.base_env import BaseMECEnv, MECRewardShaper
+from src.mec_model.config_schema import validate_mainline_a_system_model_config
 
 
 EPS = 1e-8
 EFX_TRANSFER_CAP = 0.05
+MAINLINE_A_PRICE_REWARD_SCALE = 0.05
 
 
 class OptimalPricingMechanism:
@@ -826,6 +828,10 @@ class GameTheoryMECEnv(BaseMECEnv):
             self.dynamic_pricing_config.get("dynamic_pricing", {}).get("enabled", False)
         )
         self.last_mainline_a_metrics: Dict[str, float] = {}
+        self.last_latency_components: List[Dict[str, float]] = []
+        self.last_individual_energies: List[float] = []
+        self.last_individual_offload: List[float] = []
+        self.last_cooperation_gain = 0.0
 
         if bs_positions is None:
             self.bs_positions = [[10.0 + i * 15.0, 0.0, 25.0] for i in range(self._num_edge_servers)]
@@ -973,6 +979,7 @@ class GameTheoryMECEnv(BaseMECEnv):
         }
         if path.exists():
             loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            validate_mainline_a_system_model_config(loaded, str(path))
             for section, values in loaded.items():
                 if isinstance(values, dict) and isinstance(default.get(section), dict):
                     default[section].update(values)
@@ -1239,16 +1246,26 @@ class GameTheoryMECEnv(BaseMECEnv):
         _ = actions
         queue_penalty = float(np.sum(self.queue_lengths))
         channel_quality = float(np.mean(self.channel_qualities)) if self.channel_qualities.size else 0.0
+        latency_components = self.last_latency_components
+        if latency_components:
+            deadline_penalty = float(np.mean([float(item.get("deadline_miss", 0.0)) for item in latency_components]))
+            migration_penalty = float(
+                np.mean([1.0 - float(item.get("nearest_server_selected", 1.0)) for item in latency_components])
+            )
+        else:
+            deadline_penalty = 0.0
+            migration_penalty = 0.0 if self.mobility_intensity == "low" else 0.01 * queue_penalty
+        rho_violation = max(0.0, float(np.max(self.rho)) - 1.0) if np.size(self.rho) else 0.0
         metrics = {
             "delay_cost": float(self.total_latency / max(1, self.task_completed)),
             "energy_cost": float(self.total_energy / max(1, self.task_completed)),
             "queue_penalty": queue_penalty,
-            "migration_penalty": 0.0 if self.mobility_intensity == "low" else 0.01 * queue_penalty,
-            "deadline_violation_penalty": 0.0,
-            "cooperation_gain": 0.0,
+            "migration_penalty": migration_penalty,
+            "deadline_violation_penalty": deadline_penalty,
+            "cooperation_gain": float(self.last_cooperation_gain),
             "price_payment": float(np.sum(self.latest_equilibrium_prices)),
             "provider_revenue": float(np.sum(self.latest_equilibrium_prices)),
-            "constraint_penalty": max(0.0, queue_penalty - channel_quality),
+            "constraint_penalty": max(0.0, queue_penalty - channel_quality) + deadline_penalty + rho_violation,
         }
         self.last_mainline_a_metrics = metrics
         return metrics
@@ -1690,6 +1707,10 @@ class GameTheoryMECEnv(BaseMECEnv):
         self.latest_efx_satisfied = True
         self.latest_efx_iterations = 0
         self.latest_efx_violation = None
+        self.last_latency_components = []
+        self.last_individual_energies = []
+        self.last_individual_offload = []
+        self.last_cooperation_gain = 0.0
 
         self.user_mobility = np.zeros((self.num_agents, 3), dtype=np.float32)
         for i in range(self.num_agents):
@@ -1830,6 +1851,10 @@ class GameTheoryMECEnv(BaseMECEnv):
             baseline_costs.append(self._communication_cost(base_components, base_energy))
         cooperation_gain = float(np.clip(np.mean(baseline_costs) - np.mean(observed_costs), -1.0, 1.0))
         shapley_credit = getattr(self, "latest_shapley_credit", shapley_alloc)
+        self.last_latency_components = [dict(item) for item in latency_components]
+        self.last_individual_energies = [float(value) for value in individual_energies]
+        self.last_individual_offload = [float(value) for value in individual_offload]
+        self.last_cooperation_gain = cooperation_gain
 
         rewards: List[float] = []
         reward_terms: List[Dict[str, float]] = []
@@ -1866,6 +1891,17 @@ class GameTheoryMECEnv(BaseMECEnv):
             r += fair_transfer
             terms["r_fair"] = fair_transfer
             terms["r_fair_raw"] = float(efx_result.transfers[i])
+            price_cost = 0.0
+            price_reward = 0.0
+            target = int(mapped_actions[i]["target"])
+            if self.mainline_a_enabled and target > 0:
+                prices = np.asarray(game_hints["equilibrium_prices"], dtype=np.float64)
+                if target - 1 < prices.size:
+                    price_cost = float(prices[target - 1] * float(mapped_actions[i]["offload_ratio"]))
+                    price_reward = -MAINLINE_A_PRICE_REWARD_SCALE * price_cost
+                    r += price_reward
+            terms["r_price"] = price_reward
+            terms["mainline_a_price_cost"] = price_cost
             terms["cp_pref"] = float(self.latest_cpnet_scores[i])
             terms["efx_satisfied"] = float(1.0 if efx_result.is_efx else 0.0)
             terms["efx_iterations"] = float(efx_result.iterations)

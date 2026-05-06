@@ -59,16 +59,29 @@ def project_response_to_constraints(
 
 def compute_best_response(user_state: Any, price_vector: PriceVector, system_state: Any) -> FollowerResponse:
     """Compute a projected best response for one user."""
-    _ = system_state
-    demand = compute_demand_elasticity(user_state, price_vector)
+    base_demand = compute_demand_elasticity(user_state, price_vector)
+    edge_nodes = list(getattr(system_state, "edge_nodes", {}).values())
+    adjusted: list[float] = []
+    for idx, value in enumerate(base_demand):
+        node = edge_nodes[idx] if idx < len(edge_nodes) else None
+        node_id = getattr(node, "node_id", None)
+        channel = getattr(user_state, "channel_by_node", {}).get(node_id) if node_id is not None else None
+        channel_quality = float(getattr(channel, "quality", 1.0))
+        queue = getattr(node, "queue", None)
+        queue_length = float(getattr(queue, "queue_length", 0.0))
+        service_rate = max(float(getattr(queue, "service_rate", 1.0)), 1e-9)
+        queue_discount = 1.0 / (1.0 + queue_length / service_rate)
+        channel_factor = max(0.05, min(1.0, channel_quality / 20.0 if channel_quality > 1.0 else channel_quality))
+        adjusted.append(float(value) * queue_discount * channel_factor)
+    demand = tuple(adjusted)
     selected = int(max(range(len(demand)), key=lambda idx: demand[idx])) if demand else -1
+    metadata = getattr(system_state, "metadata", {}) or {}
     constraints = FollowerConstraints(
         budget=float(getattr(user_state, "budget", 10.0)),
-        deadline_s=1.0,
+        deadline_s=float(metadata.get("deadline_s", getattr(user_state, "deadline_s", 1.0))),
         local_cpu_hz=float(getattr(user_state, "local_cpu_hz", 1.0e9)),
     )
     return project_response_to_constraints(
         FollowerResponse(demand=demand, selected_edge=selected, feasible=True),
         constraints,
     )
-

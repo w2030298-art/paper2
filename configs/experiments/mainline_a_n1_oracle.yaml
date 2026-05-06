@@ -1,0 +1,13 @@
+name: mainline_a_n1_oracle
+stage: N1
+users: [2, 3, 4]
+edges: [2, 3]
+seeds: [42, 43, 44]
+algorithms: [baseline_static_stackelberg, MAPPO, game_aware_pd_marl]
+outputs: [oracle_gap]
+system_model:
+  enabled: true
+  queue_model: mm1
+  channel_model:
+    theory: analytic
+    simulation: analytic

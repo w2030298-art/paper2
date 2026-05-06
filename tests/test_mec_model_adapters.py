@@ -14,9 +14,9 @@ def test_adapter_builds_system_state_from_env() -> None:
 
     state = build_system_state_from_legacy_env(env)
     components = extract_reward_components(env, state)
-    apply_system_decision_to_legacy_env(env, {"enabled": True})
+    apply_system_decision_to_legacy_env(env, {"enabled": True, "price_vector": [1.5, 2.5]})
 
     assert len(state.edge_nodes) == 2
     assert "delay_cost" in components
     assert env.last_mainline_a_decision["enabled"] is True
-
+    assert tuple(env.latest_equilibrium_prices) == (1.5, 2.5)

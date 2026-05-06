@@ -1,0 +1,8 @@
+{
+  "records": [
+    {"algorithm": "COMA", "decision": "l1_candidate"},
+    {"algorithm": "MAPPO", "decision": "l1_candidate"},
+    {"algorithm": "TRPO", "decision": "l1_candidate"},
+    {"algorithm": "A3C", "decision": "requires_single_variable_fix"}
+  ]
+}
