@@ -3,7 +3,8 @@
 ## Status
 
 - Date: 2026-05-06
-- Status: DONE_PENDING_FINAL_REVIEW
+- Status: REVIEW_CLOSED
+- Decision: ACCEPTED_WITH_BOUNDARIES
 - Scope: N0/N1/N2/N3 Mainline-A experiment-chain evidence review.
 - Review input: tracked docs/code on GitHub plus user-uploaded ignored `results/` JSON artifacts.
 - Generated result tracking: unchanged. `results/` remains ignored and must not be added to Git.
@@ -12,10 +13,10 @@
 
 | Stage | Evidence Level | Status | Gate Decision |
 |---|---|---|---|
-| N0 | smoke evidence | N0_DONE_PENDING_REVIEW | Accepted as smoke only |
-| N1 | small-scale oracle evidence | N1_DONE_PENDING_REVIEW | Accepted |
-| N2 | deterministic controlled probe only | N2_DONE_PENDING_REVIEW | Accepted as probe only |
-| N3 | OOD formal execution evidence | N3_DONE_PENDING_REVIEW | Accepted |
+| N0 | smoke evidence | ACCEPTED_WITH_BOUNDARIES | Accepted as smoke only |
+| N1 | small-scale oracle evidence | ACCEPTED_WITH_BOUNDARIES | Accepted |
+| N2 | deterministic controlled probe only | ACCEPTED_WITH_BOUNDARIES | Accepted as probe only |
+| N3 | OOD formal execution evidence | ACCEPTED_WITH_BOUNDARIES | Accepted |
 
 ## Uploaded Results Review
 
@@ -66,12 +67,12 @@
 
 Mainline-A experiment chain passes artifact-level review with one non-blocking metadata caveat: the uploaded ignored N2 summary lacks the newer `evidence_level` field. This does not change N2's allowed interpretation because the tracked runner and tracked docs already define N2 as deterministic controlled probe only.
 
-The experiment chain may move to final review. It must not be written as a paper main conclusion until final review closes and the paper-writing scope explicitly consumes these results.
+Final review is closed as artifact-level acceptance with boundaries. The evidence levels remain N0 smoke evidence, N1 small-scale oracle evidence, N2 deterministic controlled probe only, and N3 OOD formal execution evidence. These results must not be promoted to formal benchmark conclusions or over-interpreted beyond those levels.
 
 ## Constraints Still Active
 
 - Do not add `results/` to Git tracking.
 - Do not upgrade N2 to training-grade or publication-grade ablation evidence.
 - Do not claim global convergence.
-- Do not write paper main conclusions from these results before final review closure.
+- Do not promote artifact-level evidence into stronger formal benchmark conclusions.
 - External dashboard compatibility remains unresolved and must be handled in the dashboard environment.
