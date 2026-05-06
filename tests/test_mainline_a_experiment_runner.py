@@ -1,24 +1,26 @@
 """Tests for the mainline-A experiment runner."""
 
-from argparse import Namespace
 import json
 import math
-from pathlib import Path
 import subprocess
 import sys
+from argparse import Namespace
+from pathlib import Path
 
 import pytest
 
-from scripts.run_mainline_a_experiments import N2_REQUIRED_ABLATIONS
-from scripts.run_mainline_a_experiments import N2_REQUIRED_METRICS
-from scripts.run_mainline_a_experiments import build_n2_ablation_matrix
-from scripts.run_mainline_a_experiments import resolve_plans
-from scripts.run_mainline_a_experiments import load_experiment_config
-from scripts.run_mainline_a_experiments import build_n1_case_matrix
-from scripts.run_mainline_a_experiments import run_n1_oracle_validation
-from scripts.run_mainline_a_experiments import run_n2_ablation_validation
-from scripts.run_mainline_a_experiments import validate_n1_oracle_config
-from scripts.run_mainline_a_experiments import validate_n2_ablation_config
+from scripts.run_mainline_a_experiments import (
+    N2_REQUIRED_ABLATIONS,
+    N2_REQUIRED_METRICS,
+    build_n1_case_matrix,
+    build_n2_ablation_matrix,
+    load_experiment_config,
+    resolve_plans,
+    run_n1_oracle_validation,
+    run_n2_ablation_validation,
+    validate_n1_oracle_config,
+    validate_n2_ablation_config,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 N2_CONFIG = ROOT / "configs" / "experiments" / "mainline_a_n2_ablation.yaml"
@@ -63,8 +65,7 @@ def test_runner_stage_all_dry_run_cli() -> None:
         ],
         cwd=ROOT,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=30,
         check=False,
     )
@@ -139,6 +140,7 @@ def test_n2_dry_run_plan_exposes_ablation_matrix() -> None:
     assert len(plans) == 1
     plan = plans[0]
     assert plan["stage"] == "N2"
+    assert plan["evidence_level"] == "deterministic controlled probe"
     assert plan["ablations"] == list(N2_REQUIRED_ABLATIONS)
     assert plan["planned_record_count"] == 27
     assert plan["results_path"].endswith("n2_ablation")
@@ -160,6 +162,15 @@ def test_n2_config_rejects_label_without_switch_mapping() -> None:
     assert {item["ablation"] for item in matrix} == set(N2_REQUIRED_ABLATIONS)
 
 
+def test_n2_config_rejects_duplicate_ablation_labels() -> None:
+    """N2 ablations should not silently accept duplicate labels."""
+    config = load_experiment_config(N2_CONFIG)
+    config["ablations"] = [*config["ablations"], "full_model"]
+
+    with pytest.raises(ValueError, match="duplicate ablation"):
+        validate_n2_ablation_config(config)
+
+
 def test_n2_preflight_writes_required_metrics_and_schema(tmp_path) -> None:
     """N2 preflight should write one seed per ablation with finite required metrics."""
     config = load_experiment_config(N2_CONFIG)
@@ -170,6 +181,7 @@ def test_n2_preflight_writes_required_metrics_and_schema(tmp_path) -> None:
 
     assert summary["status"] == "ok"
     assert summary["run_type"] == "preflight"
+    assert summary["evidence_level"] == "deterministic controlled probe"
     assert summary["record_count"] == len(N2_REQUIRED_ABLATIONS)
     assert Path(summary["records_path"]).is_file()
     assert Path(summary["matrix_path"]).is_file()
@@ -196,3 +208,14 @@ def test_n2_controlled_ablation_does_not_overwrite_benchmark_alias(tmp_path) -> 
     assert "full_model" in result["summary"]["metric_means"]
     assert "no_dynamic_price" in result["summary"]["metric_deltas_vs_full_model"]
     assert Path(result["summary"]["output_dir"]).name == "n2_ablation"
+
+
+def test_n2_controlled_probe_does_not_create_missing_benchmark_alias(tmp_path) -> None:
+    """N2 controlled probe must not create results/benchmark.json when absent."""
+    config = load_experiment_config(N2_CONFIG)
+    benchmark_alias = tmp_path / "benchmark.json"
+
+    result = run_n2_ablation_validation(config, tmp_path)
+
+    assert not benchmark_alias.exists()
+    assert result["summary"]["benchmark_alias_overwrite"] is False

@@ -4,26 +4,20 @@
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
 import json
 import math
-from pathlib import Path
 import sys
 import time
+from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 import yaml
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.mec_model.config_schema import (  # noqa: E402
-    resolve_channel_model,
-    resolve_queue_model,
-    validate_mainline_a_system_model_config,
-)
 from src.analysis.small_scale_oracle import (  # noqa: E402
     compare_policy_to_oracle,
     export_oracle_gap_report,
@@ -31,6 +25,11 @@ from src.analysis.small_scale_oracle import (  # noqa: E402
 )
 from src.game_pricing.dynamic_pricing import compute_state_dependent_price  # noqa: E402
 from src.game_pricing.types import PricingBounds, PricingParameters, PricingState  # noqa: E402
+from src.mec_model.config_schema import (  # noqa: E402
+    resolve_channel_model,
+    resolve_queue_model,
+    validate_mainline_a_system_model_config,
+)
 from src.rl_algorithms.game_aware.primal_dual import (  # noqa: E402
     ConstraintResiduals,
     PrimalDualUpdater,
@@ -402,7 +401,7 @@ def run_n1_oracle_validation(config: dict[str, Any], results_root: str | Path) -
 
 
 def validate_n2_ablation_config(config: dict[str, Any]) -> None:
-    """Validate the N2 controlled-ablation config."""
+    """Validate the N2 deterministic controlled-probe config."""
     if str(config.get("stage", "")).upper() != "N2":
         raise ValueError("N2 ablation validation requires stage: N2")
     seeds = _coerce_int_list(config, "seeds")
@@ -414,6 +413,10 @@ def validate_n2_ablation_config(config: dict[str, Any]) -> None:
     ablations = [str(item) for item in config.get("ablations", [])]
     if not ablations:
         raise ValueError("N2 ablation config requires ablations")
+    duplicates = sorted({label for label in ablations if ablations.count(label) > 1})
+    if duplicates:
+        joined = ", ".join(duplicates)
+        raise ValueError(f"N2 ablation config contains duplicate ablation label(s): {joined}")
     unknown = sorted(set(ablations) - set(N2_ABLATION_SWITCHES))
     if unknown:
         raise ValueError(f"N2 ablation config contains unknown ablation(s): {', '.join(unknown)}")
@@ -540,7 +543,7 @@ def _simulate_n2_ablation_record(
     config_name: str,
     run_type: str,
 ) -> dict[str, Any]:
-    """Run one deterministic controlled-ablation probe."""
+    """Run one deterministic controlled probe for an N2 ablation label."""
     signals = _n2_state_signals(seed, steps, switches)
     prices = _n2_price_vector(signals, switches)
     queue_pressure = _mean(signals["actual_queue"])
@@ -735,7 +738,7 @@ def run_n2_ablation_validation(
     preflight: bool = False,
     preflight_steps: int = N2_PREFLIGHT_STEPS,
 ) -> dict[str, Any]:
-    """Run N2 preflight or controlled ablation and write artifacts."""
+    """Run N2 preflight or deterministic controlled probe and write artifacts."""
     validate_n2_ablation_config(config)
     matrix = build_n2_ablation_matrix(config)
     configured_seeds = _coerce_int_list(config, "seeds")
@@ -785,6 +788,7 @@ def run_n2_ablation_validation(
     summary = {
         "schema_version": 1,
         "stage": "N2",
+        "evidence_level": "deterministic controlled probe",
         "run_type": run_type,
         "status": status,
         "config_name": config.get("name", "mainline_a_n2_ablation"),
@@ -849,6 +853,7 @@ def build_stage_plan(
         plan["outputs"] = config.get("outputs", [])
     if stage == "N2":
         matrix = build_n2_ablation_matrix(config)
+        plan["evidence_level"] = "deterministic controlled probe"
         plan["ablations"] = [item["ablation"] for item in matrix]
         plan["ablation_matrix"] = matrix
         plan["required_metrics"] = list(N2_REQUIRED_METRICS)

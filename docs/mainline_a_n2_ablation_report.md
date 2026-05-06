@@ -1,10 +1,11 @@
-# Mainline-A N2 Ablation Report
+# Mainline-A N2 Deterministic Controlled Probe Report
 
 ## Status
 
 - Date: 2026-05-05
 - Status: N2_DONE_PENDING_REVIEW
-- Scope: N2 controlled ablation only; N3 was not started and full 17 was not run.
+- Scope: N2 deterministic controlled probe only; N3 was not started and full 17 was not run.
+- Evidence level: deterministic controlled probe; not training-grade or publication-grade ablation evidence.
 - Config: `configs/experiments/mainline_a_n2_ablation.yaml`
 - Output directory: `results/mainline_a/n2_ablation/`
 - Benchmark alias: `results/benchmark.json` was not created or overwritten.
@@ -17,7 +18,7 @@
 .\.venv\Scripts\python.exe scripts\run_mainline_a_experiments.py --config configs\experiments\mainline_a_n2_ablation.yaml --stage N2 --results-root results\mainline_a
 ```
 
-## Ablation Matrix
+## Probe Matrix
 
 | Ablation | Switches |
 |---|---|
@@ -31,7 +32,7 @@
 | analytic_channel_only | analytic channel only |
 | 3gpp_lite_channel | 3GPP-lite channel only |
 
-## Preflight
+## Preflight Probe
 
 - Seeds: `[42]`
 - Steps: 256
@@ -40,12 +41,12 @@
 - Result: passed. Required metrics were present, finite, schema-consistent, and non-identical across ablations.
 - Artifacts: `results/mainline_a/n2_ablation/preflight/ablation_matrix.json`, `ablation_records.json`, `metric_deltas.json`, `summary.json`.
 
-## Controlled Ablation
+## Deterministic Controlled Probe
 
 - Seeds: `[42, 43, 44]`
 - Steps: 50000
 - Records: 27
-- Result: passed. Required metrics were present, finite, schema-consistent, and every non-full ablation differs from `full_model`.
+- Result: passed for deterministic probe outputs. Required metrics were present, finite, schema-consistent, and every non-full label differs from `full_model`.
 - Artifacts: `results/mainline_a/n2_ablation/ablation_matrix.json`, `ablation_records.json`, `metric_deltas.json`, `summary.json`.
 
 ## Metric Means
@@ -80,11 +81,12 @@
 - Missing required metrics: no.
 - NaN/Inf: no.
 - Result schema mismatch: no.
-- Label-only ablation: no; every ablation maps to explicit switches in `ablation_matrix.json`.
+- Label-only ablation: no; every label maps to explicit switches in `ablation_matrix.json`.
+- Duplicate ablation label: rejected by runner validation.
 - Metrics all identical: no.
 - Non-full ablation identical to `full_model`: no.
 - Benchmark alias overwrite: no.
 
 ## N3 Gate
 
-N2 preflight and controlled ablation passed the local checks, so the N2 execution artifact is ready for review. N3 remains `NOT_STARTED`; do not start N3 until the user/Web approves this N2 report.
+N2 preflight and deterministic controlled probe passed the local checks, so the N2 artifact is ready for review at probe level. This is not publication-grade ablation evidence. N3 remains `NOT_STARTED`; do not start N3 until the user/Web approves this N2 report and explicitly requests N3.

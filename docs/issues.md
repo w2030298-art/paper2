@@ -51,3 +51,10 @@
 - [Fixed] H-4: 行为级测试不足 — 已补 runner dry-run、dynamic pricing reward path、reward components、primal-dual hook 和 active entrypoint 测试。
 - [Fixed] H-1-docs-contract: clean checkout 验证发现 `docs/README.md` 与 `docs/slimming_audit_phase2.md` 缺失 — 已补回 docs contract 与 dashboard audit 最小文档。
 - [Fixed] H-1-stale-l2-processes: 旧 L2 benchmark 子进程 PID 26016 / 21904 仍占用 `logs/` — 已停止，避免与本轮“不启动正式训练”边界冲突。
+
+## 2026-05-05 N2 Ablation Review Fix
+
+- [Fixed] H-1: N2 evidence 表述过强 — 已将 runner/report 明确降级为 `deterministic controlled probe`，不得作为 training-grade / publication-grade ablation evidence。
+- [Fixed] M-1: `results/benchmark.json` 缺失时缺少保护测试 — 已补测试确认 N2 deterministic controlled probe 不会创建该 alias。
+- [Fixed] M-2: 重复 ablation label 未显式拒绝 — 已补测试并在 `validate_n2_ablation_config()` 中拒绝重复 label。
+- [Fixed] L-1: docs 状态和报告表述需同步 — 已更新 `docs/mainline_a_n2_ablation_report.md`、`docs/report.md`、`docs/progress.md`，状态保持 `N2_DONE_PENDING_REVIEW`，N3 仍 `NOT_STARTED`。
