@@ -16,6 +16,12 @@ from src.experiment.errors import (  # noqa: E402
     ExperimentNotFoundError,
     ExperimentStateError,
 )
+from src.experiment.environment_profiles import (  # noqa: E402
+    DEFAULT_ENVIRONMENT_PROFILE,
+    LEGACY_ENVIRONMENT_PROFILE,
+    available_environment_profile_names,
+    resolve_environment_profile,
+)
 from src.experiment.manager import ExperimentManager  # noqa: E402
 from src.experiment.presets import PRESETS  # noqa: E402
 from src.experiment.result_writer import BenchmarkResultWriter  # noqa: E402
@@ -28,6 +34,7 @@ DEFAULT_START_OPTIONS = {
     "device": "auto",
     "eval_episodes": 3,
     "env": "auto",
+    "environment_profile": DEFAULT_ENVIRONMENT_PROFILE,
     "output_dir": "results",
 }
 
@@ -62,6 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
     start_parser.add_argument("--device", default=None)
     start_parser.add_argument("--eval-episodes", type=int, default=None)
     start_parser.add_argument("--env", default=None)
+    start_parser.add_argument(
+        "--environment-profile",
+        choices=available_environment_profile_names(),
+        default=None,
+        help="Environment profile. Defaults to mainline-a; legacy is explicit fallback only.",
+    )
     start_parser.add_argument("--output-dir", default=None)
     resume_parser = subparsers.add_parser("resume")
     resume_parser.add_argument("--run-id", required=True)
@@ -108,7 +121,19 @@ def _resolve_start_options(args: argparse.Namespace) -> dict:
         args.eval_episodes if args.eval_episodes is not None else preset["eval_episodes"]
     )
     env = args.env if args.env is not None else preset["env"]
+    environment_profile = (
+        args.environment_profile
+        if args.environment_profile is not None
+        else preset.get("environment_profile", DEFAULT_ENVIRONMENT_PROFILE)
+    )
+    profile = resolve_environment_profile(environment_profile)
     output_dir = args.output_dir if args.output_dir is not None else preset["output_dir"]
+    if (
+        profile.name == LEGACY_ENVIRONMENT_PROFILE
+        and args.run_id is None
+        and run_id == "paper2_full_17_mainline_a"
+    ):
+        raise ValueError("legacy fallback requires explicit --run-id")
 
     return {
         "run_id": run_id,
@@ -119,6 +144,7 @@ def _resolve_start_options(args: argparse.Namespace) -> dict:
         "device": device,
         "eval_episodes": eval_episodes,
         "env": env,
+        "environment_profile": profile.name,
         "output_dir": output_dir,
     }
 

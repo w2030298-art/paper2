@@ -3,7 +3,7 @@ algorithm:
   action_scale: 1.0
   batch_size: 256
   buffer_size: 1000000
-  explore_steps: 10000
+  explore_steps: 15000
   gamma: 0.99
   name: DDPG
   tau: 0.005
@@ -15,8 +15,8 @@ evaluation:
 exploration:
   noise_type: ou
   ou_mu: 0.0
-  ou_sigma: 0.2
-  ou_theta: 0.15
+  ou_sigma: 0.12
+  ou_theta: 0.2
 game_theory:
   cpnet_enabled: true
   ctde_with_hints: false
@@ -32,17 +32,19 @@ game_theory:
   warm_start_steps: 0
 logging:
   checkpoint_dir: checkpoints/ddpg
-  eval_interval: 10000
+  eval_interval: 2500
   log_dir: logs/ddpg
   log_interval: 10
   save_interval: 50000
+  min_eval_points: 32
+  eval_at_start: true
 network:
   activation: relu
   discrete: false
   hidden_dim: 256
 training:
-  lr: 0.0003
+  lr: 0.00025
   lr_schedule: false
   seed: 42
-  start_steps: 10000
+  start_steps: 15000
   total_timesteps: 500000

@@ -30,10 +30,12 @@ game_theory:
   warm_start_steps: 1000
 logging:
   checkpoint_dir: checkpoints/grpo
-  eval_interval: 10000
+  eval_interval: 2500
   log_dir: logs/grpo
   log_interval: 10
   save_interval: 50000
+  min_eval_points: 32
+  eval_at_start: true
 network:
   activation: relu
   discrete: true

@@ -95,6 +95,7 @@ class TD3Agent(BaseAgent):
         explore_steps=10000,
         noise_std=0.2,
         noise_clip=0.5,
+        exploration_noise_std=None,
         policy_delay=2,  # 策略延迟更新间隔
         device="cuda",
         use_game_theory=True,
@@ -118,6 +119,7 @@ class TD3Agent(BaseAgent):
             explore_steps: int - 探索噪声步数 (默认10000)
             noise_std: float - 目标策略噪声标准差 (默认0.2)
             noise_clip: float - 目标策略噪声裁剪范围 (默认0.5)
+            exploration_noise_std: float - 行为策略探索噪声；默认与 noise_std 一致
             policy_delay: int - 策略延迟更新间隔 (默认2)
             device: str - 'cuda' 或 'cpu' (默认'cuda')
         """
@@ -130,8 +132,9 @@ class TD3Agent(BaseAgent):
         self.tau = tau
         self.batch_size = batch_size
         self.policy_delay = policy_delay
-        self.noise_std = noise_std
-        self.noise_clip = noise_clip
+        self.noise_std = float(noise_std)
+        self.noise_clip = float(noise_clip)
+        self.exploration_noise_std = float(noise_std if exploration_noise_std is None else exploration_noise_std)
 
         # Actor
         self.actor = TD3Actor(state_dim, action_dim, hidden_dim, action_scale, action_bias).to(
@@ -193,7 +196,7 @@ class TD3Agent(BaseAgent):
 
         # 探索噪声
         if not deterministic and self.sample_count < self.explore_steps:
-            noise = np.random.normal(0, 0.3, size=self.action_dim)
+            noise = np.random.normal(0, self.exploration_noise_std, size=self.action_dim)
             action_np = np.clip(action_np + noise, -1, 1)
 
         return action_np, {"log_prob": 0.0, "exploration": self.sample_count < self.explore_steps}

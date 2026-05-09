@@ -21,6 +21,12 @@ for path in [
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
 
+from src.experiment.environment_profiles import (  # noqa: E402
+    DEFAULT_ENVIRONMENT_PROFILE,
+    available_environment_profile_names,
+    profile_to_env_overrides,
+    resolve_environment_profile,
+)
 from src.experiment.presets import FULL_17_ALGORITHMS  # noqa: E402
 
 CANONICAL_ALGORITHM_NAMES = {name.upper(): name for name in FULL_17_ALGORITHMS}
@@ -65,6 +71,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--multi-agent-count", type=int, default=None)
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument(
+        "--environment-profile",
+        choices=available_environment_profile_names(),
+        default=DEFAULT_ENVIRONMENT_PROFILE,
+        help="Environment profile. Defaults to mainline-a; legacy is explicit fallback only.",
+    )
+    parser.add_argument(
+        "--enable-mainline-a",
+        action="store_true",
+        help="Compatibility flag; mainline-a profile enables this automatically.",
+    )
+    parser.add_argument("--system-model-config", type=str, default=None)
+    parser.add_argument("--dynamic-pricing-config", type=str, default=None)
+    parser.add_argument(
         "--result-json",
         type=str,
         default=None,
@@ -99,6 +118,16 @@ def _parse_optional_bool(value: str | None) -> bool | None:
     if lowered in {"false", "0", "no", "off"}:
         return False
     raise ValueError(f"Invalid boolean value: {value}")
+
+
+def _resolve_profile_env_overrides(args: argparse.Namespace) -> dict[str, Any]:
+    profile = resolve_environment_profile(args.environment_profile)
+    return profile_to_env_overrides(
+        profile,
+        system_model_config=args.system_model_config,
+        dynamic_pricing_config=args.dynamic_pricing_config,
+        enable_mainline_a=True if args.enable_mainline_a else None,
+    )
 
 
 def _to_jsonable(value):
@@ -207,6 +236,8 @@ def main() -> None:
         multi_agent_count=args.multi_agent_count,
         max_steps=args.max_steps,
     )
+    profile = resolve_environment_profile(args.environment_profile)
+    env_overrides.update(_resolve_profile_env_overrides(args))
     num_agents = int(env_overrides.get("num_agents_multi", 3)) if algo in multi_agent_algos else 1
     gt_overrides = {
         "warm_start_steps": args.warm_start_steps,
@@ -266,6 +297,7 @@ def main() -> None:
 
     print(f"Algorithm: {algo}")
     print(f"Environment: {env_name}")
+    print(f"Environment profile: {profile.name}")
     print(f"Device: {device}")
     print(f"Seed: {seed}")
     print(f"Timesteps: {total_timesteps}")
@@ -276,6 +308,7 @@ def main() -> None:
     result_payload = {
         "algorithm": algo,
         "environment": env_name,
+        "environment_profile": profile.name,
         "seed": seed,
         "device": str(device),
         "train_timesteps": total_timesteps,

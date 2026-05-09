@@ -1,0 +1,92 @@
+name: mainline_a_final_algorithm_screening
+version: 1
+purpose: >-
+  Final Mainline-A algorithm screening after full17 data analysis.  This config
+  keeps the Mainline-A environment fixed and only exercises algorithm/adaptor
+  changes plus richer checkpoint metrics.
+
+algorithms:
+  - SimPO
+  - PPO
+  - TRPO
+  - GRPO
+  - DDPG
+  - TD3
+  - DDQN
+  - MAPPO
+  - COMA
+  - MADDPG
+  - MATD3
+
+benchmark:
+  algorithms:
+    - SimPO
+    - PPO
+    - TRPO
+    - GRPO
+    - DDPG
+    - TD3
+    - DDQN
+    - MAPPO
+    - COMA
+    - MADDPG
+    - MATD3
+  steps: 100000
+  seeds: [42, 43, 44]
+  eval_interval: 2500
+  min_eval_points: 32
+  eval_at_start: true
+  selection_rule: >-
+    Rank only with the expanded benchmark dimensions. Frozen/diagnostic-only
+    algorithms are intentionally excluded from the default run because full17
+    showed mechanism-level instability or no reasonable repair ROI.
+  dimensions:
+    - reward_mean
+    - reward_std
+    - e2e_latency_mean
+    - e2e_latency_p95
+    - deadline_miss_rate
+    - throughput_tasks_per_step
+    - comm_score
+    - energy_total_mean
+    - energy_per_task_mean
+    - social_welfare_mean
+    - social_welfare_per_step_mean
+    - agent_reward_jain_mean
+    - constraint_violation_rate
+    - constraint_penalty_mean
+    - queue_wait_mean
+    - offload_ratio_mean
+    - price_mean
+    - provider_revenue_proxy_mean
+    - efx_satisfaction_rate
+
+screening:
+  primary_candidates: [SimPO, PPO, TRPO, DDPG, TD3]
+  stable_low_ceiling_reference: [GRPO]
+  targeted_repair_candidates: [TD3, DDQN, MAPPO, COMA, MADDPG, MATD3]
+  diagnostic_only_or_frozen: [IQL, VDN, QMIX, IPPO, SAC, A3C]
+  notes:
+    SimPO: reward leader in full17; no aggressive hyperparameter change, benchmark only.
+    PPO: low-latency Pareto member; mildly smaller clip/entropy for tail stability.
+    TRPO: resource-efficiency baseline; conservative max_kl retained with slight tightening.
+    DDPG: high reward but Pareto-dominated; lower OU noise and longer warmup.
+    TD3: single late drop; lower behavior/target noise and explicit exploration_noise_std.
+    DDQN: early peak then degrade; slower epsilon decay and lower lr.
+    MAPPO: regressed plateau; lower clip/lr, lower entropy, longer game-aware warm start.
+    COMA: drifting down; fewer epochs, lower lr, longer warm start.
+    MADDPG: partial recovery after outlier; lower lr and larger batch.
+    MATD3: regressed plateau; lower target noise and delayed policy update.
+    GRPO: stable but low ceiling; kept as stability reference, not expected to win.
+    IQL_VDN_QMIX_IPPO: severe multi-agent instability/catastrophic outliers in full17.
+    SAC_A3C: regressed/bad plateaus with poor reward-latency tradeoff in full17.
+
+# Keep Mainline-A environment fixed; benchmark.py passes this config only as a
+# system-model config reference. Do not tune these fields for this final round.
+system_model:
+  enabled: true
+  queue_model: mm1
+  channel_model:
+    theory: analytic
+    simulation: analytic
+  cooperation_enabled: false

@@ -142,7 +142,9 @@ def test_cli_start_help_mentions_no_backup(capsys) -> None:
     with pytest.raises(SystemExit) as exc_info:
         cli.main(["start", "--help"])
     assert exc_info.value.code == 0
-    assert "--no-backup" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "--no-backup" in output
+    assert "--environment-profile" in output
 
 
 def test_cli_start_quick_preset_uses_quick_defaults(monkeypatch) -> None:
@@ -172,6 +174,7 @@ def test_cli_start_quick_preset_uses_quick_defaults(monkeypatch) -> None:
     assert captured["algorithms"] == ["GRPO", "PPO", "SAC"]
     assert captured["timesteps"] == 5000
     assert captured["eval_episodes"] == 3
+    assert captured["environment_profile"] == "mainline-a"
 
 
 def test_cli_start_full17_preset_uses_full17_defaults(monkeypatch) -> None:
@@ -196,11 +199,12 @@ def test_cli_start_full17_preset_uses_full17_defaults(monkeypatch) -> None:
 
     monkeypatch.setattr(cli, "ExperimentManager", lambda: FakeManager())
     cli.main(["start", "--preset", "full17"])
-    assert captured["run_id"] == "paper2_full_17_vscode"
+    assert captured["run_id"] == "paper2_full_17_mainline_a"
     assert len(captured["algorithms"]) == 17
     assert "MATD3" in captured["algorithms"]
     assert captured["timesteps"] == 100000
     assert captured["eval_episodes"] == 10
+    assert captured["environment_profile"] == "mainline-a"
 
 
 def test_cli_start_preset_allows_explicit_run_id_override(monkeypatch) -> None:
@@ -227,6 +231,42 @@ def test_cli_start_preset_allows_explicit_run_id_override(monkeypatch) -> None:
     cli.main(["start", "--preset", "quick", "--run-id", "custom_run"])
     assert captured["run_id"] == "custom_run"
     assert captured["algorithms"] == ["GRPO", "PPO", "SAC"]
+
+
+def test_cli_start_supports_explicit_legacy_fallback_profile(monkeypatch) -> None:
+    captured: dict = {}
+
+    class FakeStore:
+        def exists(self, _run_id: str) -> bool:
+            return False
+
+    class FakeManager:
+        def __init__(self) -> None:
+            self.store = FakeStore()
+
+        def create_experiment(self, **kwargs):
+            captured.update(kwargs)
+
+        def start_or_resume(self, run_id: str):
+            assert run_id == "paper2_full_17_legacy_fallback"
+
+        def get_status(self, _run_id: str):
+            return {"status": "ok"}
+
+    monkeypatch.setattr(cli, "ExperimentManager", lambda: FakeManager())
+    cli.main(
+        [
+            "start",
+            "--preset",
+            "full17",
+            "--environment-profile",
+            "legacy",
+            "--run-id",
+            "paper2_full_17_legacy_fallback",
+        ]
+    )
+    assert captured["environment_profile"] == "legacy"
+    assert captured["run_id"] == "paper2_full_17_legacy_fallback"
 
 
 def test_cli_start_requires_run_id_without_preset(monkeypatch, capsys) -> None:

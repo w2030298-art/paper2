@@ -93,6 +93,9 @@ class DDPGAgent(BaseAgent):
         action_scale=1.0,
         action_bias=0.0,
         explore_steps=10000,
+        ou_mu=0.0,
+        ou_theta=0.15,
+        ou_sigma=0.2,
         device="cuda",
         use_game_theory=True,
         use_shapley_credit=False,
@@ -113,6 +116,7 @@ class DDPGAgent(BaseAgent):
             action_scale: float - 动作幅度缩放 (默认1.0)
             action_bias: float - 动作偏置 (默认0.0)
             explore_steps: int - 噪声探索步数 (默认10000)
+            ou_mu/ou_theta/ou_sigma: float - OU 探索噪声参数
             device: str - 'cuda' 或 'cpu' (默认'cuda')
         """
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
@@ -140,8 +144,11 @@ class DDPGAgent(BaseAgent):
         self.critic_target.load_state_dict(self.critic.state_dict())
         self.critic_opt = optim.Adam(self.critic.parameters(), lr=lr)
 
-        # 噪声
-        self.noise = OUNoise(action_dim)
+        # 噪声：参数可由 benchmark/config 注入，避免 Mainline-A 上过度探索。
+        self.ou_mu = float(ou_mu)
+        self.ou_theta = float(ou_theta)
+        self.ou_sigma = float(ou_sigma)
+        self.noise = OUNoise(action_dim, mu=self.ou_mu, theta=self.ou_theta, sigma=self.ou_sigma)
         self.explore_steps = explore_steps
         self.sample_count = 0
 

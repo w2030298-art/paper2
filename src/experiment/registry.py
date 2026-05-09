@@ -6,6 +6,11 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from .environment_profiles import (
+    DEFAULT_ENVIRONMENT_PROFILE,
+    profile_to_train_extra_args,
+    resolve_environment_profile,
+)
 from .models import AlgorithmSpec
 from .presets import FULL_17_ALGORITHMS
 
@@ -41,7 +46,9 @@ class AlgorithmRegistry:
         device: str,
         eval_episodes: int,
         env: str = "auto",
+        environment_profile: str = DEFAULT_ENVIRONMENT_PROFILE,
     ) -> list[AlgorithmSpec]:
+        profile = resolve_environment_profile(environment_profile)
         specs: list[AlgorithmSpec] = []
         for algorithm in algorithms:
             canonical = self.canonicalize(algorithm)
@@ -54,6 +61,7 @@ class AlgorithmRegistry:
                     device=device,
                     env=env,
                     eval_episodes=eval_episodes,
+                    extra_args=profile_to_train_extra_args(profile),
                 )
             )
         return specs

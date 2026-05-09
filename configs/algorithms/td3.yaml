@@ -3,15 +3,16 @@ algorithm:
   action_scale: 1.0
   batch_size: 256
   buffer_size: 1000000
-  explore_steps: 10000
+  explore_steps: 15000
   gamma: 0.99
   name: TD3
-  noise_clip: 0.5
-  noise_std: 0.2
+  noise_clip: 0.25
+  noise_std: 0.12
   policy_delay: 2
   tau: 0.005
   type: off_policy
   update_interval: 1
+  exploration_noise_std: 0.12
 evaluation:
   deterministic: true
   num_episodes: 10
@@ -33,17 +34,19 @@ game_theory:
   warm_start_steps: 0
 logging:
   checkpoint_dir: checkpoints/td3
-  eval_interval: 10000
+  eval_interval: 2500
   log_dir: logs/td3
   log_interval: 10
   save_interval: 50000
+  min_eval_points: 32
+  eval_at_start: true
 network:
   activation: relu
   discrete: false
   hidden_dim: 256
 training:
-  lr: 0.0003
+  lr: 0.0002
   lr_schedule: false
   seed: 42
-  start_steps: 10000
+  start_steps: 15000
   total_timesteps: 500000

@@ -71,10 +71,10 @@ def test_gitignore_covers_generated_artifacts() -> None:
         assert pattern in gitignore
 
 
-def test_slimming_audit_records_dashboard_check() -> None:
-    """Audit report should include the required dashboard grep result."""
-    audit = (ROOT / "docs" / "slimming_audit_phase2.md").read_text(encoding="utf-8")
+def test_docs_slimming_manifest_records_dashboard_check() -> None:
+    """Slim docs manifest should record the v4.3 package boundary."""
+    audit = (ROOT / "docs" / "DOCS_SLIMMING_MANIFEST.md").read_text(encoding="utf-8")
 
-    assert "rl-mec-dashboard" in audit
-    assert "MISSING" in audit or "was not present" in audit
-    assert "paper2 Internal References" in audit
+    assert "paper2-docs-slim-v4.3" in audit
+    assert "Long historical module-by-module plan" in audit
+    assert "Do not copy long archived docs back into active `docs/`" in audit

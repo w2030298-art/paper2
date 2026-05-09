@@ -48,16 +48,40 @@ CONVERGENCE_METRIC_SPECS = {
         "aliases": ["eval/reward_mean", "eval_eval/reward_mean"],
         "higher_is_better": True,
     },
+    "social_welfare": {
+        "title": "Social Welfare",
+        "ylabel": "Welfare",
+        "aliases": ["eval/social_welfare_mean", "eval_eval/social_welfare_mean"],
+        "higher_is_better": True,
+    },
     "latency": {
         "title": "Latency / Task",
         "ylabel": "Latency / Task",
-        "aliases": ["eval/latency_mean", "eval_eval/latency_mean"],
+        "aliases": ["eval/e2e_latency_mean", "eval/latency_mean", "eval_eval/e2e_latency_mean", "eval_eval/latency_mean"],
         "higher_is_better": False,
+    },
+    "latency_p95": {
+        "title": "P95 Latency",
+        "ylabel": "Latency P95",
+        "aliases": ["eval/e2e_latency_p95", "eval_eval/e2e_latency_p95"],
+        "higher_is_better": False,
+    },
+    "deadline_miss_rate": {
+        "title": "Deadline Miss Rate",
+        "ylabel": "Miss Rate",
+        "aliases": ["eval/deadline_miss_rate", "eval_eval/deadline_miss_rate"],
+        "higher_is_better": False,
+    },
+    "throughput": {
+        "title": "Throughput",
+        "ylabel": "Tasks / Step",
+        "aliases": ["eval/throughput_tasks_per_step", "eval_eval/throughput_tasks_per_step"],
+        "higher_is_better": True,
     },
     "energy": {
         "title": "Energy / Task",
         "ylabel": "Energy / Task",
-        "aliases": ["eval/energy_mean", "eval_eval/energy_mean"],
+        "aliases": ["eval/energy_per_task_mean", "eval/energy_mean", "eval_eval/energy_per_task_mean", "eval_eval/energy_mean"],
         "higher_is_better": False,
     },
     "comm_score": {
@@ -66,7 +90,38 @@ CONVERGENCE_METRIC_SPECS = {
         "aliases": ["eval/comm_score", "eval_eval/comm_score"],
         "higher_is_better": True,
     },
+    "agent_fairness": {
+        "title": "Agent Reward Jain Fairness",
+        "ylabel": "Jain Index",
+        "aliases": ["eval/agent_reward_jain_mean", "eval_eval/agent_reward_jain_mean"],
+        "higher_is_better": True,
+    },
+    "constraint_violation": {
+        "title": "Constraint Violation Rate",
+        "ylabel": "Violation Rate",
+        "aliases": ["eval/constraint/any_violation_mean", "eval_eval/constraint/any_violation_mean"],
+        "higher_is_better": False,
+    },
+    "queue_wait": {
+        "title": "Queue Wait",
+        "ylabel": "Queue Wait",
+        "aliases": ["eval/queue_wait_mean_mean", "eval_eval/queue_wait_mean_mean"],
+        "higher_is_better": False,
+    },
+    "offload_ratio": {
+        "title": "Offload Ratio",
+        "ylabel": "Offload Ratio",
+        "aliases": ["eval/offload_ratio_mean_mean", "eval/action/individual_offload_mean_mean", "eval_eval/offload_ratio_mean_mean"],
+        "higher_is_better": True,
+    },
+    "price": {
+        "title": "Dynamic Price Mean",
+        "ylabel": "Price",
+        "aliases": ["eval/pricing/price_mean", "eval_eval/pricing/price_mean"],
+        "higher_is_better": False,
+    },
 }
+
 
 DEFAULT_EVAL_INTERVAL = 1000
 
@@ -400,13 +455,16 @@ def _build_timestep_axis(seed_data: dict, length: int) -> np.ndarray:
     if length <= 0:
         return np.asarray([], dtype=float)
 
-    timesteps = _series_to_float_array(seed_data.get("timesteps"))
-    if len(timesteps) >= length:
-        aligned = timesteps[:length]
-        if np.all(np.isfinite(aligned)):
-            return aligned
+    for key in ("eval_steps", "timesteps"):
+        timesteps = _series_to_float_array(seed_data.get(key))
+        if len(timesteps) >= length:
+            aligned = timesteps[:length]
+            if np.all(np.isfinite(aligned)):
+                return aligned
 
-    eval_interval = _json_number(seed_data.get("eval_interval"))
+    eval_interval = _json_number(seed_data.get("effective_eval_interval"))
+    if eval_interval is None or eval_interval <= 0:
+        eval_interval = _json_number(seed_data.get("eval_interval"))
     if eval_interval is None or eval_interval <= 0:
         eval_interval = DEFAULT_EVAL_INTERVAL
     return np.arange(length, dtype=float) * float(eval_interval)
@@ -800,14 +858,18 @@ def _plot_convergence_figure(
     record_quality: bool = True,
 ) -> dict[str, dict[str, bool]]:
     """Render one convergence figure and append quality records."""
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    axes = axes.flatten()
+    metric_items = list(CONVERGENCE_METRIC_SPECS.items())
+    n_metrics = len(metric_items)
+    ncols = 3 if n_metrics > 4 else 2
+    nrows = int(math.ceil(n_metrics / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5.2 * ncols, 3.6 * nrows))
+    axes = np.atleast_1d(axes).flatten()
     warning_map: dict[str, dict[str, bool]] = {
-        metric_name: {} for metric_name in CONVERGENCE_METRIC_SPECS
+        metric_name: {} for metric_name, _ in metric_items
     }
     plotted_any = False
 
-    for idx, (metric_name, spec) in enumerate(CONVERGENCE_METRIC_SPECS.items()):
+    for idx, (metric_name, spec) in enumerate(metric_items):
         ax = axes[idx]
         clean_values_for_limits: list[np.ndarray] = []
 
@@ -899,6 +961,9 @@ def _plot_convergence_figure(
         ax.grid(alpha=0.3)
         if ax.lines or ax.collections:
             ax.legend(fontsize=8, loc="best")
+
+    for ax in axes[n_metrics:]:
+        ax.set_visible(False)
 
     if plotted_any:
         plt.tight_layout()

@@ -22,4 +22,6 @@ def test_quick_preset_is_subset_of_full17() -> None:
 def test_preset_values_are_json_serializable() -> None:
     encoded = json.dumps(PRESETS)
     decoded = json.loads(encoded)
-    assert decoded["full17"]["run_id"] == "paper2_full_17_vscode"
+    assert decoded["full17"]["run_id"] == "paper2_full_17_mainline_a"
+    assert decoded["full17"]["environment_profile"] == "mainline-a"
+    assert decoded["quick"]["environment_profile"] == "mainline-a"

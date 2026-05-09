@@ -5,7 +5,7 @@ algorithm:
   discrete: true
   gae_lambda: 0.95
   gamma: 0.99
-  max_kl: 0.01
+  max_kl: 0.008
   name: TRPO
   num_epochs: 5
   type: on_policy
@@ -29,10 +29,12 @@ game_theory:
   warm_start_steps: 0
 logging:
   checkpoint_dir: checkpoints/trpo
-  eval_interval: 10000
+  eval_interval: 2500
   log_dir: logs/trpo
   log_interval: 10
   save_interval: 50000
+  min_eval_points: 32
+  eval_at_start: true
 network:
   activation: relu
   hidden_dim: 256

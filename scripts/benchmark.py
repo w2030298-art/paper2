@@ -33,6 +33,12 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.utils.composite_score import CompositeScorer  # noqa: E402
+from src.experiment.environment_profiles import (  # noqa: E402
+    DEFAULT_ENVIRONMENT_PROFILE,
+    available_environment_profile_names,
+    profile_to_env_overrides,
+    resolve_environment_profile,
+)
 from src.mec_model.config_schema import (  # noqa: E402
     resolve_channel_model,
     resolve_queue_model,
@@ -173,6 +179,20 @@ def load_config(path):
     return yaml.safe_load(text) or {}
 
 
+def _cfg_value(
+    cfg: Dict[str, Any],
+    key: str,
+    default: Any = None,
+    sections: Tuple[str, ...] = ("algorithm", "training", "exploration", "network"),
+) -> Any:
+    """Read an algorithm parameter from canonical and legacy config sections."""
+    for section_name in sections:
+        section = cfg.get(section_name, {}) if isinstance(cfg, dict) else {}
+        if isinstance(section, dict) and key in section and section[key] is not None:
+            return section[key]
+    return default
+
+
 class _TeeWriter:
     """Mirror stream writes to terminal and file."""
 
@@ -300,9 +320,9 @@ def create_agent(name, env, cfg, device, game_theory_overrides: Optional[Dict[st
     from gymnasium import spaces
 
     cls = load_algo_class(name)
-    ac = cfg.get("algorithm", {})
-    nc = cfg.get("network", {})
-    tc = cfg.get("training", {})
+    ac = cfg.get("algorithm", {}) or {}
+    nc = cfg.get("network", {}) or {}
+    tc = cfg.get("training", {}) or {}
     is_multi = hasattr(env, "num_agents")
     obs = env.observation_space.shape[0]
     # 动作维度: Discrete用n, Continuous Box用shape[0]
@@ -314,12 +334,17 @@ def create_agent(name, env, cfg, device, game_theory_overrides: Optional[Dict[st
         ad = int(env.action_space.high[0]) + 1
     n_agents = getattr(env, "num_agents", 1) if is_multi else 1
     gt_cfg = resolve_game_theory_config(name, cfg, game_theory_overrides)
+
+    def pget(key: str, default: Any = None, sections: Tuple[str, ...] = ("algorithm", "training", "exploration", "network")) -> Any:
+        return _cfg_value(cfg, key, default, sections)
+
+    lr_default = pget("learning_rate", 3e-4, ("training", "algorithm", "network"))
     kw = dict(
         state_dim=obs,
         action_dim=ad,
-        hidden_dim=nc.get("hidden_dim", 256),
-        lr=tc.get("lr", 3e-4),
-        gamma=ac.get("gamma", 0.99),
+        hidden_dim=int(pget("hidden_dim", nc.get("hidden_dim", 256), ("network", "algorithm"))),
+        lr=float(pget("lr", lr_default, ("training", "algorithm", "network"))),
+        gamma=float(pget("gamma", ac.get("gamma", 0.99), ("algorithm", "training"))),
         device=device,
         use_game_theory=bool(gt_cfg.get("enabled", True)),
         use_shapley_credit=bool(gt_cfg.get("use_shapley_credit", name in DEEP_FUSION_ALGOS)),
@@ -330,80 +355,88 @@ def create_agent(name, env, cfg, device, game_theory_overrides: Optional[Dict[st
         warm_start_lr_scale=float(gt_cfg.get("warm_start_lr_scale", 0.5)),
     )
     if name == "GRPO":
-        return cls(**kw, eps_clip=ac.get("eps_clip", 0.2), num_epochs=ac.get("num_epochs", 10),
-                   group_size=ac.get("group_size", 64))
+        return cls(**kw, eps_clip=float(pget("eps_clip", 0.2)), num_epochs=int(pget("num_epochs", 10)),
+                   group_size=int(pget("group_size", 64)))
     if name == "PPO":
         is_discrete_env = isinstance(env.action_space, spaces.Discrete)
-        return cls(**kw, eps_clip=ac.get("eps_clip", 0.2), num_epochs=ac.get("num_epochs", 10),
+        return cls(**kw, eps_clip=float(pget("eps_clip", 0.2)), num_epochs=int(pget("num_epochs", 10)),
                    discrete=is_discrete_env)
     if name == "SAC":
-        return cls(**kw, tau=ac.get("tau", 0.005), alpha=ac.get("alpha", 0.2),
-                   automatic_entropy_tuning=ac.get("automatic_entropy_tuning", True),
-                   batch_size=ac.get("batch_size", 256), buffer_size=ac.get("buffer_size", 1000000))
+        return cls(**kw, tau=float(pget("tau", 0.005)), alpha=float(pget("alpha", 0.2)),
+                   automatic_entropy_tuning=bool(pget("automatic_entropy_tuning", True)),
+                   batch_size=int(pget("batch_size", 256)), buffer_size=int(pget("buffer_size", 1000000)))
     if name == "DDPG":
-        return cls(**kw, tau=ac.get("tau", 0.005), batch_size=ac.get("batch_size", 256),
-                   buffer_size=ac.get("buffer_size", 1000000),
-                   action_scale=ac.get("action_scale", 1.0), action_bias=ac.get("action_bias", 0.0))
+        explore_steps = int(pget("explore_steps", pget("start_steps", 10000, ("training", "exploration"))))
+        return cls(**kw, tau=float(pget("tau", 0.005)), batch_size=int(pget("batch_size", 256)),
+                   buffer_size=int(pget("buffer_size", 1000000)),
+                   action_scale=float(pget("action_scale", 1.0)), action_bias=float(pget("action_bias", 0.0)),
+                   explore_steps=explore_steps,
+                   ou_mu=float(pget("ou_mu", 0.0)),
+                   ou_theta=float(pget("ou_theta", 0.15)),
+                   ou_sigma=float(pget("ou_sigma", 0.2)))
     if name == "TD3":
-        return cls(**kw, tau=ac.get("tau", 0.005), batch_size=ac.get("batch_size", 256),
-                   buffer_size=ac.get("buffer_size", 1000000),
-                   noise_std=ac.get("noise_std", 0.2), policy_delay=ac.get("policy_delay", 2),
-                   action_scale=ac.get("action_scale", 1.0))
+        explore_steps = int(pget("explore_steps", pget("start_steps", 10000, ("training", "exploration"))))
+        return cls(**kw, tau=float(pget("tau", 0.005)), batch_size=int(pget("batch_size", 256)),
+                   buffer_size=int(pget("buffer_size", 1000000)),
+                   noise_std=float(pget("noise_std", 0.2)), noise_clip=float(pget("noise_clip", 0.5)),
+                   exploration_noise_std=float(pget("exploration_noise_std", pget("noise_std", 0.2))),
+                   policy_delay=int(pget("policy_delay", 2)), explore_steps=explore_steps,
+                   action_scale=float(pget("action_scale", 1.0)), action_bias=float(pget("action_bias", 0.0)))
     if name == "DDQN":
-        return cls(**kw, tau=ac.get("tau", 0.005), batch_size=ac.get("batch_size", 256),
-                   buffer_size=ac.get("buffer_size", 1000000),
-                   epsilon_start=ac.get("epsilon_start", 1.0),
-                   epsilon_end=ac.get("epsilon_end", 0.05),
-                   epsilon_decay=ac.get("epsilon_decay", 50000))
+        return cls(**kw, tau=float(pget("tau", 0.005)), batch_size=int(pget("batch_size", 256)),
+                   buffer_size=int(pget("buffer_size", 1000000)),
+                   epsilon_start=float(pget("epsilon_start", 1.0)),
+                   epsilon_end=float(pget("epsilon_end", 0.05)),
+                   epsilon_decay=int(pget("epsilon_decay", 50000)))
     if name == "QMIX":
-        return cls(**kw, tau=ac.get("tau", 0.005), batch_size=ac.get("batch_size", 256),
-                   buffer_size=ac.get("buffer_size", 1000000), n_agents=n_agents,
-                   epsilon_start=ac.get("epsilon_start", 1.0),
-                   epsilon_end=ac.get("epsilon_end", 0.05),
-                   epsilon_decay=ac.get("epsilon_decay", 50000))
+        return cls(**kw, tau=float(pget("tau", 0.005)), batch_size=int(pget("batch_size", 256)),
+                   buffer_size=int(pget("buffer_size", 1000000)), n_agents=n_agents,
+                   epsilon_start=float(pget("epsilon_start", 1.0)),
+                   epsilon_end=float(pget("epsilon_end", 0.05)),
+                   epsilon_decay=int(pget("epsilon_decay", 50000)))
     if name == "A3C":
         is_discrete_env = isinstance(env.action_space, spaces.Discrete)
-        return cls(**kw, num_steps=ac.get("num_steps", 20), discrete=is_discrete_env)
+        return cls(**kw, num_steps=int(pget("num_steps", 20)), discrete=is_discrete_env)
     if name == "TRPO":
-        return cls(**kw, max_kl=ac.get("max_kl", 0.01), cg_iters=ac.get("cg_iters", 10))
+        cg_iters = pget("cg_iters", pget("cg_iterations", 10))
+        return cls(**kw, max_kl=float(pget("max_kl", 0.01)), cg_iters=int(cg_iters))
     if name == "SimPO":
         is_discrete_env = isinstance(env.action_space, spaces.Discrete)
-        return cls(**kw, beta=ac.get("beta", 0.1), ref_coeff=ac.get("ref_coeff", 0.2),
+        return cls(**kw, beta=float(pget("beta", 0.1)), ref_coeff=float(pget("ref_coeff", 0.2)),
                    discrete=is_discrete_env)
     if name == "MAPPO":
         is_discrete_env = isinstance(env.action_space, spaces.Discrete)
-        return cls(**kw, gae_lambda=ac.get("gae_lambda", 0.95), eps_clip=ac.get("eps_clip", 0.2),
-                   num_agents=n_agents, num_epochs=ac.get("num_epochs", 10),
+        return cls(**kw, gae_lambda=float(pget("gae_lambda", 0.95)), eps_clip=float(pget("eps_clip", 0.2)),
+                   num_agents=n_agents, num_epochs=int(pget("num_epochs", 10)),
                    discrete=is_discrete_env)
     if name == "COMA":
         is_discrete_env = isinstance(env.action_space, spaces.Discrete)
-        return cls(**kw, num_agents=n_agents, num_epochs=ac.get("num_epochs", 10),
+        return cls(**kw, num_agents=n_agents, num_epochs=int(pget("num_epochs", 10)),
                    discrete=is_discrete_env)
     if name == "IPPO":
         is_discrete_env = isinstance(env.action_space, spaces.Discrete)
-        return cls(**kw, eps_clip=ac.get("eps_clip", 0.2), num_epochs=ac.get("num_epochs", 10),
+        return cls(**kw, eps_clip=float(pget("eps_clip", 0.2)), num_epochs=int(pget("num_epochs", 10)),
                    discrete=is_discrete_env, num_agents=n_agents)
     if name == "VDN":
-        return cls(**kw, tau=ac.get("tau", 0.005), batch_size=ac.get("batch_size", 256),
-                   buffer_size=ac.get("buffer_size", 1000000), n_agents=n_agents,
-                   epsilon_start=ac.get("epsilon_start", 1.0),
-                   epsilon_end=ac.get("epsilon_end", 0.05),
-                   epsilon_decay=ac.get("epsilon_decay", 50000))
+        return cls(**kw, tau=float(pget("tau", 0.005)), batch_size=int(pget("batch_size", 256)),
+                   buffer_size=int(pget("buffer_size", 1000000)), n_agents=n_agents,
+                   epsilon_start=float(pget("epsilon_start", 1.0)),
+                   epsilon_end=float(pget("epsilon_end", 0.05)),
+                   epsilon_decay=int(pget("epsilon_decay", 50000)))
     if name == "MADDPG":
-        return cls(**kw, tau=ac.get("tau", 0.005), batch_size=ac.get("batch_size", 256),
-                   buffer_size=ac.get("buffer_size", 1000000), n_agents=n_agents)
+        return cls(**kw, tau=float(pget("tau", 0.005)), batch_size=int(pget("batch_size", 256)),
+                   buffer_size=int(pget("buffer_size", 1000000)), n_agents=n_agents)
     if name == "IQL":
-        return cls(**kw, tau=ac.get("tau", 0.005), batch_size=ac.get("batch_size", 256),
-                   buffer_size=ac.get("buffer_size", 1000000),
-                   epsilon_start=ac.get("epsilon_start", 1.0),
-                   epsilon_end=ac.get("epsilon_end", 0.05),
-                   epsilon_decay=ac.get("epsilon_decay", 50000))
+        return cls(**kw, tau=float(pget("tau", 0.005)), batch_size=int(pget("batch_size", 256)),
+                   buffer_size=int(pget("buffer_size", 1000000)),
+                   epsilon_start=float(pget("epsilon_start", 1.0)),
+                   epsilon_end=float(pget("epsilon_end", 0.05)),
+                   epsilon_decay=int(pget("epsilon_decay", 50000)))
     if name == "MATD3":
-        return cls(**kw, tau=ac.get("tau", 0.005), batch_size=ac.get("batch_size", 256),
-                   buffer_size=ac.get("buffer_size", 1000000), n_agents=n_agents,
-                   noise_std=ac.get("noise_std", 0.2), policy_delay=ac.get("policy_delay", 2))
+        return cls(**kw, tau=float(pget("tau", 0.005)), batch_size=int(pget("batch_size", 256)),
+                   buffer_size=int(pget("buffer_size", 1000000)), n_agents=n_agents,
+                   noise_std=float(pget("noise_std", 0.2)), policy_delay=int(pget("policy_delay", 2)))
     raise ValueError(name)
-
 
 def _resolve_num_agents(algo_name: str, env_overrides: Optional[Dict[str, Any]] = None) -> int:
     if algo_name in MULTI_AGENT_ALGOS or algo_name in HEURISTIC_ALGOS:
@@ -645,6 +678,9 @@ def benchmark_single(
     env_name=None,
     game_theory_overrides: Optional[Dict[str, Any]] = None,
     env_overrides: Optional[Dict[str, Any]] = None,
+    eval_interval_override: Optional[int] = None,
+    min_eval_points: Optional[int] = None,
+    eval_at_start: Optional[bool] = None,
 ):
     """
     运行单算法评测。
@@ -680,13 +716,17 @@ def benchmark_single(
     ec = cfg.get("evaluation", {})
     lc = cfg.get("logging", {})
     ac = cfg.get("algorithm", {})
-    total_ts = override_ts if override_ts is not None else tc.get("total_timesteps", 100000)
+    total_ts = int(override_ts if override_ts is not None else tc.get("total_timesteps", 100000))
     rollout_steps = min(int(tc.get("rollout_steps", 2048)), int(total_ts))
-    eval_ep = override_ep if override_ep is not None else ec.get("num_episodes", 10)
+    eval_ep = int(override_ep if override_ep is not None else ec.get("num_episodes", 10))
+    eval_interval = int(eval_interval_override if eval_interval_override is not None else lc.get("eval_interval", 5000))
+    min_eval_points_used = int(min_eval_points if min_eval_points is not None else lc.get("min_eval_points", 0) or 0)
+    eval_at_start_used = bool(lc.get("eval_at_start", False) if eval_at_start is None else eval_at_start)
     trainer_kwargs = dict(
         env=env, agent=agent, total_timesteps=total_ts,
         rollout_steps=rollout_steps,
-        eval_interval=lc.get("eval_interval", 5000), eval_episodes=eval_ep,
+        eval_interval=eval_interval, eval_episodes=eval_ep,
+        min_eval_points=min_eval_points_used, eval_at_start=eval_at_start_used,
         save_interval=lc.get("save_interval", 50000),
         save_dir=lc.get("checkpoint_dir", "checkpoints/" + name.lower()),
         log_interval=lc.get("log_interval", 10), device=device, seed=seed,
@@ -709,11 +749,17 @@ def benchmark_single(
     for key, values in trainer.eval_logs.items():
         convergence_data[key] = [round(v, 6) for v in values]
     convergence_data["schema_version"] = 2
+    convergence_data["metric_schema_version"] = 3
     convergence_data["seed"] = seed
     convergence_data["algorithm"] = name
     convergence_data["run_status"] = "success"
     convergence_data["failure_reason"] = None
     convergence_data["eval_interval"] = trainer.eval_interval
+    convergence_data["effective_eval_interval"] = trainer._effective_eval_interval()
+    convergence_data["min_eval_points"] = trainer.min_eval_points
+    convergence_data["eval_at_start"] = trainer.eval_at_start
+    convergence_data["eval_steps"] = list(trainer.eval_steps)
+    convergence_data["eval_sample_count"] = len(trainer.eval_steps)
     convergence_data["total_timesteps"] = trainer.total_steps
     fe = trainer.evaluate()
     latency_e2e = fe.get("eval/e2e_latency_mean", fe.get("eval/latency_per_task_mean", fe.get("eval/latency_mean", 0.0)))
@@ -745,6 +791,16 @@ def benchmark_single(
         "final_energy_per_step_mean": None if energy_per_step is None else round(energy_per_step, 4),
         "final_latency_per_task_mean": None if latency_per_task is None else round(latency_per_task, 4),
         "final_energy_per_task_mean": None if energy_per_task is None else round(energy_per_task, 4),
+        "final_social_welfare_mean": round(fe.get("eval/social_welfare_mean", fe["eval/reward_mean"]), 4),
+        "final_social_welfare_per_step_mean": round(fe.get("eval/social_welfare_per_step_mean", 0.0), 4),
+        "final_agent_reward_jain_mean": round(fe.get("eval/agent_reward_jain_mean", 1.0), 4),
+        "final_constraint_violation_rate": round(fe.get("eval/constraint/any_violation_mean", 0.0), 4),
+        "final_constraint_penalty_mean": round(fe.get("eval/constraint/penalty_mean_mean", 0.0), 4),
+        "final_queue_wait_mean": round(fe.get("eval/queue_wait_mean_mean", 0.0), 4),
+        "final_offload_ratio_mean": round(fe.get("eval/offload_ratio_mean_mean", 0.0), 4),
+        "final_price_mean": round(fe.get("eval/pricing/price_mean", 0.0), 4),
+        "final_provider_revenue_proxy_mean": round(fe.get("eval/pricing/provider_revenue_proxy_mean", 0.0), 4),
+        "final_efx_satisfaction_rate": round(fe.get("eval/fairness/efx_satisfied_mean", 0.0), 4),
         "total_episodes": trainer.episode_count, "total_updates": trainer.update_count,
         "convergence": convergence_data,
     }
@@ -828,7 +884,7 @@ def _resolve_env_overrides(
     max_steps: Optional[int],
     system_model_config: Optional[str] = None,
     dynamic_pricing_config: Optional[str] = None,
-    enable_mainline_a: bool = False,
+    enable_mainline_a: Optional[bool] = None,
     channel_model: Optional[str] = None,
     queue_model: Optional[str] = None,
     mobility_intensity: Optional[str] = None,
@@ -849,8 +905,8 @@ def _resolve_env_overrides(
         resolved["system_model_config"] = system_model_config
     if dynamic_pricing_config is not None:
         resolved["dynamic_pricing_config"] = dynamic_pricing_config
-    if enable_mainline_a:
-        resolved["enable_mainline_a"] = True
+    if enable_mainline_a is not None:
+        resolved["enable_mainline_a"] = bool(enable_mainline_a)
     if channel_model is not None:
         resolved["channel_model"] = channel_model
     if queue_model is not None:
@@ -893,29 +949,59 @@ def _apply_benchmark_cli_config(args, file_cfg: Dict[str, Any]) -> None:
         args.multi_agent_count = int(file_cfg["users"])
     if file_cfg.get("system_model", {}).get("enabled"):
         args.enable_mainline_a = True
-        if args.system_model_config == "configs/system_model_mainline_a.yaml":
+        if args.system_model_config is None:
             args.system_model_config = args.config
-    if file_cfg.get("dynamic_pricing") and args.dynamic_pricing_config == "configs/pricing_dynamic_mainline_a.yaml":
+    if file_cfg.get("dynamic_pricing") and args.dynamic_pricing_config is None:
         args.dynamic_pricing_config = args.config
     if args.queue_model is None:
         args.queue_model = resolve_queue_model(file_cfg)
     if args.channel_model is None:
         args.channel_model = resolve_channel_model(file_cfg)
+    if getattr(args, "eval_interval", None) is None and benchmark_cfg.get("eval_interval") is not None:
+        args.eval_interval = int(benchmark_cfg["eval_interval"])
+    if getattr(args, "min_eval_points", None) is None and benchmark_cfg.get("min_eval_points") is not None:
+        args.min_eval_points = int(benchmark_cfg["min_eval_points"])
+    if getattr(args, "eval_at_start", None) is None and benchmark_cfg.get("eval_at_start") is not None:
+        args.eval_at_start = bool(benchmark_cfg["eval_at_start"])
+
+
+def _resolve_profile_env_overrides(args) -> Dict[str, Any]:
+    """Resolve benchmark profile settings without starting training."""
+    profile = resolve_environment_profile(args.environment_profile)
+    return profile_to_env_overrides(
+        profile,
+        system_model_config=args.system_model_config,
+        dynamic_pricing_config=args.dynamic_pricing_config,
+        enable_mainline_a=True if args.enable_mainline_a else None,
+    )
 
 
 def _dry_run_payload(args, file_cfg: Dict[str, Any], algorithms: List[str]) -> Dict[str, Any]:
     """Build a dry-run payload without starting training."""
     benchmark_cfg = file_cfg.get("benchmark", {})
     system_model_cfg = validate_mainline_a_system_model_config(file_cfg, args.config or "benchmark config")
+    profile = resolve_environment_profile(args.environment_profile)
+    profile_env_overrides = _resolve_profile_env_overrides(args)
     channel_model = args.channel_model or resolve_channel_model(file_cfg)
     queue_model = args.queue_model or resolve_queue_model(file_cfg)
+    eval_interval = getattr(args, "eval_interval", None)
+    min_eval_points = getattr(args, "min_eval_points", None)
+    eval_at_start = getattr(args, "eval_at_start", None)
     return {
         "dry_run": True,
+        "environment_profile": profile.name,
         "algorithms": algorithms,
         "seeds": args.seeds or _coerce_list(file_cfg.get("seeds"), [42]),
         "timesteps": args.timesteps or file_cfg.get("steps") or benchmark_cfg.get("steps"),
-        "enable_mainline_a": bool(args.enable_mainline_a or system_model_cfg.get("enabled", False)),
-        "system_model_config": args.system_model_config,
+        "eval_interval": eval_interval or benchmark_cfg.get("eval_interval"),
+        "min_eval_points": min_eval_points if min_eval_points is not None else benchmark_cfg.get("min_eval_points"),
+        "eval_at_start": bool(eval_at_start if eval_at_start is not None else benchmark_cfg.get("eval_at_start", False)),
+        "enable_mainline_a": bool(
+            profile_env_overrides.get("enable_mainline_a", False)
+            or system_model_cfg.get("enabled", False)
+        ),
+        "system_model_config": profile_env_overrides.get("system_model_config"),
+        "dynamic_pricing_config": profile_env_overrides.get("dynamic_pricing_config"),
         "channel_model": channel_model,
         "queue_model": queue_model,
         "resolved_system_model": system_model_cfg,
@@ -928,7 +1014,11 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                  timesteps=None, episodes=None, device="auto",
                  output_file=None, verbose=True, game_theory_overrides: Optional[Dict[str, Any]] = None,
                  env_overrides: Optional[Dict[str, Any]] = None,
-                 sync_latest_alias: bool = True):
+                 sync_latest_alias: bool = True,
+                 eval_interval: Optional[int] = None,
+                 min_eval_points: Optional[int] = None,
+                 eval_at_start: Optional[bool] = None,
+                 environment_profile: str = DEFAULT_ENVIRONMENT_PROFILE):
     """
     运行多算法对比评测 (GameTheory 环境唯一)。
 
@@ -996,6 +1086,9 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                             env_name=group_env,
                             game_theory_overrides=game_theory_overrides,
                             env_overrides=env_overrides,
+                            eval_interval_override=eval_interval,
+                            min_eval_points=min_eval_points,
+                            eval_at_start=eval_at_start,
                         )
                     algo_results.append(r)
                 except Exception as e:
@@ -1017,7 +1110,11 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                     if verbose:
                         print(f"Error {algo} seed={seed}: {e}")
             if algo_results:
-                avg = {"algorithm": algo, "n_seeds": len(algo_results)}
+                avg = {
+                    "algorithm": algo,
+                    "n_seeds": len(algo_results),
+                    "environment_profile": environment_profile,
+                }
                 for key in algo_results[0].keys():
                     if key in ("algorithm", "environment", "seed", "device", "n_seeds"):
                         avg[key] = algo_results[0][key]
@@ -1045,6 +1142,11 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                 avg.setdefault("final_energy_per_step_mean_mean", None)
                 avg.setdefault("final_latency_per_task_mean_mean", None)
                 avg.setdefault("final_energy_per_task_mean_mean", None)
+                avg.setdefault("final_social_welfare_mean_mean", None)
+                avg.setdefault("final_agent_reward_jain_mean_mean", None)
+                avg.setdefault("final_constraint_violation_rate_mean", None)
+                avg.setdefault("final_queue_wait_mean_mean", None)
+                avg.setdefault("final_offload_ratio_mean_mean", None)
                 avg.setdefault("train_time_seconds_mean", None)
                 # Module 8: collect convergence data per seed (no cross-seed averaging)
                 convergence_by_seed = {}
@@ -1070,6 +1172,7 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                 failed = {
                     "algorithm": algo,
                     "environment": group_env,
+                    "environment_profile": environment_profile,
                     "device": device,
                     "n_seeds": 0,
                     "status": "failed",
@@ -1087,6 +1190,11 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                     "final_energy_per_step_mean_mean": None,
                     "final_latency_per_task_mean_mean": None,
                     "final_energy_per_task_mean_mean": None,
+                    "final_social_welfare_mean_mean": None,
+                    "final_agent_reward_jain_mean_mean": None,
+                    "final_constraint_violation_rate_mean": None,
+                    "final_queue_wait_mean_mean": None,
+                    "final_offload_ratio_mean_mean": None,
                     "train_time_seconds_mean": None,
                     "errors": algo_errors or [{"seed": None, "error": "Unknown benchmark failure"}],
                 }
@@ -1184,9 +1292,18 @@ def main():
     p.add_argument("--include-heuristics", action="store_true")
     p.add_argument("--env", type=str, default="auto",
                    help="环境 (auto=每算法自动选择正确环境, 或指定 MEC-v1-game-theory-* )")
+    p.add_argument(
+        "--environment-profile",
+        choices=available_environment_profile_names(),
+        default=DEFAULT_ENVIRONMENT_PROFILE,
+        help="Environment profile. Defaults to mainline-a; legacy is explicit fallback only.",
+    )
     p.add_argument("--configs-dir", type=str, default=None)
     p.add_argument("--episodes", type=int, default=None)
     p.add_argument("--timesteps", type=int, default=None)
+    p.add_argument("--eval-interval", type=int, default=None, help="Override checkpoint/evaluation interval in timesteps")
+    p.add_argument("--min-eval-points", type=int, default=None, help="Minimum requested evaluation checkpoints per training run")
+    p.add_argument("--eval-at-start", action="store_true", default=None, help="Record an evaluation checkpoint at timestep 0")
     p.add_argument("--seeds", type=int, nargs="+", default=[42])
     p.add_argument("--device", type=str, default="auto")
     p.add_argument("--output", type=str, default=None)  # 自动生成带时间戳的文件名
@@ -1205,8 +1322,8 @@ def main():
     p.add_argument("--efx-enabled", type=str, default=None, choices=["true", "false"])
     p.add_argument("--cpnet-enabled", type=str, default=None, choices=["true", "false"])
     p.add_argument("--efx-transfer-rate", type=float, default=None)
-    p.add_argument("--system-model-config", type=str, default="configs/system_model_mainline_a.yaml")
-    p.add_argument("--dynamic-pricing-config", type=str, default="configs/pricing_dynamic_mainline_a.yaml")
+    p.add_argument("--system-model-config", type=str, default=None)
+    p.add_argument("--dynamic-pricing-config", type=str, default=None)
     p.add_argument("--enable-mainline-a", action="store_true")
     p.add_argument(
         "--channel-model",
@@ -1298,6 +1415,8 @@ def main():
 
         env_to_use = None if args.env == "auto" else args.env
         logger.info("Environment: %s", env_to_use or "auto")
+        profile = resolve_environment_profile(args.environment_profile)
+        logger.info("Environment profile: %s", profile.name)
 
         gt_overrides = {
             "warm_start_steps": args.warm_start_steps,
@@ -1313,14 +1432,15 @@ def main():
         }
         logger.info("Game theory config: %s", gt_overrides)
 
+        profile_env_overrides = _resolve_profile_env_overrides(args)
         env_overrides = _resolve_env_overrides(
             scale=args.scale,
             num_edge_servers=args.num_edge_servers,
             multi_agent_count=args.multi_agent_count,
             max_steps=args.max_steps,
-            system_model_config=args.system_model_config,
-            dynamic_pricing_config=args.dynamic_pricing_config,
-            enable_mainline_a=args.enable_mainline_a,
+            system_model_config=profile_env_overrides.get("system_model_config"),
+            dynamic_pricing_config=profile_env_overrides.get("dynamic_pricing_config"),
+            enable_mainline_a=profile_env_overrides.get("enable_mainline_a"),
             channel_model=args.channel_model,
             queue_model=args.queue_model,
             mobility_intensity=args.mobility_intensity,
@@ -1340,6 +1460,10 @@ def main():
                 game_theory_overrides=gt_overrides,
                 env_overrides=env_overrides,
                 sync_latest_alias=not args.no_latest_alias,
+                eval_interval=args.eval_interval,
+                min_eval_points=args.min_eval_points,
+                eval_at_start=args.eval_at_start,
+                environment_profile=profile.name,
             )
             logger.info("Benchmark finished")
             logger.info("Benchmark completed successfully. Results saved to: %s", args.output)

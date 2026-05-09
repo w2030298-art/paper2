@@ -46,6 +46,8 @@ class BaseTrainer(ABC):
         rollout_steps: int = 2048,
         eval_interval: int = 10000,
         eval_episodes: int = 10,
+        min_eval_points: int = 0,
+        eval_at_start: bool = False,
         save_interval: int = 50000,
         save_dir: str = "./checkpoints",
         log_interval: int = 100,
@@ -56,8 +58,10 @@ class BaseTrainer(ABC):
         self.agent = agent
         self.total_timesteps = total_timesteps
         self.rollout_steps = rollout_steps
-        self.eval_interval = eval_interval
-        self.eval_episodes = eval_episodes
+        self.eval_interval = int(eval_interval)
+        self.eval_episodes = int(eval_episodes)
+        self.min_eval_points = max(0, int(min_eval_points or 0))
+        self.eval_at_start = bool(eval_at_start)
         self.save_interval = save_interval
         self.save_dir = save_dir
         self.log_interval = log_interval
@@ -80,6 +84,7 @@ class BaseTrainer(ABC):
         # 日志
         self.train_logs: Dict[str, List[float]] = {}
         self.eval_logs: Dict[str, List[float]] = {}
+        self.eval_steps: List[int] = []
 
         # TensorBoard
         self._tb_writer = None
@@ -177,6 +182,26 @@ class BaseTrainer(ABC):
                 log_key = f"reward_breakdown/{key}"
                 self.train_logs.setdefault(log_key, []).append(float(value))
 
+    def _effective_eval_interval(self) -> int:
+        """Return the timestep interval used for checkpoint evaluation sampling."""
+        interval = max(1, int(self.eval_interval))
+        if self.min_eval_points > 0 and self.total_timesteps > 0:
+            interval = min(interval, max(1, int(np.ceil(self.total_timesteps / self.min_eval_points))))
+        return interval
+
+    def _record_eval_logs(self, eval_info: Dict[str, float], step: Optional[int] = None) -> None:
+        """Append one evaluation snapshot with an explicit training step."""
+        eval_step = int(self.total_steps if step is None else step)
+        self.eval_steps.append(eval_step)
+        for k, v in eval_info.items():
+            if isinstance(v, (int, float, np.integer, np.floating)):
+                if k not in self.eval_logs:
+                    self.eval_logs[k] = []
+                scalar = float(v)
+                self.eval_logs[k].append(scalar)
+                if self._tb_writer is not None:
+                    self._tb_writer.add_scalar(f"eval/{k}", scalar, eval_step)
+
     def train(self) -> Dict[str, List[float]]:
         """
         主训练循环
@@ -191,8 +216,14 @@ class BaseTrainer(ABC):
             tb_dir = os.path.join(self.save_dir, "tensorboard")
             self._tb_writer = SummaryWriter(log_dir=tb_dir)
 
-        eval_every_updates = max(1, self.eval_interval // max(1, self.rollout_steps))
-        save_every_updates = max(1, self.save_interval // max(1, self.rollout_steps))
+        effective_eval_interval = self._effective_eval_interval()
+        # Floor keeps the requested checkpoint cadence as a minimum density when
+        # rollout_steps is coarser than eval_interval.
+        eval_every_updates = max(1, int(effective_eval_interval // max(1, self.rollout_steps)))
+        save_every_updates = max(1, int(np.ceil(self.save_interval / max(1, self.rollout_steps))))
+
+        if self.eval_at_start:
+            self._record_eval_logs(self.evaluate(), step=0)
 
         try:
             while self.total_steps < self.total_timesteps:
@@ -214,32 +245,25 @@ class BaseTrainer(ABC):
                 # 日志
                 if self.update_count % self.log_interval == 0:
                     for k, v in update_info.items():
-                        if isinstance(v, (int, float)):
+                        if isinstance(v, (int, float, np.integer, np.floating)):
                             if k not in self.train_logs:
                                 self.train_logs[k] = []
-                            self.train_logs[k].append(v)
+                            scalar = float(v)
+                            self.train_logs[k].append(scalar)
                             # TensorBoard
                             if self._tb_writer is not None:
-                                self._tb_writer.add_scalar(f"train/{k}", v, self.total_steps)
+                                self._tb_writer.add_scalar(f"train/{k}", scalar, self.total_steps)
 
                     pbar.set_postfix(
                         {
-                            k: f"{v:.3f}"
+                            k: f"{float(v):.3f}"
                             for k, v in update_info.items()
-                            if isinstance(v, (int, float))
+                            if isinstance(v, (int, float, np.integer, np.floating))
                         }
                     )
                 # 评估
                 if self.update_count % eval_every_updates == 0:
-                    eval_info = self.evaluate()
-                    for k, v in eval_info.items():
-                        if isinstance(v, (int, float)):
-                            if k not in self.eval_logs:
-                                self.eval_logs[k] = []
-                            self.eval_logs[k].append(v)
-                            # TensorBoard
-                            if self._tb_writer is not None:
-                                self._tb_writer.add_scalar(f"eval/{k}", v, self.total_steps)
+                    self._record_eval_logs(self.evaluate(), step=self.total_steps)
                 # 保存
                 if self.update_count % save_every_updates == 0:
                     self.save(os.path.join(self.save_dir, f"ckpt_{self.total_steps}.pt"))
@@ -261,10 +285,11 @@ class BaseTrainer(ABC):
 
     def evaluate(self) -> Dict[str, float]:
         """
-        评估当前策略
+        评估当前策略。
 
-        Returns:
-            eval_info: 评估指标
+        除原有 reward/latency/energy/convergence 指标外，评估阶段会从
+        GameTheory/Mainline-A info 字段中抽取约束、队列、通信、公平性、价格、
+        reward breakdown 等扩展指标。扩展只读取 info，不修改环境。
         """
         eval_rewards = []
         eval_latency_totals = []
@@ -275,11 +300,165 @@ class BaseTrainer(ABC):
         eval_energy_per_task = []
         eval_episode_steps = []
         eval_episode_tasks = []
+        eval_agent_reward_fairness = []
         e2e_latency_samples = []
         e2e_energy_samples = []
+        social_welfare_per_step = []
         deadline_misses = 0
         total_eval_tasks = 0
         total_eval_steps = 0
+        extended_samples: Dict[str, List[float]] = {}
+        sample_count_before = getattr(self.agent, "sample_count", None)
+
+        def _append_metric(key: str, value: Any) -> None:
+            if value is None:
+                return
+            try:
+                arr = np.asarray(value, dtype=np.float64).reshape(-1)
+            except (TypeError, ValueError):
+                return
+            if arr.size == 0:
+                return
+            finite = arr[np.isfinite(arr)]
+            if finite.size == 0:
+                return
+            extended_samples.setdefault(key, []).extend([float(x) for x in finite])
+
+        def _jain_index(values: Any) -> float:
+            try:
+                arr = np.asarray(values, dtype=np.float64).reshape(-1)
+            except (TypeError, ValueError):
+                return 0.0
+            arr = arr[np.isfinite(arr)]
+            if arr.size == 0:
+                return 0.0
+            min_v = float(np.min(arr))
+            if min_v < 0.0:
+                arr = arr - min_v
+            denom = float(arr.size * np.sum(arr ** 2))
+            if denom <= 1e-12:
+                return 1.0
+            return float((np.sum(arr) ** 2) / denom)
+
+        def _numeric_values_from_mapping(payload: Any) -> np.ndarray:
+            values = []
+            if isinstance(payload, dict):
+                iterable = payload.values()
+            elif isinstance(payload, (list, tuple, np.ndarray)):
+                iterable = payload
+            else:
+                iterable = [payload]
+            for value in iterable:
+                try:
+                    arr = np.asarray(value, dtype=np.float64).reshape(-1)
+                    values.extend(arr[np.isfinite(arr)].tolist())
+                except (TypeError, ValueError):
+                    continue
+            return np.asarray(values, dtype=np.float64)
+
+        def _collect_extended_info(info: Dict[str, Any], reward_vector: np.ndarray) -> None:
+            reward_vector = np.asarray(reward_vector, dtype=np.float64).reshape(-1)
+            reward_vector = reward_vector[np.isfinite(reward_vector)]
+            if reward_vector.size:
+                social_welfare_per_step.append(float(np.sum(reward_vector)))
+
+            comm = info.get("communication_metrics") or {}
+            if isinstance(comm, dict):
+                for src, dst in {
+                    "queue_wait_mean": "queue_wait_mean",
+                    "queue_wait_max": "queue_wait_max",
+                    "deadline_miss_rate": "step_deadline_miss_rate",
+                    "offload_ratio_mean": "offload_ratio_mean",
+                    "non_nearest_server_rate": "non_nearest_server_rate",
+                    "e2e_latency_max": "e2e_latency_max",
+                }.items():
+                    _append_metric(dst, comm.get(src))
+
+            constraints = info.get("constraint_metrics") or {}
+            if isinstance(constraints, dict):
+                for key in (
+                    "penalty_mean",
+                    "barrier_mean",
+                    "violation_energy_mean",
+                    "violation_power_mean",
+                    "violation_latency_mean",
+                ):
+                    _append_metric(f"constraint/{key}", constraints.get(key))
+                violations = [
+                    constraints.get("violation_energy_mean", 0.0),
+                    constraints.get("violation_power_mean", 0.0),
+                    constraints.get("violation_latency_mean", 0.0),
+                ]
+                try:
+                    _append_metric("constraint/any_violation", float(np.any(np.asarray(violations, dtype=np.float64) > 0.0)))
+                except (TypeError, ValueError):
+                    pass
+
+            fairness = info.get("fairness_metrics") or {}
+            if isinstance(fairness, dict):
+                _append_metric("fairness/efx_satisfied", float(bool(fairness.get("efx_satisfied", False))))
+                _append_metric("fairness/efx_violation", fairness.get("efx_violation"))
+                _append_metric("fairness/efx_transfer_sum_abs", fairness.get("efx_transfer_sum_abs"))
+                cpnet_scores = fairness.get("cpnet_scores")
+                if cpnet_scores is not None:
+                    _append_metric("fairness/cpnet_score_mean", _numeric_values_from_mapping(cpnet_scores))
+
+            reward_terms = info.get("reward_terms") or []
+            if isinstance(reward_terms, dict):
+                reward_terms = [reward_terms]
+            if isinstance(reward_terms, (list, tuple)):
+                for term in reward_terms:
+                    if not isinstance(term, dict):
+                        continue
+                    for key, value in term.items():
+                        _append_metric(f"reward_component/{key}", value)
+
+            mainline_components = info.get("mainline_a_reward_components") or {}
+            if isinstance(mainline_components, dict):
+                for key, value in mainline_components.items():
+                    _append_metric(f"mainline_a_reward/{key}", value)
+
+            price_metadata = info.get("dynamic_price_metadata") or {}
+            if isinstance(price_metadata, dict):
+                prices = _numeric_values_from_mapping(price_metadata.get("prices"))
+                responses = _numeric_values_from_mapping(price_metadata.get("responses"))
+                if prices.size:
+                    _append_metric("pricing/price", prices)
+                    _append_metric("pricing/provider_revenue_proxy", float(np.sum(prices)))
+                if responses.size:
+                    _append_metric("pricing/response", responses)
+
+            queue_metrics = info.get("queue_metrics") or {}
+            if isinstance(queue_metrics, dict):
+                for key, value in queue_metrics.items():
+                    _append_metric(f"queue/{key}", value)
+            _append_metric("queue/length", info.get("queue_lengths"))
+
+            channel_qualities = info.get("channel_qualities")
+            if channel_qualities is not None:
+                channel_vals = _numeric_values_from_mapping(channel_qualities)
+                if channel_vals.size:
+                    _append_metric("channel/quality_mean", float(np.mean(channel_vals)))
+                    _append_metric("channel/quality_std", float(np.std(channel_vals)))
+
+            components = info.get("latency_components") or []
+            if isinstance(components, (list, tuple)) and components:
+                targets = []
+                for component in components:
+                    if isinstance(component, dict) and component.get("target") is not None:
+                        try:
+                            targets.append(int(component.get("target")))
+                        except (TypeError, ValueError):
+                            continue
+                if targets:
+                    target_arr = np.asarray(targets, dtype=np.float64)
+                    _append_metric("action/local_target_rate", float(np.mean(target_arr == 0)))
+                    _append_metric("action/edge_target_rate", float(np.mean(target_arr > 0)))
+                    _append_metric("action/target_mean", float(np.mean(target_arr)))
+
+            offload = info.get("individual_offload")
+            if offload is not None:
+                _append_metric("action/individual_offload_mean", _numeric_values_from_mapping(offload))
 
         def _extract_step_metrics(
             info: Dict[str, Any], prev_task_completed: int
@@ -359,6 +538,7 @@ class BaseTrainer(ABC):
             episode_steps = 0
             episode_tasks = 0
             prev_task_completed = 0
+            episode_agent_rewards: Optional[np.ndarray] = None
             is_multi = hasattr(self.env, "num_agents")
 
             while not done:
@@ -383,17 +563,16 @@ class BaseTrainer(ABC):
                                 else:
                                     a = int(np.argmax(a))
                         else:
-                            a = int(a)
+                            if isinstance(self.env.action_space, spaces.Discrete):
+                                a = int(a)
                         actions.append(a)
                     # Action NaN check
                     for idx, a in enumerate(actions):
                         if isinstance(a, np.ndarray) and not np.isfinite(a).all():
                             actions[idx] = np.nan_to_num(a, nan=0.0, posinf=1.0, neginf=-1.0)
                     obs, reward, terminated, truncated, info = self.env.step(actions)
-                    if isinstance(reward, (list, np.ndarray)):
-                        episode_reward += sum(reward)
-                    else:
-                        episode_reward += reward
+                    reward_vector = np.asarray(reward if isinstance(reward, (list, np.ndarray)) else [reward], dtype=np.float64).reshape(-1)
+                    episode_reward += float(np.sum(reward_vector))
                 else:
                     # 单智能体
                     if hasattr(self.agent, "select_action"):
@@ -423,7 +602,15 @@ class BaseTrainer(ABC):
                         action = np.nan_to_num(action, nan=0.0, posinf=1.0, neginf=-1.0)
                         action = np.clip(action, -1.0, 1.0)
                     obs, reward, terminated, truncated, info = self.env.step(action)
-                    episode_reward += reward
+                    reward_vector = np.asarray(reward if isinstance(reward, (list, np.ndarray)) else [reward], dtype=np.float64).reshape(-1)
+                    episode_reward += float(np.sum(reward_vector))
+
+                reward_vector = reward_vector[np.isfinite(reward_vector)]
+                if reward_vector.size:
+                    if episode_agent_rewards is None or episode_agent_rewards.size != reward_vector.size:
+                        episode_agent_rewards = np.zeros_like(reward_vector, dtype=np.float64)
+                    episode_agent_rewards += reward_vector
+                _collect_extended_info(info, reward_vector)
 
                 # 统一 done 检测
                 done = is_done(terminated, truncated)
@@ -456,6 +643,8 @@ class BaseTrainer(ABC):
             eval_energy_totals.append(episode_energy)
             eval_episode_steps.append(episode_steps)
             eval_episode_tasks.append(episode_tasks)
+            if episode_agent_rewards is not None:
+                eval_agent_reward_fairness.append(_jain_index(episode_agent_rewards))
 
             safe_steps = max(1, episode_steps)
             safe_tasks = max(1, episode_tasks)
@@ -488,7 +677,7 @@ class BaseTrainer(ABC):
             / (1.0 + e2e_latency_p95 + 0.3 * e2e_energy_mean)
         )
 
-        return {
+        result = {
             "eval/reward_mean": float(np.mean(eval_rewards)),
             "eval/reward_std": float(np.std(eval_rewards)),
             # Communication-experience aliases: latency_mean is now per-task E2E latency.
@@ -508,7 +697,34 @@ class BaseTrainer(ABC):
             "eval/energy_per_task_mean": float(np.mean(eval_energy_per_task)),
             "eval/episode_steps_mean": float(np.mean(eval_episode_steps)),
             "eval/episode_tasks_mean": float(np.mean(eval_episode_tasks)),
+            "eval/social_welfare_mean": float(np.mean(eval_rewards)),
+            "eval/social_welfare_per_step_mean": float(np.mean(social_welfare_per_step)) if social_welfare_per_step else 0.0,
+            "eval/agent_reward_jain_mean": float(np.mean(eval_agent_reward_fairness)) if eval_agent_reward_fairness else 1.0,
         }
+
+        for key, values in extended_samples.items():
+            arr = np.asarray(values, dtype=np.float64)
+            arr = arr[np.isfinite(arr)]
+            if arr.size == 0:
+                continue
+            metric_key = key.replace(" ", "_")
+            result[f"eval/{metric_key}_mean"] = float(np.mean(arr))
+            if metric_key in {
+                "queue_wait_mean",
+                "queue_wait_max",
+                "constraint/penalty_mean",
+                "constraint/barrier_mean",
+                "pricing/price",
+                "pricing/provider_revenue_proxy",
+                "action/target_mean",
+            }:
+                result[f"eval/{metric_key}_std"] = float(np.std(arr))
+            if metric_key in {"queue_wait_mean", "queue_wait_max", "pricing/price"}:
+                result[f"eval/{metric_key}_p95"] = float(np.percentile(arr, 95))
+
+        if sample_count_before is not None:
+            setattr(self.agent, "sample_count", sample_count_before)
+        return result
 
     def save(self, path: str):
         """保存模型"""
@@ -531,6 +747,7 @@ class BaseTrainer(ABC):
         """保存日志"""
         log_path = os.path.join(self.save_dir, "train_logs.json")
         all_logs = {**self.train_logs}
+        all_logs["eval_steps"] = self.eval_steps
         for k, v in self.eval_logs.items():
             all_logs[f"eval_{k}"] = v
         with open(log_path, "w") as f:

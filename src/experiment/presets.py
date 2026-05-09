@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .environment_profiles import DEFAULT_ENVIRONMENT_PROFILE
 
 QUICK_RUN_ID = "vscode_quick"
 QUICK_NAME = "VSCode Quick Benchmark"
@@ -13,8 +14,8 @@ QUICK_SEED = 42
 QUICK_DEVICE = "auto"
 QUICK_EVAL_EPISODES = 3
 
-FULL_17_RUN_ID = "paper2_full_17_vscode"
-FULL_17_NAME = "Paper2 Full 17 Algorithms VSCode Benchmark"
+FULL_17_RUN_ID = "paper2_full_17_mainline_a"
+FULL_17_NAME = "Paper2 Full 17 Algorithms Mainline-A Benchmark"
 FULL_17_ALGORITHMS = [
     "GRPO",
     "PPO",
@@ -49,6 +50,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         "device": QUICK_DEVICE,
         "eval_episodes": QUICK_EVAL_EPISODES,
         "env": "auto",
+        "environment_profile": DEFAULT_ENVIRONMENT_PROFILE,
         "output_dir": "results",
     },
     "full17": {
@@ -60,6 +62,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         "device": FULL_17_DEVICE,
         "eval_episodes": FULL_17_EVAL_EPISODES,
         "env": "auto",
+        "environment_profile": DEFAULT_ENVIRONMENT_PROFILE,
         "output_dir": "results",
     },
 }

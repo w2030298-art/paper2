@@ -9,6 +9,7 @@ from typing import Any
 
 from scripts.backup_experiment import BackupResult, backup_experiment
 
+from .environment_profiles import DEFAULT_ENVIRONMENT_PROFILE, resolve_environment_profile
 from .local_index import LocalExperimentIndex
 from .models import (
     AlgorithmRunRecord,
@@ -49,6 +50,7 @@ class ExperimentManager:
         device: str,
         eval_episodes: int,
         env: str = "auto",
+        environment_profile: str = DEFAULT_ENVIRONMENT_PROFILE,
         output_dir: str = "results",
         metadata: dict[str, Any] | None = None,
     ) -> ExperimentManifest:
@@ -61,6 +63,7 @@ class ExperimentManager:
         if eval_episodes <= 0:
             raise ValueError("eval_episodes must be > 0")
 
+        profile = resolve_environment_profile(environment_profile)
         specs = self.registry.build_specs(
             algorithms,
             timesteps=timesteps,
@@ -68,8 +71,11 @@ class ExperimentManager:
             device=device,
             eval_episodes=eval_episodes,
             env=env,
+            environment_profile=profile.name,
         )
         records = [AlgorithmRunRecord(name=spec.name) for spec in specs]
+        manifest_metadata = dict(metadata or {})
+        manifest_metadata["environment_profile"] = profile.name
 
         now = utc_now_iso()
         manifest = ExperimentManifest(
@@ -81,7 +87,7 @@ class ExperimentManager:
             algorithms=specs,
             output_dir=output_dir,
             experiment_dir=str(self.store.experiment_dir(run_id)),
-            metadata=metadata or {},
+            metadata=manifest_metadata,
         )
         state = ExperimentState(
             schema_version=1,
