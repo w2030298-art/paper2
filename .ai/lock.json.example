@@ -1,0 +1,8 @@
+{
+  "schema_version": "wkstruc-lock/v9",
+  "owner": "agent-name",
+  "task_id": "example-task",
+  "created_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "expires_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "reason": "prevent concurrent execution on the same workspace"
+}

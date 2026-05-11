@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "wkstruc v9 ledger",
+  "type": "object",
+  "required": [
+    "task_id",
+    "state",
+    "progress",
+    "last_run",
+    "validation",
+    "open_items"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "wkstruc-ledger/v9"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "IN_PROGRESS",
+        "ALL_CLEAR",
+        "NEEDS_REVIEW",
+        "NEEDS_WEB",
+        "BLOCKED",
+        "DONE"
+      ]
+    },
+    "progress": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "done": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "last_run": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "agent": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "validation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL",
+                "PARTIAL",
+                "NOT_RUN",
+                "UNKNOWN"
+              ]
+            },
+            "commands": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "summary": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "open_items": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checkpoint_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_review_report": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "consumed_inbox": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

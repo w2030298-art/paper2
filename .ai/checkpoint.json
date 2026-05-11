@@ -1,0 +1,7 @@
+{
+  "schema_version": "wkstruc-checkpoint/v9",
+  "checkpoint_id": "checkpoint-v4.3-migration",
+  "created_at": "2026-05-09",
+  "ledger_task_id": "paper2-v4.3-mainline-a-full17",
+  "notes": "v9 migration checkpoint. Module 24+25 completed; module 26 execution gate pending. Mainline-A as default environment profile."
+}

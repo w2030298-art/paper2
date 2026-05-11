@@ -1,0 +1,33 @@
+{
+  "schema_version": "wkstruc-ledger/v9",
+  "task_id": "paper2-v4.3-mainline-a-full17",
+  "state": "NEEDS_REVIEW",
+  "progress": {
+    "done": 12,
+    "total": 17,
+    "label": "12 / 17 steps (module 24: 4/4, module 25: 8/8, module 26: 0/5)"
+  },
+  "last_run": {
+    "at": "2026-05-06",
+    "agent": "dispatch:patch",
+    "summary": "docs.zip replacement; module 25 Mainline-A environment profile + full-17 default migration completed; pytest 254 passed; module 26 execution gate pending."
+  },
+  "validation": {
+    "status": "PASS",
+    "commands": [
+      "pytest -q (254 passed)"
+    ],
+    "summary": "Module 25 implementation validated; scope:review items pending human review."
+  },
+  "open_items": [
+    "DASHBOARD-EXTERNAL-COMPAT: dashboard 兼容性需在外部仓库环境复核 (Medium, external)",
+    "Module 26: full-17 execution gate pending (dry-run → smoke → full benchmark)",
+    "Module 25 Step 1/2/3/4/6: scope:review items awaiting human review",
+    ".vscode/launch.json: 8 entries pending review of naming/run strategy"
+  ],
+  "checkpoint_id": "checkpoint-v4.3-migration",
+  "last_review_report": "Mainline-A N0/N1/N2/N3 experiment gate review: ACCEPTED_WITH_BOUNDARIES (2026-05-06)",
+  "consumed_inbox": [
+    "system-model-overhaul-v4.3"
+  ]
+}
