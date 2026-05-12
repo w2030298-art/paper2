@@ -1,0 +1,236 @@
+{
+  "PPO": {
+    "algorithm": "PPO",
+    "environment_profile": "mainline-a",
+    "action_space": null,
+    "agent_runtime": null,
+    "search_config_path": "configs/tuning/stage1_ppo_mainline_a.yaml",
+    "search_config_sha256": "c32db4a003fe512d34fb8933d7c6d43616db1b3a0abd71c5fe7635f557ccbb29",
+    "base_config_path": "configs/algorithms/ppo.yaml",
+    "base_config_sha256": "b3e79032111696971b492cc414bbf2dc32ec465782f93f1bf20f8d558c6aea88",
+    "mode": "starter",
+    "sampling_mode": [
+      "deterministic_random",
+      "recommended_start"
+    ],
+    "pruning_eligibility_rules": {
+      "constraint_violation": "must be zero",
+      "PPO_deadline_miss_rate_max": 0.001,
+      "COMA_deadline_miss_rate_max": 0.003,
+      "reward": "tie-break only within algorithm family"
+    },
+    "dry_run": false,
+    "commands": [
+      {
+        "trial_id": "0000",
+        "seed": 42,
+        "command": [
+          "/usr/bin/python3",
+          "scripts/train.py",
+          "--config",
+          "outputs/stage1/ppo/trial_0000/config.yaml",
+          "--algorithm",
+          "PPO",
+          "--environment-profile",
+          "mainline-a",
+          "--timesteps",
+          "10000",
+          "--seed",
+          "42",
+          "--device",
+          "auto",
+          "--result-json",
+          "outputs/stage1/ppo/trial_0000/result_seed_42.json"
+        ]
+      },
+      {
+        "trial_id": "0001",
+        "seed": 42,
+        "command": [
+          "/usr/bin/python3",
+          "scripts/train.py",
+          "--config",
+          "outputs/stage1/ppo/trial_0001/config.yaml",
+          "--algorithm",
+          "PPO",
+          "--environment-profile",
+          "mainline-a",
+          "--timesteps",
+          "10000",
+          "--seed",
+          "42",
+          "--device",
+          "auto",
+          "--result-json",
+          "outputs/stage1/ppo/trial_0001/result_seed_42.json"
+        ]
+      },
+      {
+        "trial_id": "0002",
+        "seed": 42,
+        "command": [
+          "/usr/bin/python3",
+          "scripts/train.py",
+          "--config",
+          "outputs/stage1/ppo/trial_0002/config.yaml",
+          "--algorithm",
+          "PPO",
+          "--environment-profile",
+          "mainline-a",
+          "--timesteps",
+          "10000",
+          "--seed",
+          "42",
+          "--device",
+          "auto",
+          "--result-json",
+          "outputs/stage1/ppo/trial_0002/result_seed_42.json"
+        ]
+      },
+      {
+        "trial_id": "0003",
+        "seed": 42,
+        "command": [
+          "/usr/bin/python3",
+          "scripts/train.py",
+          "--config",
+          "outputs/stage1/ppo/trial_0003/config.yaml",
+          "--algorithm",
+          "PPO",
+          "--environment-profile",
+          "mainline-a",
+          "--timesteps",
+          "10000",
+          "--seed",
+          "42",
+          "--device",
+          "auto",
+          "--result-json",
+          "outputs/stage1/ppo/trial_0003/result_seed_42.json"
+        ]
+      }
+    ],
+    "artifacts": {
+      "trials_csv": "outputs/stage1/ppo_trials.csv",
+      "pareto_csv": "outputs/stage1/ppo_pareto.csv",
+      "best_config": "outputs/stage1/ppo_best_config.yaml"
+    }
+  },
+  "COMA": {
+    "algorithm": "COMA",
+    "environment_profile": "mainline-a",
+    "action_space": null,
+    "agent_runtime": null,
+    "search_config_path": "configs/tuning/stage1_coma_mainline_a.yaml",
+    "search_config_sha256": "5040a9a9d3be39a0dda22ba0ec8ca3d569d05083d1a54b80d19402bc6b48dae4",
+    "base_config_path": "configs/algorithms/coma.yaml",
+    "base_config_sha256": "eb70154cdeaa43c9069489042bcf59d5de6f0dca2dd553171c0653caa8df1e02",
+    "mode": "starter",
+    "sampling_mode": [
+      "deterministic_random",
+      "recommended_start"
+    ],
+    "pruning_eligibility_rules": {
+      "constraint_violation": "must be zero",
+      "PPO_deadline_miss_rate_max": 0.001,
+      "COMA_deadline_miss_rate_max": 0.003,
+      "reward": "tie-break only within algorithm family"
+    },
+    "dry_run": false,
+    "commands": [
+      {
+        "trial_id": "0000",
+        "seed": 42,
+        "command": [
+          "/usr/bin/python3",
+          "scripts/train.py",
+          "--config",
+          "outputs/stage1/coma/trial_0000/config.yaml",
+          "--algorithm",
+          "COMA",
+          "--environment-profile",
+          "mainline-a",
+          "--timesteps",
+          "10000",
+          "--seed",
+          "42",
+          "--device",
+          "auto",
+          "--result-json",
+          "outputs/stage1/coma/trial_0000/result_seed_42.json"
+        ]
+      },
+      {
+        "trial_id": "0001",
+        "seed": 42,
+        "command": [
+          "/usr/bin/python3",
+          "scripts/train.py",
+          "--config",
+          "outputs/stage1/coma/trial_0001/config.yaml",
+          "--algorithm",
+          "COMA",
+          "--environment-profile",
+          "mainline-a",
+          "--timesteps",
+          "10000",
+          "--seed",
+          "42",
+          "--device",
+          "auto",
+          "--result-json",
+          "outputs/stage1/coma/trial_0001/result_seed_42.json"
+        ]
+      },
+      {
+        "trial_id": "0002",
+        "seed": 42,
+        "command": [
+          "/usr/bin/python3",
+          "scripts/train.py",
+          "--config",
+          "outputs/stage1/coma/trial_0002/config.yaml",
+          "--algorithm",
+          "COMA",
+          "--environment-profile",
+          "mainline-a",
+          "--timesteps",
+          "10000",
+          "--seed",
+          "42",
+          "--device",
+          "auto",
+          "--result-json",
+          "outputs/stage1/coma/trial_0002/result_seed_42.json"
+        ]
+      },
+      {
+        "trial_id": "0003",
+        "seed": 42,
+        "command": [
+          "/usr/bin/python3",
+          "scripts/train.py",
+          "--config",
+          "outputs/stage1/coma/trial_0003/config.yaml",
+          "--algorithm",
+          "COMA",
+          "--environment-profile",
+          "mainline-a",
+          "--timesteps",
+          "10000",
+          "--seed",
+          "42",
+          "--device",
+          "auto",
+          "--result-json",
+          "outputs/stage1/coma/trial_0003/result_seed_42.json"
+        ]
+      }
+    ],
+    "artifacts": {
+      "trials_csv": "outputs/stage1/coma_trials.csv",
+      "pareto_csv": "outputs/stage1/coma_pareto.csv",
+      "best_config": "outputs/stage1/coma_best_config.yaml"
+    }
+  }
+}

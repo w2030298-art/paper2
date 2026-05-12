@@ -1,0 +1,49 @@
+algorithm: PPO
+environment_profile: mainline-a
+base_config: configs/algorithms/ppo.yaml
+objective:
+  primary: physical_metrics
+  metrics:
+    - p95_latency
+    - mean_latency
+    - energy_per_task
+    - tail_instability
+    - deadline_miss_rate
+    - constraint_violation
+  reward_usage: tie_break_within_ppo_only
+recommended_start:
+  name: PPO-B
+  params:
+    training.lr: 0.00015
+    algorithm.eps_clip: 0.12
+    algorithm.gae_lambda: 0.97
+    algorithm.gamma: 0.992
+    algorithm.ent_coeff: 0.003
+    algorithm.value_coeff: 0.5
+    algorithm.clip_grad: 0.5
+    algorithm.num_epochs: 8
+    training.rollout_steps: 2048
+    training.batch_size: 128
+    game_theory.ctde_with_hints: false
+    game_theory.warm_start_steps: 0
+    game_theory.reward_weights: [0.8, 0.1, 0.1]
+search_space:
+  training.lr: {type: log_float, low: 5.0e-5, high: 6.0e-4}
+  algorithm.eps_clip: {type: float, low: 0.08, high: 0.24}
+  algorithm.gae_lambda: {type: float, low: 0.90, high: 0.99}
+  algorithm.gamma: {type: float, low: 0.985, high: 0.995}
+  algorithm.ent_coeff: {type: log_float, low: 5.0e-4, high: 2.0e-2}
+  algorithm.value_coeff: {type: float, low: 0.3, high: 0.8}
+  algorithm.clip_grad: {type: float, low: 0.3, high: 1.0}
+  algorithm.num_epochs: {type: categorical, choices: [5, 8, 10, 12]}
+  training.rollout_steps: {type: categorical, choices: [1024, 2048, 4096]}
+  training.batch_size: {type: categorical, choices: [64, 128, 256]}
+  game_theory.ctde_with_hints: {type: categorical, choices: [false, true]}
+  game_theory.warm_start_steps: {type: categorical, choices: [0, 1000, 2000, 4000]}
+  game_theory.warm_start_lr_scale: {type: float, low: 0.1, high: 0.6}
+forbidden_changes:
+  - no algorithm other than PPO
+  - no action adaptor change
+  - no environment profile other than mainline-a
+  - no full-17 total screening
+  - no new primary algorithm implementation files

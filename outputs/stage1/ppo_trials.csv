@@ -1,0 +1,5 @@
+trial_id,trial_name,algorithm,environment_profile,seed,status,j_phys,feasible,pareto_eligible,p95_latency,mean_latency,energy_per_task,tail_instability,deadline_miss_rate,constraint_violation,reward_mean,result_json,config_path,error
+0000,PPO-B,PPO,mainline-a,42,failed,inf,False,False,,,,,,,,outputs/stage1/ppo/trial_0000/result_seed_42.json,outputs/stage1/ppo/trial_0000/config.yaml,ModuleNotFoundError: No module named 'torch'
+0001,sample-0001,PPO,mainline-a,42,failed,inf,False,False,,,,,,,,outputs/stage1/ppo/trial_0001/result_seed_42.json,outputs/stage1/ppo/trial_0001/config.yaml,ModuleNotFoundError: No module named 'torch'
+0002,sample-0002,PPO,mainline-a,42,failed,inf,False,False,,,,,,,,outputs/stage1/ppo/trial_0002/result_seed_42.json,outputs/stage1/ppo/trial_0002/config.yaml,ModuleNotFoundError: No module named 'torch'
+0003,sample-0003,PPO,mainline-a,42,failed,inf,False,False,,,,,,,,outputs/stage1/ppo/trial_0003/result_seed_42.json,outputs/stage1/ppo/trial_0003/config.yaml,ModuleNotFoundError: No module named 'torch'

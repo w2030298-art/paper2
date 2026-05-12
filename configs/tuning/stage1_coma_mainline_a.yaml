@@ -1,0 +1,52 @@
+algorithm: COMA
+environment_profile: mainline-a
+base_config: configs/algorithms/coma.yaml
+objective:
+  primary: physical_metrics
+  metrics:
+    - p95_latency
+    - mean_latency
+    - energy_per_task
+    - tail_instability
+    - deadline_miss_rate
+    - constraint_violation
+  reward_usage: tie_break_within_coma_only
+recommended_start:
+  name: COMA-L
+  params:
+    training.lr: 0.0001
+    algorithm.gamma: 0.99
+    network.hidden_dim: 384
+    algorithm.num_epochs: 4
+    training.rollout_steps: 2048
+    game_theory.use_shapley_credit: true
+    game_theory.ctde_with_hints: true
+    game_theory.warm_start_steps: 4000
+    game_theory.warm_start_lr_scale: 0.3
+    algorithm.policy_clip_low: 0.85
+    algorithm.policy_clip_high: 1.15
+    algorithm.grad_clip: 0.5
+    algorithm.critic_loss_coeff: 0.6
+    algorithm.entropy_coeff: 0.0005
+    game_theory.reward_weights: [0.8, 0.1, 0.1]
+search_space:
+  training.lr: {type: log_float, low: 5.0e-5, high: 5.0e-4}
+  algorithm.gamma: {type: float, low: 0.985, high: 0.995}
+  network.hidden_dim: {type: categorical, choices: [256, 384, 512]}
+  algorithm.num_epochs: {type: categorical, choices: [4, 5, 6, 8, 10]}
+  training.rollout_steps: {type: categorical, choices: [1024, 2048, 4096]}
+  game_theory.use_shapley_credit: {type: categorical, choices: [true, false]}
+  game_theory.ctde_with_hints: {type: categorical, choices: [true, false]}
+  game_theory.warm_start_steps: {type: categorical, choices: [0, 1000, 2000, 4000, 8000]}
+  game_theory.warm_start_lr_scale: {type: float, low: 0.1, high: 0.8}
+  algorithm.policy_clip_low: {type: float, low: 0.75, high: 0.90}
+  algorithm.policy_clip_high: {type: float, low: 1.10, high: 1.25}
+  algorithm.grad_clip: {type: float, low: 0.3, high: 1.0}
+  algorithm.critic_loss_coeff: {type: float, low: 0.3, high: 1.0}
+  algorithm.entropy_coeff: {type: log_float, low: 1.0e-4, high: 5.0e-3}
+forbidden_changes:
+  - no algorithm other than COMA
+  - no action adaptor change
+  - no environment profile other than mainline-a
+  - no full-17 total screening
+  - no new primary algorithm implementation files

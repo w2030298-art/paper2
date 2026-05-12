@@ -1,0 +1,44 @@
+algorithm:
+  discrete: true
+  gamma: 0.9914988443777952
+  grad_clip: 0.4945099391701493
+  critic_loss_coeff: 0.45071963347531213
+  entropy_coeff: 0.001982228078454998
+  name: COMA
+  num_epochs: 8
+  policy_clip_high: 1.1633921597230255
+  policy_clip_low: 0.7739488974565335
+evaluation:
+  num_episodes: 10
+game_theory:
+  cpnet_enabled: true
+  ctde_with_hints: false
+  efx_enabled: true
+  efx_transfer_rate: 0.5
+  enabled: true
+  reward_weights:
+  - 0.8
+  - 0.1
+  - 0.1
+  use_shapley_credit: false
+  warm_start_lr_scale: 0.6311651569908371
+  warm_start_steps: 0
+logging:
+  checkpoint_dir: checkpoints/coma
+  eval_interval: 2500
+  log_interval: 10
+  save_interval: 50000
+  min_eval_points: 32
+  eval_at_start: true
+network:
+  hidden_dim: 512
+training:
+  lr: 7.903285213417812e-05
+  rollout_steps: 1024
+  seed: 42
+  total_timesteps: 100000
+stage1_tuning:
+  trial_id: '0002'
+  trial_name: sample-0002
+  source_search_config: configs/tuning/stage1_coma_mainline_a.yaml
+  environment_profile: mainline-a

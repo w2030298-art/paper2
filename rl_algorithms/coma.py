@@ -81,6 +81,11 @@ class COMAAgent(BaseAgent):
         ctde_with_hints=True,
         warm_start_steps=1000,
         warm_start_lr_scale=0.5,
+        policy_clip_low=0.8,
+        policy_clip_high=1.2,
+        grad_clip=0.5,
+        critic_loss_coeff=0.5,
+        entropy_coeff=0.0,
     ):
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.state_dim = state_dim
@@ -113,6 +118,11 @@ class COMAAgent(BaseAgent):
         self.ctde_with_hints = bool(ctde_with_hints)
         self.warm_start_steps = int(warm_start_steps)
         self.warm_start_lr_scale = float(warm_start_lr_scale)
+        self.policy_clip_low = float(policy_clip_low)
+        self.policy_clip_high = float(policy_clip_high)
+        self.grad_clip = float(grad_clip)
+        self.critic_loss_coeff = float(critic_loss_coeff)
+        self.entropy_coeff = float(entropy_coeff)
 
     def select_action(self, state, deterministic=False):
         """选择单个智能体的动作 (分散执行)"""
@@ -168,19 +178,22 @@ class COMAAgent(BaseAgent):
         total_loss = 0
         total_policy_loss = 0
         total_value_loss = 0
+        total_entropy = 0
         total_imitation = 0
 
         for _ in range(max(1, self.num_epochs)):
             dist = self.actor.get_distribution(states.view(-1, self.state_dim))
             if self.discrete:
                 new_log_probs = dist.log_prob(actions.view(-1).long())
+                entropy = dist.entropy().view(-1, self.num_agents).mean()
             else:
                 new_log_probs = dist.log_prob(actions.view(-1, self.action_dim)).sum(dim=-1)
+                entropy = dist.entropy().sum(dim=-1).view(-1, self.num_agents).mean()
             new_log_probs = new_log_probs.view(-1, self.num_agents)
 
             ratio = torch.exp(new_log_probs - old_log_probs)
             surr1 = ratio * advantages
-            surr2 = torch.clamp(ratio, 0.8, 1.2) * advantages
+            surr2 = torch.clamp(ratio, self.policy_clip_low, self.policy_clip_high) * advantages
             policy_loss = -torch.min(surr1, surr2).mean()
 
             # Critic 损失
@@ -188,7 +201,7 @@ class COMAAgent(BaseAgent):
             chosen_q = q_values.gather(2, actions.long().unsqueeze(2)).squeeze(2)
             value_loss = F.mse_loss(chosen_q, rewards_expanded)
 
-            loss = policy_loss + 0.5 * value_loss
+            loss = policy_loss + self.critic_loss_coeff * value_loss - self.entropy_coeff * entropy
             imitation_loss = torch.tensor(0.0, device=self.device)
             if self.update_count < self.warm_start_steps and "eq_actions" in batch_data:
                 if self.discrete:
@@ -218,12 +231,15 @@ class COMAAgent(BaseAgent):
                         loss = loss + self.warm_start_lr_scale * imitation_loss
             self.optimizer.zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm_(list(self.actor.parameters()) + list(self.critic.parameters()), 0.5)
+            nn.utils.clip_grad_norm_(
+                list(self.actor.parameters()) + list(self.critic.parameters()), self.grad_clip
+            )
             self.optimizer.step()
 
             total_loss += loss.item()
             total_policy_loss += policy_loss.item()
             total_value_loss += value_loss.item()
+            total_entropy += entropy.item()
             total_imitation += float(imitation_loss.detach().item())
 
         self.update_count += 1
@@ -232,7 +248,7 @@ class COMAAgent(BaseAgent):
             "loss": total_loss / n,
             "policy_loss": total_policy_loss / n,
             "value_loss": total_value_loss / n,
-            "entropy": 0.0,
+            "entropy": total_entropy / n,
             "approx_kl": 0.0,
             "imitation_loss": total_imitation / n,
             "reward_mean": rewards.mean().item(),

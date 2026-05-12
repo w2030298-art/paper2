@@ -39,6 +39,7 @@ from src.experiment.environment_profiles import (  # noqa: E402
     profile_to_env_overrides,
     resolve_environment_profile,
 )
+from src.experiment.runtime_config import build_resolved_runtime_config  # noqa: E402
 from src.mec_model.config_schema import (  # noqa: E402
     resolve_channel_model,
     resolve_queue_model,
@@ -359,8 +360,12 @@ def create_agent(name, env, cfg, device, game_theory_overrides: Optional[Dict[st
                    group_size=int(pget("group_size", 64)))
     if name == "PPO":
         is_discrete_env = isinstance(env.action_space, spaces.Discrete)
-        return cls(**kw, eps_clip=float(pget("eps_clip", 0.2)), num_epochs=int(pget("num_epochs", 10)),
-                   discrete=is_discrete_env)
+        return cls(**kw, eps_clip=float(pget("eps_clip", 0.2)),
+                   gae_lambda=float(pget("gae_lambda", 0.95)),
+                   clip_grad=float(pget("clip_grad", 0.5)),
+                   value_coeff=float(pget("value_coeff", 0.5)),
+                   ent_coeff=float(pget("ent_coeff", 0.01)),
+                   num_epochs=int(pget("num_epochs", 10)), discrete=is_discrete_env)
     if name == "SAC":
         return cls(**kw, tau=float(pget("tau", 0.005)), alpha=float(pget("alpha", 0.2)),
                    automatic_entropy_tuning=bool(pget("automatic_entropy_tuning", True)),
@@ -412,6 +417,11 @@ def create_agent(name, env, cfg, device, game_theory_overrides: Optional[Dict[st
     if name == "COMA":
         is_discrete_env = isinstance(env.action_space, spaces.Discrete)
         return cls(**kw, num_agents=n_agents, num_epochs=int(pget("num_epochs", 10)),
+                   policy_clip_low=float(pget("policy_clip_low", 0.8)),
+                   policy_clip_high=float(pget("policy_clip_high", 1.2)),
+                   grad_clip=float(pget("grad_clip", 0.5)),
+                   critic_loss_coeff=float(pget("critic_loss_coeff", 0.5)),
+                   entropy_coeff=float(pget("entropy_coeff", 0.0)),
                    discrete=is_discrete_env)
     if name == "IPPO":
         is_discrete_env = isinstance(env.action_space, spaces.Discrete)
@@ -681,6 +691,8 @@ def benchmark_single(
     eval_interval_override: Optional[int] = None,
     min_eval_points: Optional[int] = None,
     eval_at_start: Optional[bool] = None,
+    environment_profile: str = DEFAULT_ENVIRONMENT_PROFILE,
+    config_path=None,
 ):
     """
     运行单算法评测。
@@ -804,6 +816,28 @@ def benchmark_single(
         "total_episodes": trainer.episode_count, "total_updates": trainer.update_count,
         "convergence": convergence_data,
     }
+    result["resolved_runtime_config"] = build_resolved_runtime_config(
+        algorithm=name,
+        config_path=config_path,
+        base_algorithm_config=cfg,
+        cli_overrides={
+            "timesteps": override_ts,
+            "seed": seed,
+            "device": device,
+            "eval_episodes": override_ep,
+            "env": env_name if env_name is not None else "auto",
+            "environment_profile": environment_profile,
+        },
+        environment=correct_env_name,
+        environment_profile=environment_profile,
+        env_overrides=env_overrides or {},
+        game_theory_config=gt_cfg,
+        trainer_kwargs=trainer_kwargs,
+        agent=agent,
+        env=env,
+        train_timesteps=trainer.total_steps,
+        eval_episodes=eval_ep,
+    )
     if verbose:
         print(f"[{name}] reward={result['final_reward_mean']:.4f}+/-{result['final_reward_std']:.4f}  time={result['train_time_seconds']:.1f}s")
     return result
@@ -1089,6 +1123,8 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                             eval_interval_override=eval_interval,
                             min_eval_points=min_eval_points,
                             eval_at_start=eval_at_start,
+                            environment_profile=environment_profile,
+                            config_path=cp,
                         )
                     algo_results.append(r)
                 except Exception as e:
@@ -1117,6 +1153,9 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                 }
                 for key in algo_results[0].keys():
                     if key in ("algorithm", "environment", "seed", "device", "n_seeds"):
+                        avg[key] = algo_results[0][key]
+                        continue
+                    if key == "resolved_runtime_config":
                         avg[key] = algo_results[0][key]
                         continue
                     vals = []

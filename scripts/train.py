@@ -28,6 +28,7 @@ from src.experiment.environment_profiles import (  # noqa: E402
     resolve_environment_profile,
 )
 from src.experiment.presets import FULL_17_ALGORITHMS  # noqa: E402
+from src.experiment.runtime_config import build_resolved_runtime_config  # noqa: E402
 
 CANONICAL_ALGORITHM_NAMES = {name.upper(): name for name in FULL_17_ALGORITHMS}
 
@@ -304,6 +305,28 @@ def main() -> None:
 
     trainer.train()
     final_eval = trainer.evaluate()
+    resolved_runtime_config = build_resolved_runtime_config(
+        algorithm=algo,
+        config_path=args.config,
+        base_algorithm_config=cfg,
+        cli_overrides={
+            "timesteps": args.timesteps,
+            "seed": args.seed,
+            "device": args.device,
+            "eval_episodes": args.eval_episodes,
+            "env": args.env,
+            "environment_profile": args.environment_profile,
+        },
+        environment=env_name,
+        environment_profile=profile.name,
+        env_overrides=env_overrides,
+        game_theory_config=gt_cfg,
+        trainer_kwargs=trainer_kwargs,
+        agent=agent,
+        env=env,
+        train_timesteps=total_timesteps,
+        eval_episodes=eval_episodes,
+    )
 
     result_payload = {
         "algorithm": algo,
@@ -314,6 +337,7 @@ def main() -> None:
         "train_timesteps": total_timesteps,
         "checkpoint_dir": save_dir,
         "final_eval": final_eval,
+        "resolved_runtime_config": resolved_runtime_config,
         "status": "success",
     }
     if args.result_json is not None:

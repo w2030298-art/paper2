@@ -1,33 +1,60 @@
 {
   "schema_version": "wkstruc-ledger/v9",
-  "task_id": "paper2-v4.3-mainline-a-full17",
+  "task_id": "paper2-v4.4-mainline-a-stage1-tuning",
   "state": "NEEDS_REVIEW",
   "progress": {
-    "done": 12,
-    "total": 17,
-    "label": "12 / 17 steps (module 24: 4/4, module 25: 8/8, module 26: 0/5)"
+    "done": 8,
+    "total": 8,
+    "label": "8 / 8 steps"
   },
   "last_run": {
-    "at": "2026-05-06",
-    "agent": "dispatch:patch",
-    "summary": "docs.zip replacement; module 25 Mainline-A environment profile + full-17 default migration completed; pytest 254 passed; module 26 execution gate pending."
+    "at": "2026-05-12T11:16:07Z",
+    "agent": "codex",
+    "summary": "Completed Mainline-A resolved runtime config repair, PPO/COMA boundary alignment, COMA externalized tuning knobs, Stage-1 search configs, tuner, and starter artifact generation. Training subprocesses were blocked by missing local torch/gymnasium dependencies."
   },
   "validation": {
-    "status": "PASS",
+    "status": "PARTIAL",
     "commands": [
-      "pytest -q (254 passed)"
+      "pytest tests/test_resolved_runtime_config.py tests/test_train_result_resolved_runtime.py tests/test_algorithm_config_boundaries.py tests/test_coma_externalized_hparams.py tests/test_stage1_search_space_configs.py tests/test_physical_objective.py tests/test_stage1_tuner_config_generation.py -q (14 passed)",
+      "python3 config boundary assertions for PPO/COMA total_timesteps and Stage-1 YAML recommended starts (passed)",
+      "python3 scripts/tune_mainline_a_stage1.py --algorithm PPO --search-config configs/tuning/stage1_ppo_mainline_a.yaml --mode dry-run --trials 2 --timesteps 64 --seeds 42 --environment-profile mainline-a --device cpu --output-dir /tmp/paper2_stage1_dryrun (passed)",
+      "python3 scripts/train.py --config configs/algorithms/ppo.yaml --algorithm PPO --environment-profile mainline-a --timesteps 32 --eval-episodes 1 --device cpu --result-json /tmp/paper2_ppo_resolved_runtime.json (failed: ModuleNotFoundError: No module named 'torch')",
+      "python3 scripts/tune_mainline_a_stage1.py --algorithm PPO --search-config configs/tuning/stage1_ppo_mainline_a.yaml --mode starter --trials 4 --timesteps 10000 --seeds 42 --environment-profile mainline-a --device auto --output-dir outputs/stage1 (artifact generation passed; trial training failed: missing torch)",
+      "python3 scripts/tune_mainline_a_stage1.py --algorithm COMA --search-config configs/tuning/stage1_coma_mainline_a.yaml --mode starter --trials 4 --timesteps 10000 --seeds 42 --environment-profile mainline-a --device auto --output-dir outputs/stage1 (artifact generation passed; trial training failed: missing torch)",
+      "python3 outputs/stage1 artifact validation for ppo/coma trials, pareto, best config, and search_audit.json (passed)",
+      "python3 -m py_compile src/experiment/runtime_config.py src/experiment/physical_objective.py src/experiment/pareto.py scripts/tune_mainline_a_stage1.py scripts/train.py scripts/benchmark.py (passed)",
+      "pytest -q (failed during collection: missing torch and gymnasium)"
     ],
-    "summary": "Module 25 implementation validated; scope:review items pending human review."
+    "summary": "Focused Stage-1/runtime tests and static artifact validation passed. Actual train.py execution and full pytest are blocked in this WSL environment because torch and gymnasium are not installed."
   },
   "open_items": [
     "DASHBOARD-EXTERNAL-COMPAT: dashboard 兼容性需在外部仓库环境复核 (Medium, external)",
-    "Module 26: full-17 execution gate pending (dry-run → smoke → full benchmark)",
     "Module 25 Step 1/2/3/4/6: scope:review items awaiting human review",
-    ".vscode/launch.json: 8 entries pending review of naming/run strategy"
+    ".vscode/launch.json: 8 entries pending review of naming/run strategy",
+    "Module 26: full-17 Mainline-A run completed and data package created; algorithm screening/review pending",
+    "LOCAL-RUNTIME-DEPS: Stage-1 starter training subprocesses and full pytest require torch/gymnasium; current WSL python3 lacks both, so outputs/stage1 records failed trials with dependency errors."
   ],
-  "checkpoint_id": "checkpoint-v4.3-migration",
+  "checkpoint_id": "checkpoint-v4.4-stage1-tuning-started",
   "last_review_report": "Mainline-A N0/N1/N2/N3 experiment gate review: ACCEPTED_WITH_BOUNDARIES (2026-05-06)",
   "consumed_inbox": [
-    "system-model-overhaul-v4.3"
-  ]
+    "system-model-overhaul-v4.3",
+    "paper2-v4.4-mainline-a-stage1-tuning"
+  ],
+  "last_export_package": {
+    "run_id": "paper2_full_17_mainline_a",
+    "path": "paper2_full_17_mainline_a_export.zip",
+    "size_bytes": 1478571,
+    "size_mb": 1.41,
+    "contents": [
+      "run/state metadata",
+      "17 algorithm result.json files",
+      "17 train_logs.json convergence logs",
+      "17 TensorBoard event sets",
+      "stdout/stderr logs",
+      "analysis/final_metrics.csv",
+      "analysis/convergence_curves.csv",
+      "analysis/benchmark_normalized.json",
+      "analysis/checkpoint_inventory.csv"
+    ]
+  }
 }
