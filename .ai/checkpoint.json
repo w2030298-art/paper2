@@ -1,8 +1,8 @@
 {
   "schema_version": "wkstruc-checkpoint/v9",
-  "checkpoint_id": "checkpoint-v4.6-stage1-closeout-pass",
-  "created_at": "2026-05-13T01:37:39Z",
-  "ledger_task_id": "paper2-v4.6-stage1-closeout",
-  "notes": "v4.6 Stage-1 closeout passed: full pytest is green, docs-contract tests validate v9 .ai state, Stage-1 audit commands are portable, starter sampling is non-adaptive, and Stage-2 CL-PPO/GAM-COMA remains ref-only roadmap.",
-  "artifact": "outputs/stage1"
+  "checkpoint_id": "checkpoint-v4.7-stage2-algorithm-innovation-pass",
+  "created_at": "2026-05-13T02:32:24Z",
+  "ledger_task_id": "paper2-v4.7-stage2-algorithm-innovation",
+  "notes": "v4.7 patch passed: PPO/COMA defaults canonically match Stage-1 best artifacts, CL-PPO and GAM-COMA configs/agents are implemented and benchmark-registered, focused tests and full pytest pass in the repo-local stage1 venv. Experimental/statistical validation remains deferred.",
+  "artifact": "configs/algorithms, rl_algorithms, scripts/benchmark.py, tests"
 }

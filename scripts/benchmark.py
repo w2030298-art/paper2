@@ -49,6 +49,7 @@ from src.mec_model.config_schema import (  # noqa: E402
 ALGORITHM_CLASSES = {
     "GRPO": ("rl_algorithms.grpo", "GRPOAgent"),
     "PPO": ("rl_algorithms.ppo", "PPOAgent"),
+    "CL-PPO": ("rl_algorithms.cl_ppo", "CLPPOAgent"),
     "SAC": ("rl_algorithms.sac", "SACAgent"),
     "DDQN": ("rl_algorithms.ddqn", "DDQNAgent"),
     "DDPG": ("rl_algorithms.ddpg", "DDPGAgent"),
@@ -59,15 +60,17 @@ ALGORITHM_CLASSES = {
     "MAPPO": ("rl_algorithms.mappo", "MAPPOAgent"),
     "QMIX": ("rl_algorithms.qmix", "QMIXAgent"),
     "COMA": ("rl_algorithms.coma", "COMAAgent"),
+    "GAM-COMA": ("rl_algorithms.gam_coma", "GAMCOMAAgent"),
     "IPPO": ("rl_algorithms.ippo", "IPPOAgent"),
     "VDN": ("rl_algorithms.vdn", "VDNAgent"),
     "MADDPG": ("rl_algorithms.maddpg", "MADDPGAgent"),
     "IQL": ("rl_algorithms.iql", "IQLAgent"),
     "MATD3": ("rl_algorithms.matd3", "MATD3Agent"),
 }
-ON_POLICY = {"GRPO", "PPO", "A3C", "TRPO", "SimPO", "MAPPO", "COMA", "IPPO"}
+STAGE2_ALGOS = {"CL-PPO", "GAM-COMA"}
+ON_POLICY = {"GRPO", "PPO", "CL-PPO", "A3C", "TRPO", "SimPO", "MAPPO", "COMA", "GAM-COMA", "IPPO"}
 OFF_POLICY = {"SAC", "DDQN", "DDPG", "TD3", "QMIX", "VDN", "MADDPG", "IQL", "MATD3"}
-ALL_ALGOS = list(ALGORITHM_CLASSES.keys())
+ALL_ALGOS = [name for name in ALGORITHM_CLASSES if name not in STAGE2_ALGOS]
 ALGORITHM_ALIASES = {
     "game_aware_pd_marl": "MAPPO",
 }
@@ -77,11 +80,13 @@ ALGO_ENV_MAP = {
     "DDQN": "MEC-v1-game-theory-discrete-ma",
     "QMIX": "MEC-v1-game-theory-discrete-ma",
     "COMA": "MEC-v1-game-theory-discrete-ma",
+    "GAM-COMA": "MEC-v1-game-theory-discrete-ma",
     "IPPO": "MEC-v1-game-theory-discrete-ma",
     "VDN": "MEC-v1-game-theory-discrete-ma",
     "IQL": "MEC-v1-game-theory-discrete-ma",
     "GRPO": "MEC-v1-game-theory-continuous-ma",
     "PPO": "MEC-v1-game-theory-continuous-ma",
+    "CL-PPO": "MEC-v1-game-theory-continuous-ma",
     "TRPO": "MEC-v1-game-theory-continuous-ma",
     "SAC": "MEC-v1-game-theory-continuous-ma",
     "DDPG": "MEC-v1-game-theory-continuous-ma",
@@ -95,9 +100,9 @@ ALGO_ENV_MAP = {
     "Full-offload": "MEC-v1-game-theory-continuous-ma",
 }
 
-CONTINUOUS_ALGOS = {"SAC", "DDPG", "TD3", "MADDPG", "MATD3"}
-MULTI_AGENT_ALGOS = {"MAPPO", "QMIX", "COMA", "IPPO", "VDN", "MADDPG", "IQL", "MATD3"}
-DEEP_FUSION_ALGOS = {"GRPO", "MAPPO", "QMIX", "COMA", "IPPO", "VDN", "MADDPG", "IQL", "MATD3"}
+CONTINUOUS_ALGOS = {"CL-PPO", "SAC", "DDPG", "TD3", "MADDPG", "MATD3"}
+MULTI_AGENT_ALGOS = {"MAPPO", "QMIX", "COMA", "GAM-COMA", "IPPO", "VDN", "MADDPG", "IQL", "MATD3"}
+DEEP_FUSION_ALGOS = {"GRPO", "MAPPO", "QMIX", "COMA", "GAM-COMA", "IPPO", "VDN", "MADDPG", "IQL", "MATD3"}
 HEURISTIC_ALGOS = ["Greedy", "Random", "Local-only", "Full-offload"]
 
 SCALE_PRESETS = {
@@ -109,7 +114,7 @@ SCALE_PRESETS = {
 
 def _canonical_algorithm_name(name: str) -> str:
     """Return the registered algorithm name, accepting case-insensitive input."""
-    lookup = {algo.lower(): algo for algo in ALL_ALGOS}
+    lookup = {algo.lower(): algo for algo in ALGORITHM_CLASSES}
     lookup.update({algo.lower(): algo for algo in HEURISTIC_ALGOS})
     lookup.update(ALGORITHM_ALIASES)
     return lookup.get(str(name).lower(), name)
@@ -366,6 +371,17 @@ def create_agent(name, env, cfg, device, game_theory_overrides: Optional[Dict[st
                    value_coeff=float(pget("value_coeff", 0.5)),
                    ent_coeff=float(pget("ent_coeff", 0.01)),
                    num_epochs=int(pget("num_epochs", 10)), discrete=is_discrete_env)
+    if name == "CL-PPO":
+        is_discrete_env = isinstance(env.action_space, spaces.Discrete)
+        return cls(**kw, eps_clip=float(pget("eps_clip", 0.2)),
+                   gae_lambda=float(pget("gae_lambda", 0.95)),
+                   clip_grad=float(pget("clip_grad", 0.5)),
+                   value_coeff=float(pget("value_coeff", 0.5)),
+                   ent_coeff=float(pget("ent_coeff", 0.01)),
+                   num_epochs=int(pget("num_epochs", 10)), discrete=is_discrete_env,
+                   constraints=dict(cfg.get("constraints", {}) or {}),
+                   risk=dict(cfg.get("risk", {}) or {}),
+                   safety_layer=dict(cfg.get("safety_layer", {}) or {}))
     if name == "SAC":
         return cls(**kw, tau=float(pget("tau", 0.005)), alpha=float(pget("alpha", 0.2)),
                    automatic_entropy_tuning=bool(pget("automatic_entropy_tuning", True)),
@@ -423,6 +439,18 @@ def create_agent(name, env, cfg, device, game_theory_overrides: Optional[Dict[st
                    critic_loss_coeff=float(pget("critic_loss_coeff", 0.5)),
                    entropy_coeff=float(pget("entropy_coeff", 0.0)),
                    discrete=is_discrete_env)
+    if name == "GAM-COMA":
+        is_discrete_env = isinstance(env.action_space, spaces.Discrete)
+        return cls(**kw, num_agents=n_agents, num_epochs=int(pget("num_epochs", 10)),
+                   policy_clip_low=float(pget("policy_clip_low", 0.8)),
+                   policy_clip_high=float(pget("policy_clip_high", 1.2)),
+                   grad_clip=float(pget("grad_clip", 0.5)),
+                   critic_loss_coeff=float(pget("critic_loss_coeff", 0.5)),
+                   entropy_coeff=float(pget("entropy_coeff", 0.0)),
+                   discrete=is_discrete_env,
+                   graph_attention=dict(cfg.get("graph_attention", {}) or {}),
+                   action_masking=dict(cfg.get("action_masking", {}) or {}),
+                   social_influence=dict(cfg.get("social_influence", {}) or {}))
     if name == "IPPO":
         is_discrete_env = isinstance(env.action_space, spaces.Discrete)
         return cls(**kw, eps_clip=float(pget("eps_clip", 0.2)), num_epochs=int(pget("num_epochs", 10)),
@@ -1445,7 +1473,7 @@ def main():
             for h in HEURISTIC_ALGOS:
                 if h not in algorithms:
                     algorithms.append(h)
-        valid_algos = set(ALL_ALGOS) | set(HEURISTIC_ALGOS)
+        valid_algos = set(ALGORITHM_CLASSES) | set(HEURISTIC_ALGOS)
         for a in algorithms:
             if a not in valid_algos:
                 logger.error("Unknown algorithm: %s", a)
