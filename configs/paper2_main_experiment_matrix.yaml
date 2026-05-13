@@ -1,0 +1,127 @@
+schema_version: paper2-main-experiment-matrix/v1
+name: paper2_v48_main_experiment_matrix
+description: >-
+  Final paper2 experiment matrix for CL-PPO/GAM-COMA closeout. L1 and L2 are
+  non-final evidence levels; only L3 formal verification can support paper
+  claims.
+
+source_references:
+  - configs/formal_convergence_matrix.yaml
+  - configs/benchmark_mainline_a_final_screening.yaml
+  - ref/stage2-roadmap-cl-ppo-gam-coma.md
+  - ref/mainline_a_final_algorithm_adaptation.md
+
+algorithm_groups:
+  proposed:
+    - CL-PPO
+    - GAM-COMA
+  stage1_best_defaults:
+    - PPO
+    - COMA
+  strong_single_agent_baselines:
+    - SimPO
+    - TRPO
+    - GRPO
+    - DDPG
+    - TD3
+    - DDQN
+  strong_multi_agent_baselines:
+    - MAPPO
+    - MADDPG
+    - MATD3
+  diagnostic_only_or_frozen:
+    - IQL
+    - VDN
+    - QMIX
+    - IPPO
+    - SAC
+    - A3C
+
+default_execution_groups:
+  - proposed
+  - stage1_best_defaults
+  - strong_single_agent_baselines
+  - strong_multi_agent_baselines
+diagnostic_only_default_execution: false
+
+evidence_levels:
+  L1_screening:
+    steps: 50000
+    seeds: [42]
+    purpose: screening_only
+    final_claim: false
+  L2_candidate_validation:
+    steps: 100000
+    seeds: [42, 43, 44]
+    purpose: candidate_validation
+    final_claim: false
+  L3_formal_verification:
+    steps: 200000
+    seeds: [42, 43, 44, 45, 46]
+    purpose: formal_verification
+    final_claim: true
+final_claim_level: L3_formal_verification
+
+metrics:
+  reward_mean:
+    direction: maximize
+    role: primary
+  social_welfare_mean:
+    direction: maximize
+    role: primary
+  social_welfare_per_step_mean:
+    direction: maximize
+    role: secondary
+  throughput_tasks_per_step:
+    direction: maximize
+    role: secondary
+  agent_reward_jain_mean:
+    direction: maximize
+    role: secondary
+  comm_score:
+    direction: maximize
+    role: secondary
+  provider_revenue_proxy_mean:
+    direction: maximize
+    role: secondary
+  efx_satisfaction_rate:
+    direction: maximize
+    role: secondary
+  e2e_latency_mean:
+    direction: minimize
+    role: primary
+  e2e_latency_p95:
+    direction: minimize
+    role: safety
+  deadline_miss_rate:
+    direction: minimize
+    role: safety
+  energy_total_mean:
+    direction: minimize
+    role: secondary
+  energy_per_task_mean:
+    direction: minimize
+    role: secondary
+  constraint_violation_rate:
+    direction: minimize
+    role: safety
+  constraint_penalty_mean:
+    direction: minimize
+    role: safety
+  queue_wait_mean:
+    direction: minimize
+    role: secondary
+  price_mean:
+    direction: minimize
+    role: secondary
+
+gates:
+  reward_best_tail_gap_max: 0.10
+  metric_regression_max: 0.10
+  catastrophic_outlier_count: 0
+  failed_seed_count: 0
+
+claim_policy:
+  dry_run_manifest_is_result: false
+  l1_l2_final_claim_allowed: false
+  final_claim_requires: L3_formal_verification

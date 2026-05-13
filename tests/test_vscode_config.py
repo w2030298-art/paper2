@@ -12,8 +12,8 @@ def test_launch_json_is_valid_json() -> None:
     assert isinstance(configurations, list)
 
 
-def test_launch_json_contains_only_slim_mainline_a_entries() -> None:
-    """The old expanded debug surface should not return."""
+def test_launch_json_contains_only_reviewed_mainline_a_and_paper2_entries() -> None:
+    """The launch surface should stay exact and reviewed."""
     configurations = _launch_configurations()
     assert [item["name"] for item in configurations] == EXPECTED_ENTRY_NAMES
 

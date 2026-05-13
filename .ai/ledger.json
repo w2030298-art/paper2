@@ -1,16 +1,16 @@
 {
   "schema_version": "wkstruc-ledger/v9",
-  "task_id": "paper2-v4.7-stage2-algorithm-innovation",
+  "task_id": "paper2-v4.8-final-experiment-closeout",
   "state": "NEEDS_REVIEW",
   "progress": {
-    "done": 5,
-    "total": 5,
-    "label": "5 / 5 steps"
+    "done": 8,
+    "total": 8,
+    "label": "8 / 8 steps"
   },
   "last_run": {
-    "at": "2026-05-13T02:32:24Z",
+    "at": "2026-05-13T07:37:02Z",
     "agent": "codex",
-    "summary": "Completed v4.7 Stage-2 algorithm innovation patch. PPO/COMA defaults now canonically match Stage-1 best artifacts; CL-PPO and GAM-COMA configs/agents were implemented and registered in benchmark; synthetic update, registration, Stage-1 regression, py_compile, and full pytest validation passed. No experiment matrix, statistical validation, or paper plotting pipeline was added."
+    "summary": "Completed v4.8 final experiment closeout patch. Added main/scenario experiment matrices, dry-run matrix runner, statistics pipeline, final figure/export dry-run tooling, final ref artifacts, and VSCode entries. Focused validation and full pytest passed; no PPO/COMA/CL-PPO/GAM-COMA core logic or frozen Mainline-A core file was intentionally modified in this patch."
   },
   "previous_validation": {
     "task_id": "paper2-v4.4-mainline-a-stage1-tuning",
@@ -33,37 +33,47 @@
   "validation": {
     "status": "PASS",
     "commands": [
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_stage1_best_defaults_applied.py tests/test_algorithm_config_boundaries.py -q (3 passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_cl_ppo_agent.py -q (3 passed, 1 warning: CUDA driver too old; CPU fallback used)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_gam_coma_agent.py -q (3 passed, 1 warning: CUDA driver too old; CPU fallback used)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_stage2_algorithm_registration.py -q (3 passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_stage1_tuner_config_generation.py tests/test_stage1_search_audit.py tests/test_stage1_best_config_gate.py -q (9 passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile rl_algorithms/ppo.py rl_algorithms/coma.py rl_algorithms/cl_ppo.py rl_algorithms/gam_coma.py scripts/benchmark.py (passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_coma_externalized_hparams.py tests/test_benchmark_environment_profile.py -q (5 passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest -q (294 passed, 1 warning: CUDA driver too old; CPU fallback used)",
-      "Stage-1 default equality validation: configs/algorithms/ppo.yaml == outputs/stage1/ppo_best_config.yaml and configs/algorithms/coma.yaml == outputs/stage1/coma_best_config.yaml (passed)",
-      "Graphify structure query against existing graphify-out/graph.json completed for PPO/COMA benchmark registration context; line-ending-only graphify-out changes were normalized back out (passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/ledger.json >/tmp/paper2_ledger_v47.json and .ai/checkpoint.json >/tmp/paper2_checkpoint_v47.json (passed)",
-      "Ledger schema validation attempt: jsonschema not installed in repo-local stage1 venv; json.tool validation passed and required v9 fields are present",
-      "Final ledger/checkpoint/inbox validation: ledger state NEEDS_REVIEW, validation PASS, progress 5/5, .ai/inbox/plan.md removed (passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_docs_contract.py tests/test_repo_hygiene.py -q (9 passed after final ledger update)"
+      "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/ledger.json >/tmp/paper2_ledger_v48_start.json (passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/checkpoint.json >/tmp/paper2_checkpoint_v48_start.json (passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_repo_hygiene.py tests/test_docs_contract.py -q (9 passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_paper2_main_experiment_matrix.py tests/test_stage2_algorithm_registration.py tests/test_benchmark_mainline_a_config.py -q (10 passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile scripts/benchmark.py (passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_paper2_scenario_matrix.py tests/test_benchmark_environment_profile.py -q (9 passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python scripts/run_paper2_main_matrix.py --matrix configs/paper2_main_experiment_matrix.yaml --scenario-matrix configs/paper2_scenario_matrix.yaml --level L1_screening --dry-run --output results/paper2_main_matrix/dry_run_manifest.json (65 planned runs)",
+      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_paper2_main_matrix_runner.py -q (3 passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile scripts/run_paper2_main_matrix.py (passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python scripts/analyze_paper2_statistics.py --input results/paper2_main_matrix/dry_run_manifest.json --output-dir results/paper2_statistics --dry-run (stats_plan.json written)",
+      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_paper2_statistics_pipeline.py -q (3 passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile scripts/analyze_paper2_statistics.py (passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python scripts/generate_paper2_figures.py --results results/paper2_main_matrix/dry_run_manifest.json --output-dir figures/paper2_final --dry-run (figure_plan.json written)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python scripts/export_paper2_final_package.py --dry-run --output paper2_final_delivery_package.zip (package manifest written)",
+      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_paper2_final_artifacts.py -q (3 passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile scripts/generate_paper2_figures.py scripts/export_paper2_final_package.py (passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_vscode_launch_mainline_a.py tests/test_vscode_config.py -q (14 passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .vscode/launch.json >/tmp/paper2_vscode_launch_v48.json (passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile scripts/run_paper2_main_matrix.py scripts/analyze_paper2_statistics.py scripts/generate_paper2_figures.py scripts/export_paper2_final_package.py scripts/benchmark.py scripts/plot_results.py (passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH pytest -q (316 passed, 1 warning: CUDA driver too old; CPU-compatible path used)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/ledger.json >/tmp/paper2_ledger_v48_final.json (passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/checkpoint.json >/tmp/paper2_checkpoint_v48_final.json (passed)",
+      "test ! -s .ai/inbox/plan.md || test ! -e .ai/inbox/plan.md (passed)",
+      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_docs_contract.py -q (4 passed after inbox cleanup)"
     ],
-    "summary": "v4.7 patch passed in the repo-local stage1 venv. Stage-1 best PPO/COMA artifacts are now defaults; CLPPOAgent and GAMCOMAAgent import, instantiate, run synthetic updates, round-trip state where applicable, and are benchmark-selectable. Full pytest passed."
+    "summary": "v4.8 focused validations and full pytest passed. Dry-run artifacts were generated as plans/manifests only and are not statistical experiment results."
   },
   "open_items": [
     "DASHBOARD-EXTERNAL-COMPAT: dashboard 兼容性需在外部仓库环境复核 (Medium, external)",
-    "Module 25 Step 1/2/3/4/6: scope:review items awaiting human review",
-    "Module 26: full-17 Mainline-A run completed and data package created; algorithm screening/review pending",
-    "paper2-v4.7: CL-PPO/GAM-COMA implementation is ready for human review; experimental design, multi-seed statistical validation, and paper figures remain intentionally deferred to a separate iteration."
+    "paper2-v4.8: L2/L3 heavy experiment execution was not run in this patch; real multi-seed outputs are required before paper-level statistical claims.",
+    "paper2-v4.8: main/scenario matrices, statistical methodology, and final delivery package are research-significant scope:review items requiring human review before final claims."
   ],
-  "checkpoint_id": "checkpoint-v4.7-stage2-algorithm-innovation-pass",
+  "checkpoint_id": "checkpoint-v4.8-final-experiment-closeout-pass",
   "last_review_report": "Mainline-A N0/N1/N2/N3 experiment gate review: ACCEPTED_WITH_BOUNDARIES (2026-05-06)",
   "consumed_inbox": [
     "system-model-overhaul-v4.3",
     "paper2-v4.4-mainline-a-stage1-tuning",
     "paper2-v4.5-stage1-review-repair",
     "paper2-v4.6-stage1-closeout",
-    "paper2-v4.7-stage2-algorithm-innovation"
+    "paper2-v4.7-stage2-algorithm-innovation",
+    "paper2-v4.8-final-experiment-closeout"
   ],
   "last_export_package": {
     "run_id": "paper2_full_17_mainline_a",

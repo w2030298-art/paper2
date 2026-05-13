@@ -1,8 +1,8 @@
 {
   "schema_version": "wkstruc-checkpoint/v9",
-  "checkpoint_id": "checkpoint-v4.7-stage2-algorithm-innovation-pass",
-  "created_at": "2026-05-13T02:32:24Z",
-  "ledger_task_id": "paper2-v4.7-stage2-algorithm-innovation",
-  "notes": "v4.7 patch passed: PPO/COMA defaults canonically match Stage-1 best artifacts, CL-PPO and GAM-COMA configs/agents are implemented and benchmark-registered, focused tests and full pytest pass in the repo-local stage1 venv. Experimental/statistical validation remains deferred.",
-  "artifact": "configs/algorithms, rl_algorithms, scripts/benchmark.py, tests"
+  "checkpoint_id": "checkpoint-v4.8-final-experiment-closeout-pass",
+  "created_at": "2026-05-13T07:37:02Z",
+  "ledger_task_id": "paper2-v4.8-final-experiment-closeout",
+  "notes": "v4.8 patch passed: main/scenario experiment matrices, dry-run matrix runner, statistics pipeline, final figure/export tooling, final delivery references, and VSCode entries are in place. Focused validations and full pytest passed. L2/L3 real experiment execution remains a separate operator action before paper-level claims.",
+  "artifact": "configs/paper2_main_experiment_matrix.yaml, configs/paper2_scenario_matrix.yaml, scripts/run_paper2_main_matrix.py, scripts/analyze_paper2_statistics.py, scripts/generate_paper2_figures.py, scripts/export_paper2_final_package.py, ref, .vscode/launch.json, tests"
 }

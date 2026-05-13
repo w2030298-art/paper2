@@ -1,0 +1,212 @@
+schema_version: paper2-scenario-matrix/v1
+name: paper2_v48_scenario_matrix
+description: >-
+  Scenario matrix for the paper2 final experiment closeout. The matrix covers
+  ID comparison, N1 oracle diagnostics, N2 ablations, and N3 OOD stress while
+  keeping the Mainline-A core mechanism frozen.
+
+frozen_mainline_a_core:
+  - src/environments/mec_v3/game_theory_env.py
+  - configs/system_model_mainline_a.yaml
+  - configs/pricing_dynamic_mainline_a.yaml
+
+common_metrics:
+  - reward_mean
+  - social_welfare_mean
+  - e2e_latency_mean
+  - e2e_latency_p95
+  - deadline_miss_rate
+  - energy_total_mean
+  - throughput_tasks_per_step
+  - agent_reward_jain_mean
+  - constraint_violation_rate
+  - queue_wait_mean
+  - comm_score
+
+scenarios:
+  ID-mainline-a:
+    stage: ID
+    description: In-distribution Mainline-A comparison against proposed algorithms and baselines.
+    profile:
+      mechanism_family: mainline-a
+      environment_profile: mainline-a
+      source_config: configs/benchmark_mainline_a_final_screening.yaml
+    allowed_algorithms:
+      - CL-PPO
+      - GAM-COMA
+      - PPO
+      - COMA
+      - SimPO
+      - TRPO
+      - GRPO
+      - DDPG
+      - TD3
+      - DDQN
+      - MAPPO
+      - MADDPG
+      - MATD3
+    metrics: &default_metrics
+      - reward_mean
+      - social_welfare_mean
+      - e2e_latency_mean
+      - e2e_latency_p95
+      - deadline_miss_rate
+      - energy_total_mean
+      - throughput_tasks_per_step
+      - agent_reward_jain_mean
+      - constraint_violation_rate
+      - queue_wait_mean
+      - comm_score
+    seeds_source: main_matrix.evidence_levels
+    steps_source: main_matrix.evidence_levels
+    output_subdir: paper2_main_matrix/id_mainline_a
+
+  N1-oracle-small:
+    stage: N1
+    description: Small-scale oracle boundary and feasibility reference.
+    oracle_reference: true
+    bounds:
+      num_users: [2, 3, 4]
+      num_edges: [2, 3]
+    profile:
+      mechanism_family: mainline-a
+      environment_profile: mainline-a
+      source_config: configs/experiments/mainline_a_n1_oracle.yaml
+    allowed_algorithms:
+      - CL-PPO
+      - GAM-COMA
+      - PPO
+      - COMA
+      - MAPPO
+    metrics:
+      - social_welfare_mean
+      - e2e_latency_mean
+      - constraint_violation_rate
+      - agent_reward_jain_mean
+    seeds_source: main_matrix.evidence_levels
+    steps_source: main_matrix.evidence_levels
+    output_subdir: paper2_main_matrix/n1_oracle_small
+
+  N2-cl-ppo-ablation:
+    stage: N2
+    description: CL-PPO ablations for constraint signal, risk critic, and safety layer.
+    profile:
+      mechanism_family: mainline-a
+      environment_profile: mainline-a
+      source_config: configs/experiments/mainline_a_n2_ablation.yaml
+    allowed_algorithms:
+      - CL-PPO
+    ablations:
+      - full
+      - no_constraint_signal
+      - no_risk_critic
+      - no_safety_layer
+    metrics: *default_metrics
+    seeds_source: main_matrix.evidence_levels
+    steps_source: main_matrix.evidence_levels
+    output_subdir: paper2_main_matrix/n2_cl_ppo_ablation
+
+  N2-gam-coma-ablation:
+    stage: N2
+    description: GAM-COMA ablations for graph attention, masking, warm start, and credit assignment.
+    profile:
+      mechanism_family: mainline-a
+      environment_profile: mainline-a
+      source_config: configs/experiments/mainline_a_n2_ablation.yaml
+    allowed_algorithms:
+      - GAM-COMA
+    ablations:
+      - full
+      - no_graph_attention
+      - no_feasible_action_masking
+      - no_warm_start
+      - no_shapley_credit
+    metrics: *default_metrics
+    seeds_source: main_matrix.evidence_levels
+    steps_source: main_matrix.evidence_levels
+    output_subdir: paper2_main_matrix/n2_gam_coma_ablation
+
+  N3-ood-topology:
+    stage: N3
+    description: More users and edges than ID under the frozen Mainline-A mechanism family.
+    profile:
+      mechanism_family: mainline-a
+      environment_profile: mainline-a
+      source_config: configs/experiments/mainline_a_n3_ood.yaml
+      users: 40
+      edges: 6
+    allowed_algorithms: &n3_algorithms
+      - CL-PPO
+      - GAM-COMA
+      - PPO
+      - COMA
+      - SimPO
+      - TRPO
+      - DDPG
+      - TD3
+      - MAPPO
+    metrics: *default_metrics
+    seeds_source: main_matrix.evidence_levels
+    steps_source: main_matrix.evidence_levels
+    output_subdir: paper2_main_matrix/n3_ood_topology
+
+  N3-ood-load:
+    stage: N3
+    description: Higher task arrival and queue pressure profile.
+    profile:
+      mechanism_family: mainline-a
+      environment_profile: mainline-a
+      source_config: configs/experiments/mainline_a_n3_ood.yaml
+      load_profile: high
+      queue_pressure: high
+    allowed_algorithms: *n3_algorithms
+    metrics: *default_metrics
+    seeds_source: main_matrix.evidence_levels
+    steps_source: main_matrix.evidence_levels
+    output_subdir: paper2_main_matrix/n3_ood_load
+
+  N3-ood-channel-mobility:
+    stage: N3
+    description: 3gpp_lite channel, high mobility, and stochastic quality degradation.
+    profile:
+      mechanism_family: mainline-a
+      environment_profile: mainline-a
+      source_config: configs/experiments/mainline_a_n3_ood.yaml
+      channel_model: 3gpp_lite
+      mobility_intensity: high
+      quality_degradation: stochastic
+    allowed_algorithms: *n3_algorithms
+    metrics: *default_metrics
+    seeds_source: main_matrix.evidence_levels
+    steps_source: main_matrix.evidence_levels
+    output_subdir: paper2_main_matrix/n3_ood_channel_mobility
+
+  N3-ood-deadline:
+    stage: N3
+    description: Tighter latency and deadline threshold profile.
+    profile:
+      mechanism_family: mainline-a
+      environment_profile: mainline-a
+      source_config: configs/experiments/mainline_a_n3_ood.yaml
+      deadline_profile: tight
+      latency_threshold: tight
+    allowed_algorithms: *n3_algorithms
+    metrics: *default_metrics
+    seeds_source: main_matrix.evidence_levels
+    steps_source: main_matrix.evidence_levels
+    output_subdir: paper2_main_matrix/n3_ood_deadline
+
+  N3-ood-cooperation-queue:
+    stage: N3
+    description: Cooperation enabled with parallel queue stress diagnostics.
+    profile:
+      mechanism_family: mainline-a
+      environment_profile: mainline-a
+      source_config: configs/experiments/mainline_a_n3_ood.yaml
+      cooperation_enabled: true
+      queue_model: parallel
+    allowed_algorithms: *n3_algorithms
+    metrics: *default_metrics
+    seeds_source: main_matrix.evidence_levels
+    steps_source: main_matrix.evidence_levels
+    output_subdir: paper2_main_matrix/n3_ood_cooperation_queue

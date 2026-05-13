@@ -157,6 +157,161 @@
       ]
     },
     {
+      "name": "Paper2 Main Matrix L1 Dry Run",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_paper2_main_matrix.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--matrix",
+        "configs/paper2_main_experiment_matrix.yaml",
+        "--scenario-matrix",
+        "configs/paper2_scenario_matrix.yaml",
+        "--level",
+        "L1_screening",
+        "--dry-run",
+        "--output",
+        "results/paper2_main_matrix/dry_run_manifest.json",
+        "--device",
+        "auto"
+      ]
+    },
+    {
+      "name": "Paper2 Main Matrix L2 Candidate Validation",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_paper2_main_matrix.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--matrix",
+        "configs/paper2_main_experiment_matrix.yaml",
+        "--scenario-matrix",
+        "configs/paper2_scenario_matrix.yaml",
+        "--level",
+        "L2_candidate_validation",
+        "--output",
+        "results/paper2_main_matrix/l2_candidate_manifest.json",
+        "--device",
+        "auto"
+      ]
+    },
+    {
+      "name": "Paper2 Main Matrix L3 Formal Verification",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_paper2_main_matrix.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--matrix",
+        "configs/paper2_main_experiment_matrix.yaml",
+        "--scenario-matrix",
+        "configs/paper2_scenario_matrix.yaml",
+        "--level",
+        "L3_formal_verification",
+        "--output",
+        "results/paper2_main_matrix/l3_formal_manifest.json",
+        "--device",
+        "auto"
+      ]
+    },
+    {
+      "name": "Paper2 Scenario Matrix Dry Run",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_paper2_main_matrix.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--matrix",
+        "configs/paper2_main_experiment_matrix.yaml",
+        "--scenario-matrix",
+        "configs/paper2_scenario_matrix.yaml",
+        "--level",
+        "L1_screening",
+        "--scenarios",
+        "ID-mainline-a,N1-oracle-small,N2-cl-ppo-ablation,N2-gam-coma-ablation",
+        "--dry-run",
+        "--output",
+        "results/paper2_main_matrix/scenario_dry_run_manifest.json",
+        "--device",
+        "auto"
+      ]
+    },
+    {
+      "name": "Paper2 Statistics Dry Run",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/analyze_paper2_statistics.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--input",
+        "results/paper2_main_matrix/dry_run_manifest.json",
+        "--output-dir",
+        "results/paper2_statistics",
+        "--dry-run"
+      ]
+    },
+    {
+      "name": "Paper2 Final Figures Dry Run",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/generate_paper2_figures.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--results",
+        "results/paper2_main_matrix/dry_run_manifest.json",
+        "--output-dir",
+        "figures/paper2_final",
+        "--dry-run"
+      ]
+    },
+    {
+      "name": "Paper2 Final Export Dry Run",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/export_paper2_final_package.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--dry-run",
+        "--output",
+        "paper2_final_delivery_package.zip"
+      ]
+    },
+    {
       "name": "Plot Latest",
       "type": "debugpy",
       "request": "launch",
