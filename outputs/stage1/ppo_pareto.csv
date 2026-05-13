@@ -1,1 +1,2 @@
 trial_id,trial_name,algorithm,environment_profile,seed,status,j_phys,feasible,pareto_eligible,p95_latency,mean_latency,energy_per_task,tail_instability,deadline_miss_rate,constraint_violation,reward_mean,result_json,config_path,error
+0001,sample-0001,PPO,mainline-a,42,success,0.13841913741063486,True,True,0.28111298177320676,0.14545408819651615,0.0030448681400850426,0.13565889357669061,0.0,0.0,-13.057334860117987,outputs/stage1/ppo/trial_0001/result_seed_42.json,outputs/stage1/ppo/trial_0001/config.yaml,

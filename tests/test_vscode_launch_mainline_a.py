@@ -8,7 +8,9 @@ EXPECTED_ENTRY_NAMES = [
     "Mainline-A Full 17 Fresh",
     "Resume",
     "Status",
-    "Export Results",
+    "Backup Full17 Mainline-A",
+    "Stage-1 Tune PPO Starter",
+    "Stage-1 Tune COMA Starter",
     "Direct Benchmark Dry Run",
     "Plot Latest",
     "Legacy Full 17 Fresh (Explicit Fallback)",
@@ -26,11 +28,12 @@ def _by_name(name: str) -> dict:
     return next(item for item in _launch_configurations() if item["name"] == name)
 
 
-def test_launch_json_has_no_more_than_eight_entries() -> None:
-    """VSCode launch entries should stay slim after the v4.3 migration."""
+def test_launch_json_has_exact_review_repair_entries() -> None:
+    """VSCode launch entries should match the v4.5 manual launch surface."""
     configurations = _launch_configurations()
     assert [item["name"] for item in configurations] == EXPECTED_ENTRY_NAMES
-    assert len(configurations) <= 8
+    assert len(configurations) == len(EXPECTED_ENTRY_NAMES)
+    assert "Export Results" not in [item["name"] for item in configurations]
 
 
 def test_mainline_a_full17_entry_is_default_profile() -> None:
@@ -52,6 +55,71 @@ def test_direct_benchmark_dry_run_uses_mainline_a_profile() -> None:
     configuration = _by_name("Direct Benchmark Dry Run")
     assert configuration["program"] == "${workspaceFolder}/scripts/benchmark.py"
     assert configuration["args"] == ["--all", "--environment-profile", "mainline-a", "--dry-run"]
+
+
+def test_backup_full17_mainline_a_uses_backup_script() -> None:
+    """Manual backup entry should call backup_experiment.py for the Mainline-A run."""
+    configuration = _by_name("Backup Full17 Mainline-A")
+    assert configuration["program"] == "${workspaceFolder}/scripts/backup_experiment.py"
+    assert configuration["args"] == [
+        "--run-id",
+        "paper2_full_17_mainline_a",
+        "--suffix",
+        "backup",
+        "--require-existing",
+    ]
+
+
+def test_stage1_ppo_starter_launch_invokes_tuner() -> None:
+    """PPO starter launch should run the Stage-1 tuner with the PPO search config."""
+    configuration = _by_name("Stage-1 Tune PPO Starter")
+    assert configuration["program"] == "${workspaceFolder}/scripts/tune_mainline_a_stage1.py"
+    assert configuration["args"] == [
+        "--algorithm",
+        "PPO",
+        "--search-config",
+        "configs/tuning/stage1_ppo_mainline_a.yaml",
+        "--mode",
+        "starter",
+        "--trials",
+        "4",
+        "--timesteps",
+        "10000",
+        "--seeds",
+        "42",
+        "--environment-profile",
+        "mainline-a",
+        "--device",
+        "auto",
+        "--output-dir",
+        "outputs/stage1",
+    ]
+
+
+def test_stage1_coma_starter_launch_invokes_tuner() -> None:
+    """COMA starter launch should run the Stage-1 tuner with the COMA search config."""
+    configuration = _by_name("Stage-1 Tune COMA Starter")
+    assert configuration["program"] == "${workspaceFolder}/scripts/tune_mainline_a_stage1.py"
+    assert configuration["args"] == [
+        "--algorithm",
+        "COMA",
+        "--search-config",
+        "configs/tuning/stage1_coma_mainline_a.yaml",
+        "--mode",
+        "starter",
+        "--trials",
+        "4",
+        "--timesteps",
+        "10000",
+        "--seeds",
+        "42",
+        "--environment-profile",
+        "mainline-a",
+        "--device",
+        "auto",
+        "--output-dir",
+        "outputs/stage1",
+    ]
 
 
 def test_legacy_entry_is_explicit_fallback() -> None:

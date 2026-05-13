@@ -1,13 +1,13 @@
 algorithm:
-  clip_grad: 0.5
-  ent_coeff: 0.003
-  eps_clip: 0.12
-  gae_lambda: 0.97
-  gamma: 0.992
+  clip_grad: 0.9245256973933917
+  ent_coeff: 0.007565559850956688
+  eps_clip: 0.08400172083562671
+  gae_lambda: 0.9247526386532208
+  gamma: 0.9872321073814883
   name: PPO
-  num_epochs: 8
+  num_epochs: 5
   type: on_policy
-  value_coeff: 0.5
+  value_coeff: 0.6383497437114556
 evaluation:
   deterministic: true
   num_episodes: 10
@@ -26,7 +26,7 @@ game_theory:
   - 0.1
   - 0.1
   use_shapley_credit: false
-  warm_start_lr_scale: 0.5
+  warm_start_lr_scale: 0.14684761993079623
   warm_start_steps: 0
 logging:
   checkpoint_dir: checkpoints/ppo
@@ -42,13 +42,13 @@ network:
   hidden_dim: 256
 training:
   batch_size: 128
-  lr: 0.00015
+  lr: 0.00024492178360187
   lr_schedule: false
-  rollout_steps: 2048
+  rollout_steps: 4096
   seed: 42
   total_timesteps: 100000
 stage1_tuning:
-  trial_id: '0000'
-  trial_name: PPO-B
+  trial_id: '0001'
+  trial_name: sample-0001
   source_search_config: configs/tuning/stage1_ppo_mainline_a.yaml
   environment_profile: mainline-a

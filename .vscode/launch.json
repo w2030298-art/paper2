@@ -56,10 +56,10 @@
       ]
     },
     {
-      "name": "Export Results",
+      "name": "Backup Full17 Mainline-A",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/scripts/experiment_manager.py",
+      "program": "${workspaceFolder}/scripts/backup_experiment.py",
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "justMyCode": false,
@@ -67,11 +67,75 @@
         "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
       },
       "args": [
-        "export",
         "--run-id",
         "paper2_full_17_mainline_a",
-        "--output",
-        "results/benchmark_paper2_full_17_mainline_a.json"
+        "--suffix",
+        "backup",
+        "--require-existing"
+      ]
+    },
+    {
+      "name": "Stage-1 Tune PPO Starter",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/tune_mainline_a_stage1.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--algorithm",
+        "PPO",
+        "--search-config",
+        "configs/tuning/stage1_ppo_mainline_a.yaml",
+        "--mode",
+        "starter",
+        "--trials",
+        "4",
+        "--timesteps",
+        "10000",
+        "--seeds",
+        "42",
+        "--environment-profile",
+        "mainline-a",
+        "--device",
+        "auto",
+        "--output-dir",
+        "outputs/stage1"
+      ]
+    },
+    {
+      "name": "Stage-1 Tune COMA Starter",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/tune_mainline_a_stage1.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--algorithm",
+        "COMA",
+        "--search-config",
+        "configs/tuning/stage1_coma_mainline_a.yaml",
+        "--mode",
+        "starter",
+        "--trials",
+        "4",
+        "--timesteps",
+        "10000",
+        "--seeds",
+        "42",
+        "--environment-profile",
+        "mainline-a",
+        "--device",
+        "auto",
+        "--output-dir",
+        "outputs/stage1"
       ]
     },
     {

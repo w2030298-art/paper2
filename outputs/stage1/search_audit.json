@@ -2,8 +2,34 @@
   "PPO": {
     "algorithm": "PPO",
     "environment_profile": "mainline-a",
-    "action_space": null,
-    "agent_runtime": null,
+    "action_space": {
+      "class_name": "Box",
+      "repr": "Box(-1.0, 1.0, (4,), float32)",
+      "shape": [
+        4
+      ],
+      "dtype": "float32",
+      "low": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "high": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "agent_runtime": {
+      "class_name": "PPOAgent",
+      "action_type": "continuous",
+      "discrete": false,
+      "num_agents": 1,
+      "state_dim": 60,
+      "action_dim": 4
+    },
     "search_config_path": "configs/tuning/stage1_ppo_mainline_a.yaml",
     "search_config_sha256": "c32db4a003fe512d34fb8933d7c6d43616db1b3a0abd71c5fe7635f557ccbb29",
     "base_config_path": "configs/algorithms/ppo.yaml",
@@ -25,7 +51,7 @@
         "trial_id": "0000",
         "seed": 42,
         "command": [
-          "/usr/bin/python3",
+          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/ppo/trial_0000/config.yaml",
@@ -47,7 +73,7 @@
         "trial_id": "0001",
         "seed": 42,
         "command": [
-          "/usr/bin/python3",
+          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/ppo/trial_0001/config.yaml",
@@ -69,7 +95,7 @@
         "trial_id": "0002",
         "seed": 42,
         "command": [
-          "/usr/bin/python3",
+          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/ppo/trial_0002/config.yaml",
@@ -91,7 +117,7 @@
         "trial_id": "0003",
         "seed": 42,
         "command": [
-          "/usr/bin/python3",
+          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/ppo/trial_0003/config.yaml",
@@ -119,8 +145,21 @@
   "COMA": {
     "algorithm": "COMA",
     "environment_profile": "mainline-a",
-    "action_space": null,
-    "agent_runtime": null,
+    "action_space": {
+      "class_name": "Discrete",
+      "repr": "Discrete(500)",
+      "shape": [],
+      "dtype": "int64",
+      "n": 500
+    },
+    "agent_runtime": {
+      "class_name": "COMAAgent",
+      "action_type": "discrete",
+      "discrete": true,
+      "num_agents": 3,
+      "state_dim": 60,
+      "action_dim": 500
+    },
     "search_config_path": "configs/tuning/stage1_coma_mainline_a.yaml",
     "search_config_sha256": "5040a9a9d3be39a0dda22ba0ec8ca3d569d05083d1a54b80d19402bc6b48dae4",
     "base_config_path": "configs/algorithms/coma.yaml",
@@ -142,7 +181,7 @@
         "trial_id": "0000",
         "seed": 42,
         "command": [
-          "/usr/bin/python3",
+          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/coma/trial_0000/config.yaml",
@@ -164,7 +203,7 @@
         "trial_id": "0001",
         "seed": 42,
         "command": [
-          "/usr/bin/python3",
+          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/coma/trial_0001/config.yaml",
@@ -186,7 +225,7 @@
         "trial_id": "0002",
         "seed": 42,
         "command": [
-          "/usr/bin/python3",
+          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/coma/trial_0002/config.yaml",
@@ -208,7 +247,7 @@
         "trial_id": "0003",
         "seed": 42,
         "command": [
-          "/usr/bin/python3",
+          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/coma/trial_0003/config.yaml",

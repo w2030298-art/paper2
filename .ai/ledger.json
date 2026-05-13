@@ -1,44 +1,74 @@
 {
   "schema_version": "wkstruc-ledger/v9",
-  "task_id": "paper2-v4.4-mainline-a-stage1-tuning",
+  "task_id": "paper2-v4.5-stage1-review-repair",
   "state": "NEEDS_REVIEW",
   "progress": {
-    "done": 8,
-    "total": 8,
-    "label": "8 / 8 steps"
+    "done": 7,
+    "total": 7,
+    "label": "7 / 7 steps"
   },
   "last_run": {
-    "at": "2026-05-12T11:16:07Z",
+    "at": "2026-05-12T15:21:31Z",
     "agent": "codex",
-    "summary": "Completed Mainline-A resolved runtime config repair, PPO/COMA boundary alignment, COMA externalized tuning knobs, Stage-1 search configs, tuner, and starter artifact generation. Training subprocesses were blocked by missing local torch/gymnasium dependencies."
+    "summary": "Completed v4.5 review repair. Dependencies installed in .tmp/stage1-venv; torch/gymnasium import succeeded; PPO and COMA starter pilots each produced 4/4 successful trials; Stage-1 best-config gating and VSCode launch updates passed focused validation. Full pytest remains PARTIAL because stale docs contract tests require out-of-scope docs files."
+  },
+  "previous_validation": {
+    "task_id": "paper2-v4.4-mainline-a-stage1-tuning",
+    "validation": {
+      "status": "PARTIAL",
+      "commands": [
+        "pytest tests/test_resolved_runtime_config.py tests/test_train_result_resolved_runtime.py tests/test_algorithm_config_boundaries.py tests/test_coma_externalized_hparams.py tests/test_stage1_search_space_configs.py tests/test_physical_objective.py tests/test_stage1_tuner_config_generation.py -q (14 passed)",
+        "python3 config boundary assertions for PPO/COMA total_timesteps and Stage-1 YAML recommended starts (passed)",
+        "python3 scripts/tune_mainline_a_stage1.py --algorithm PPO --search-config configs/tuning/stage1_ppo_mainline_a.yaml --mode dry-run --trials 2 --timesteps 64 --seeds 42 --environment-profile mainline-a --device cpu --output-dir /tmp/paper2_stage1_dryrun (passed)",
+        "python3 scripts/train.py --config configs/algorithms/ppo.yaml --algorithm PPO --environment-profile mainline-a --timesteps 32 --eval-episodes 1 --device cpu --result-json /tmp/paper2_ppo_resolved_runtime.json (failed: ModuleNotFoundError: No module named 'torch')",
+        "python3 scripts/tune_mainline_a_stage1.py --algorithm PPO --search-config configs/tuning/stage1_ppo_mainline_a.yaml --mode starter --trials 4 --timesteps 10000 --seeds 42 --environment-profile mainline-a --device auto --output-dir outputs/stage1 (artifact generation passed; trial training failed: missing torch)",
+        "python3 scripts/tune_mainline_a_stage1.py --algorithm COMA --search-config configs/tuning/stage1_coma_mainline_a.yaml --mode starter --trials 4 --timesteps 10000 --seeds 42 --environment-profile mainline-a --device auto --output-dir outputs/stage1 (artifact generation passed; trial training failed: missing torch)",
+        "python3 outputs/stage1 artifact validation for ppo/coma trials, pareto, best config, and search_audit.json (passed)",
+        "python3 -m py_compile src/experiment/runtime_config.py src/experiment/physical_objective.py src/experiment/pareto.py scripts/tune_mainline_a_stage1.py scripts/train.py scripts/benchmark.py (passed)",
+        "pytest -q (failed during collection: missing torch and gymnasium)"
+      ],
+      "summary": "Focused Stage-1/runtime tests and static artifact validation passed. Actual train.py execution and full pytest were blocked because torch and gymnasium were not installed."
+    }
   },
   "validation": {
     "status": "PARTIAL",
     "commands": [
-      "pytest tests/test_resolved_runtime_config.py tests/test_train_result_resolved_runtime.py tests/test_algorithm_config_boundaries.py tests/test_coma_externalized_hparams.py tests/test_stage1_search_space_configs.py tests/test_physical_objective.py tests/test_stage1_tuner_config_generation.py -q (14 passed)",
-      "python3 config boundary assertions for PPO/COMA total_timesteps and Stage-1 YAML recommended starts (passed)",
-      "python3 scripts/tune_mainline_a_stage1.py --algorithm PPO --search-config configs/tuning/stage1_ppo_mainline_a.yaml --mode dry-run --trials 2 --timesteps 64 --seeds 42 --environment-profile mainline-a --device cpu --output-dir /tmp/paper2_stage1_dryrun (passed)",
-      "python3 scripts/train.py --config configs/algorithms/ppo.yaml --algorithm PPO --environment-profile mainline-a --timesteps 32 --eval-episodes 1 --device cpu --result-json /tmp/paper2_ppo_resolved_runtime.json (failed: ModuleNotFoundError: No module named 'torch')",
-      "python3 scripts/tune_mainline_a_stage1.py --algorithm PPO --search-config configs/tuning/stage1_ppo_mainline_a.yaml --mode starter --trials 4 --timesteps 10000 --seeds 42 --environment-profile mainline-a --device auto --output-dir outputs/stage1 (artifact generation passed; trial training failed: missing torch)",
-      "python3 scripts/tune_mainline_a_stage1.py --algorithm COMA --search-config configs/tuning/stage1_coma_mainline_a.yaml --mode starter --trials 4 --timesteps 10000 --seeds 42 --environment-profile mainline-a --device auto --output-dir outputs/stage1 (artifact generation passed; trial training failed: missing torch)",
-      "python3 outputs/stage1 artifact validation for ppo/coma trials, pareto, best config, and search_audit.json (passed)",
-      "python3 -m py_compile src/experiment/runtime_config.py src/experiment/physical_objective.py src/experiment/pareto.py scripts/tune_mainline_a_stage1.py scripts/train.py scripts/benchmark.py (passed)",
-      "pytest -q (failed during collection: missing torch and gymnasium)"
+      "python - <<'PY' ... ledger v4.5 start validation (failed: /bin/bash: python: command not found)",
+      "python3 - <<'PY' ... ledger v4.5 start validation (passed)",
+      "python3 -m pip install -r requirements.txt (failed: externally-managed-environment / PEP 668)",
+      "uv venv .tmp/stage1-venv --python python3.12 (passed after clearing incomplete ensurepip-created venv)",
+      "uv pip install --python .tmp/stage1-venv/bin/python pip (passed)",
+      "uv pip install --python .tmp/stage1-venv/bin/python PySocks (passed; required for current SOCKS proxy)",
+      "PATH=\"$PWD/.tmp/stage1-venv/bin:$PATH\" python -m pip install -r requirements.txt (passed; installed torch 2.11.0 and gymnasium 1.3.0)",
+      "PATH=\"$PWD/.tmp/stage1-venv/bin:$PATH\" python - <<'PY' import torch, gymnasium ... (passed: torch 2.11.0+cu130, gymnasium 1.3.0)",
+      "pytest tests/test_stage1_best_config_gate.py -q (red before fix: 1 failed, 2 passed; green after fix: 3 passed)",
+      "pytest tests/test_stage1_tuner_config_generation.py -q (2 passed)",
+      "AGENTS.md stale docs protocol validation (passed)",
+      "python scripts/tune_mainline_a_stage1.py --algorithm PPO --search-config configs/tuning/stage1_ppo_mainline_a.yaml --mode starter --trials 4 --timesteps 10000 --seeds 42 --environment-profile mainline-a --device auto --output-dir outputs/stage1 (passed; 4/4 successful trials)",
+      "python scripts/tune_mainline_a_stage1.py --algorithm COMA --search-config configs/tuning/stage1_coma_mainline_a.yaml --mode starter --trials 4 --timesteps 10000 --seeds 42 --environment-profile mainline-a --device auto --output-dir outputs/stage1 (passed; 4/4 successful trials)",
+      "outputs/stage1 artifact validation for PPO/COMA successful trials, empirical best configs, and non-empty audit action_space/agent_runtime (passed)",
+      "pytest tests/test_vscode_launch_mainline_a.py -q (red before launch update: 4 failed, 4 passed; green after update: 8 passed)",
+      "python -m json.tool .vscode/launch.json >/tmp/launch.json.validated (passed)",
+      "pytest tests/test_resolved_runtime_config.py tests/test_train_result_resolved_runtime.py tests/test_algorithm_config_boundaries.py tests/test_coma_externalized_hparams.py tests/test_stage1_search_space_configs.py tests/test_physical_objective.py tests/test_stage1_tuner_config_generation.py tests/test_vscode_launch_mainline_a.py -q (22 passed)",
+      "pytest tests/test_stage1_best_config_gate.py -q (3 passed)",
+      "pytest -q (failed: 275 passed, 4 failed, 1 warning; failures are tests/test_docs_contract.py::test_docs_required_files_exist, tests/test_docs_contract.py::test_docs_required_directories_exist, tests/test_docs_contract.py::test_docs_readme_defines_active_and_archive_contract, tests/test_repo_hygiene.py::test_docs_slimming_manifest_records_dashboard_check)",
+      "python -m py_compile src/experiment/runtime_config.py src/experiment/physical_objective.py src/experiment/pareto.py scripts/tune_mainline_a_stage1.py scripts/train.py scripts/benchmark.py scripts/backup_experiment.py (passed)",
+      "python - <<'PY' ... final ledger schema/state/inbox validation (passed)"
     ],
-    "summary": "Focused Stage-1/runtime tests and static artifact validation passed. Actual train.py execution and full pytest are blocked in this WSL environment because torch and gymnasium are not installed."
+    "summary": "Core v4.5 repair validation passed: dependencies import, PPO/COMA starter reruns, Stage-1 artifacts, focused tests, launch JSON, and py_compile. Full pytest is PARTIAL due four stale docs-contract tests requiring docs files that this patch explicitly must not create."
   },
   "open_items": [
+    "FULL-PYTEST-DOCS-CONTRACT: Full pytest fails on stale docs contract tests requiring docs/README.md, docs/plan.md, docs/progress.md, docs/issues.md, docs/inbox, docs/references, docs/archive, and docs/DOCS_SLIMMING_MANIFEST.md; this patch scope forbids creating docs state files.",
     "DASHBOARD-EXTERNAL-COMPAT: dashboard 兼容性需在外部仓库环境复核 (Medium, external)",
     "Module 25 Step 1/2/3/4/6: scope:review items awaiting human review",
-    ".vscode/launch.json: 8 entries pending review of naming/run strategy",
-    "Module 26: full-17 Mainline-A run completed and data package created; algorithm screening/review pending",
-    "LOCAL-RUNTIME-DEPS: Stage-1 starter training subprocesses and full pytest require torch/gymnasium; current WSL python3 lacks both, so outputs/stage1 records failed trials with dependency errors."
+    "Module 26: full-17 Mainline-A run completed and data package created; algorithm screening/review pending"
   ],
-  "checkpoint_id": "checkpoint-v4.4-stage1-tuning-started",
+  "checkpoint_id": "checkpoint-v4.5-stage1-review-repair-partial",
   "last_review_report": "Mainline-A N0/N1/N2/N3 experiment gate review: ACCEPTED_WITH_BOUNDARIES (2026-05-06)",
   "consumed_inbox": [
     "system-model-overhaul-v4.3",
-    "paper2-v4.4-mainline-a-stage1-tuning"
+    "paper2-v4.4-mainline-a-stage1-tuning",
+    "paper2-v4.5-stage1-review-repair"
   ],
   "last_export_package": {
     "run_id": "paper2_full_17_mainline_a",

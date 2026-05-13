@@ -186,20 +186,45 @@ def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def _write_best_config(path: Path, rows: list[dict[str, Any]]) -> None:
+    def finite_j_phys(row: dict[str, Any]) -> float:
+        try:
+            return float(row.get("j_phys", "inf"))
+        except (TypeError, ValueError):
+            return float("inf")
+
     successful = [
-        row for row in rows if row.get("status") == "success" and math.isfinite(float(row.get("j_phys", "inf")))
+        row
+        for row in rows
+        if row.get("status") == "success" and math.isfinite(finite_j_phys(row))
     ]
-    if successful:
-        best = min(successful, key=lambda row: float(row["j_phys"]))
-    elif rows:
-        best = rows[0]
-    else:
-        best = {}
+    if not successful:
+        path.write_text(
+            yaml.safe_dump(
+                {
+                    "status": "no_successful_trial",
+                    "reason": "all_trials_failed_or_infeasible",
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        return
+
+    best = min(successful, key=finite_j_phys)
     source = Path(best.get("config_path", "")) if best.get("config_path") else None
     if source is not None and source.exists():
         path.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
     else:
-        path.write_text(yaml.safe_dump({"status": "no_successful_trial"}, sort_keys=False), encoding="utf-8")
+        path.write_text(
+            yaml.safe_dump(
+                {
+                    "status": "no_successful_trial",
+                    "reason": "all_trials_failed_or_infeasible",
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
 
 
 def _load_existing_audit(path: Path) -> dict[str, Any]:

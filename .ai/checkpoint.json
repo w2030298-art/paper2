@@ -1,8 +1,8 @@
 {
   "schema_version": "wkstruc-checkpoint/v9",
-  "checkpoint_id": "checkpoint-v4.4-stage1-tuning-started",
-  "created_at": "2026-05-12T11:16:07Z",
-  "ledger_task_id": "paper2-v4.4-mainline-a-stage1-tuning",
-  "notes": "Runtime boundary repair completed; PPO/COMA Stage-1 starter pilot artifacts generated. Training execution requires rerun in an environment with torch/gymnasium installed.",
+  "checkpoint_id": "checkpoint-v4.5-stage1-review-repair-partial",
+  "created_at": "2026-05-12T15:21:31Z",
+  "ledger_task_id": "paper2-v4.5-stage1-review-repair",
+  "notes": "v4.5 review repair completed with PARTIAL validation: torch/gymnasium imports pass in .tmp/stage1-venv, PPO/COMA starter pilots each produced 4/4 successful trials, focused tests and py_compile pass, and full pytest has 4 stale docs-contract failures.",
   "artifact": "outputs/stage1"
 }
