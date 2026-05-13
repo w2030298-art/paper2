@@ -4,6 +4,7 @@ from pathlib import Path
 
 import yaml
 
+import scripts.tune_mainline_a_stage1 as tuner
 from scripts.tune_mainline_a_stage1 import (
     generate_trial_configs,
     load_search_config,
@@ -20,6 +21,24 @@ def test_generate_trial_configs_uses_recommended_start_as_trial_zero() -> None:
     assert trials[0]["name"] == "PPO-B"
     assert trials[0]["params"]["training.lr"] == 0.00015
     assert trials[1]["trial_id"] == "0001"
+
+
+def test_generate_trial_configs_uses_non_adaptive_starter_sampling(monkeypatch) -> None:
+    """Starter trials should not call a no-feedback Optuna/TPE suggestion path."""
+    cfg = load_search_config("configs/tuning/stage1_ppo_mainline_a.yaml")
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("starter generation must not call no-feedback Optuna sampling")
+
+    monkeypatch.setattr(tuner, "_sample_with_optuna", fail_if_called, raising=False)
+
+    trials = generate_trial_configs(cfg, trials=3, seed=42)
+
+    assert [trial["sampling"] for trial in trials] == [
+        "recommended_start",
+        "deterministic_random",
+        "deterministic_random",
+    ]
 
 
 def test_materialize_trial_config_applies_dotted_overrides(tmp_path: Path) -> None:

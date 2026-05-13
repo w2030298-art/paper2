@@ -1,8 +1,8 @@
 {
   "schema_version": "wkstruc-checkpoint/v9",
-  "checkpoint_id": "checkpoint-v4.5-stage1-review-repair-partial",
-  "created_at": "2026-05-12T15:21:31Z",
-  "ledger_task_id": "paper2-v4.5-stage1-review-repair",
-  "notes": "v4.5 review repair completed with PARTIAL validation: torch/gymnasium imports pass in .tmp/stage1-venv, PPO/COMA starter pilots each produced 4/4 successful trials, focused tests and py_compile pass, and full pytest has 4 stale docs-contract failures.",
+  "checkpoint_id": "checkpoint-v4.6-stage1-closeout-pass",
+  "created_at": "2026-05-13T01:37:39Z",
+  "ledger_task_id": "paper2-v4.6-stage1-closeout",
+  "notes": "v4.6 Stage-1 closeout passed: full pytest is green, docs-contract tests validate v9 .ai state, Stage-1 audit commands are portable, starter sampling is non-adaptive, and Stage-2 CL-PPO/GAM-COMA remains ref-only roadmap.",
   "artifact": "outputs/stage1"
 }

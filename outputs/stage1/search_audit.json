@@ -39,6 +39,11 @@
       "deterministic_random",
       "recommended_start"
     ],
+    "sampling_semantics": {
+      "mode": "starter",
+      "adaptive_feedback": false,
+      "description": "recommended_start plus deterministic_random samples; no objective-feedback BO/TPE or pruning loop"
+    },
     "pruning_eligibility_rules": {
       "constraint_violation": "must be zero",
       "PPO_deadline_miss_rate_max": 0.001,
@@ -51,7 +56,7 @@
         "trial_id": "0000",
         "seed": 42,
         "command": [
-          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
+          "python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/ppo/trial_0000/config.yaml",
@@ -73,7 +78,7 @@
         "trial_id": "0001",
         "seed": 42,
         "command": [
-          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
+          "python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/ppo/trial_0001/config.yaml",
@@ -95,7 +100,7 @@
         "trial_id": "0002",
         "seed": 42,
         "command": [
-          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
+          "python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/ppo/trial_0002/config.yaml",
@@ -117,7 +122,7 @@
         "trial_id": "0003",
         "seed": 42,
         "command": [
-          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
+          "python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/ppo/trial_0003/config.yaml",
@@ -169,6 +174,11 @@
       "deterministic_random",
       "recommended_start"
     ],
+    "sampling_semantics": {
+      "mode": "starter",
+      "adaptive_feedback": false,
+      "description": "recommended_start plus deterministic_random samples; no objective-feedback BO/TPE or pruning loop"
+    },
     "pruning_eligibility_rules": {
       "constraint_violation": "must be zero",
       "PPO_deadline_miss_rate_max": 0.001,
@@ -181,7 +191,7 @@
         "trial_id": "0000",
         "seed": 42,
         "command": [
-          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
+          "python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/coma/trial_0000/config.yaml",
@@ -203,7 +213,7 @@
         "trial_id": "0001",
         "seed": 42,
         "command": [
-          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
+          "python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/coma/trial_0001/config.yaml",
@@ -225,7 +235,7 @@
         "trial_id": "0002",
         "seed": 42,
         "command": [
-          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
+          "python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/coma/trial_0002/config.yaml",
@@ -247,7 +257,7 @@
         "trial_id": "0003",
         "seed": 42,
         "command": [
-          "/mnt/c/Users/22003/paper2/paper2/.tmp/stage1-venv/bin/python",
+          "python",
           "scripts/train.py",
           "--config",
           "outputs/stage1/coma/trial_0003/config.yaml",

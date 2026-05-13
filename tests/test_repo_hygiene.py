@@ -71,10 +71,15 @@ def test_gitignore_covers_generated_artifacts() -> None:
         assert pattern in gitignore
 
 
-def test_docs_slimming_manifest_records_dashboard_check() -> None:
-    """Slim docs manifest should record the v4.3 package boundary."""
-    audit = (ROOT / "docs" / "DOCS_SLIMMING_MANIFEST.md").read_text(encoding="utf-8")
+def test_obsolete_docs_state_files_are_not_required() -> None:
+    """v9 uses .ai/ledger.json state instead of long-lived docs state files."""
+    obsolete_state_paths = [
+        "docs/plan.md",
+        "docs/progress.md",
+        "docs/issues.md",
+        "docs/DOCS_SLIMMING_MANIFEST.md",
+    ]
 
-    assert "paper2-docs-slim-v4.3" in audit
-    assert "Long historical module-by-module plan" in audit
-    assert "Do not copy long archived docs back into active `docs/`" in audit
+    assert (ROOT / ".ai" / "ledger.json").is_file()
+    for rel_path in obsolete_state_paths:
+        assert not (ROOT / rel_path).exists(), f"{rel_path} should not be required"

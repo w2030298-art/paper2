@@ -71,34 +71,8 @@ def _sample_param(spec: dict[str, Any], rng: random.Random) -> Any:
     return float(rng.uniform(low, high))
 
 
-def _sample_with_optuna(search_space: dict[str, dict[str, Any]], trial_index: int, seed: int) -> dict[str, Any] | None:
-    try:
-        import optuna
-    except ImportError:
-        return None
-
-    sampler = optuna.samplers.TPESampler(seed=seed)
-    study = optuna.create_study(direction="minimize", sampler=sampler)
-    params: dict[str, Any] = {}
-    for _ in range(max(1, trial_index)):
-        trial = study.ask()
-        params = {}
-        for name, spec in search_space.items():
-            kind = str(spec.get("type", "float"))
-            if kind == "categorical":
-                params[name] = trial.suggest_categorical(name, list(spec["choices"]))
-            elif kind == "log_float":
-                params[name] = trial.suggest_float(name, float(spec["low"]), float(spec["high"]), log=True)
-            elif kind == "int":
-                params[name] = trial.suggest_int(name, int(spec["low"]), int(spec["high"]))
-            else:
-                params[name] = trial.suggest_float(name, float(spec["low"]), float(spec["high"]))
-        study.tell(trial, float(trial_index))
-    return params
-
-
 def generate_trial_configs(search_cfg: dict[str, Any], trials: int, seed: int = 42) -> list[dict[str, Any]]:
-    """Generate trial parameter sets, with trial 0000 fixed to the recommended start."""
+    """Generate non-adaptive starter trials with trial 0000 fixed to the recommended start."""
     if trials < 1:
         return []
     generated = [
@@ -112,16 +86,13 @@ def generate_trial_configs(search_cfg: dict[str, Any], trials: int, seed: int = 
     search_space = search_cfg.get("search_space", {}) or {}
     rng = random.Random(seed)
     for idx in range(1, trials):
-        params = _sample_with_optuna(search_space, idx, seed)
-        sampling = "optuna_tpe" if params is not None else "deterministic_random"
-        if params is None:
-            params = {name: _sample_param(spec, rng) for name, spec in search_space.items()}
+        params = {name: _sample_param(spec, rng) for name, spec in search_space.items()}
         generated.append(
             {
                 "trial_id": f"{idx:04d}",
                 "name": f"sample-{idx:04d}",
                 "params": params,
-                "sampling": sampling,
+                "sampling": "deterministic_random",
             }
         )
     return generated
@@ -242,6 +213,11 @@ def _write_audit(path: Path, algorithm: str, audit: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+def _portable_command(command: list[str]) -> list[str]:
+    """Return a stable command form for committed audit provenance."""
+    return ["python", *command[1:]]
+
+
 def _run_trial(
     *,
     search_cfg: dict[str, Any],
@@ -254,7 +230,7 @@ def _run_trial(
 ) -> tuple[dict[str, Any], dict[str, Any] | None, list[str]]:
     trial_dir = config_path.parent
     result_json = trial_dir / f"result_seed_{seed}.json"
-    command = [
+    execution_command = [
         sys.executable,
         "scripts/train.py",
         "--config",
@@ -291,10 +267,10 @@ def _run_trial(
                 "error": "",
             }
         )
-        return row, None, command
+        return row, None, _portable_command(execution_command)
 
     completed = subprocess.run(
-        command,
+        execution_command,
         cwd=PROJECT_ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -312,7 +288,7 @@ def _run_trial(
                 "error": error[-1] if error else f"train.py exited {completed.returncode}",
             }
         )
-        return row, None, command
+        return row, None, _portable_command(execution_command)
 
     payload = json.loads(result_json.read_text(encoding="utf-8"))
     metrics = extract_stage1_metrics(payload.get("final_eval", payload))
@@ -334,7 +310,7 @@ def _run_trial(
             "error": "",
         }
     )
-    return row, payload, command
+    return row, payload, _portable_command(execution_command)
 
 
 def parse_args() -> argparse.Namespace:
@@ -406,6 +382,11 @@ def main() -> None:
             "base_config_sha256": sha256_file(PROJECT_ROOT / str(search_cfg["base_config"])),
             "mode": args.mode,
             "sampling_mode": sorted({trial["sampling"] for trial in trials}),
+            "sampling_semantics": {
+                "mode": "starter",
+                "adaptive_feedback": False,
+                "description": "recommended_start plus deterministic_random samples; no objective-feedback BO/TPE or pruning loop",
+            },
             "pruning_eligibility_rules": {
                 "constraint_violation": "must be zero",
                 "PPO_deadline_miss_rate_max": 0.001,
