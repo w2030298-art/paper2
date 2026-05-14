@@ -43,14 +43,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Experiment manager CLI",
         epilog=(
-            "Common start options: start --preset {quick,full17} [--fresh] "
+            "Common start options: start --preset {quick,full17,single_policy_3user_full17} [--fresh] "
             "[--run-id RUN_ID]"
         ),
     )
     subparsers = parser.add_subparsers(dest="command")
 
     start_parser = subparsers.add_parser("start")
-    start_parser.add_argument("--preset", choices=["quick", "full17"], default=None)
+    start_parser.add_argument("--preset", choices=list(PRESETS), default=None)
     start_parser.add_argument("--fresh", action="store_true")
     start_parser.add_argument(
         "--no-backup",
@@ -128,6 +128,11 @@ def _resolve_start_options(args: argparse.Namespace) -> dict:
     )
     profile = resolve_environment_profile(environment_profile)
     output_dir = args.output_dir if args.output_dir is not None else preset["output_dir"]
+    metadata = {
+        key: preset[key]
+        for key in ("interface", "num_users", "shared_reward")
+        if key in preset
+    }
     if (
         profile.name == LEGACY_ENVIRONMENT_PROFILE
         and args.run_id is None
@@ -146,6 +151,7 @@ def _resolve_start_options(args: argparse.Namespace) -> dict:
         "env": env,
         "environment_profile": profile.name,
         "output_dir": output_dir,
+        "metadata": metadata or None,
     }
 
 

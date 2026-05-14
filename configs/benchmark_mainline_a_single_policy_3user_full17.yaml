@@ -1,0 +1,54 @@
+name: benchmark_mainline_a_single_policy_3user_full17
+version: 1
+purpose: >-
+  v5.0 full17-equivalent rerun for old single-agent algorithms under the
+  corrected single-policy / 3-user shared-control Mainline-A interface.
+
+algorithms:
+  - GRPO
+  - PPO
+  - SAC
+  - DDQN
+  - DDPG
+  - TD3
+  - A3C
+  - TRPO
+  - SimPO
+
+benchmark:
+  algorithms:
+    - GRPO
+    - PPO
+    - SAC
+    - DDQN
+    - DDPG
+    - TD3
+    - A3C
+    - TRPO
+    - SimPO
+  steps: 100000
+  seeds: [42]
+  eval_episodes: 10
+  output_dir: results
+  environment_profile: mainline-a
+  device: auto
+  excluded_algorithms:
+    CL-PPO: >-
+      Frozen in v5.0. CL-PPO must not be compared until the corrected PPO
+      single-policy 3-user baseline is reviewed.
+
+single_policy_multi_user:
+  enabled: true
+  interface: single_policy_multi_user
+  num_users: 3
+  shared_reward: mean
+  description: >-
+    One shared single-agent policy selects actions independently for each of
+    three user observations, then the joint action is stepped once in the
+    num_agents=3 Mainline-A environment.
+
+# Keep Mainline-A enabled through the `mainline-a` environment profile. Do not
+# embed system-model or dynamic-pricing settings here; benchmark.py should use
+# the frozen profile configs:
+# - configs/system_model_mainline_a.yaml
+# - configs/pricing_dynamic_mainline_a.yaml

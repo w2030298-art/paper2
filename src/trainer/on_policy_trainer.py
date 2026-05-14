@@ -145,6 +145,14 @@ class OnPolicyTrainer(BaseTrainer):
 
                 n_agents = getattr(self.env, "num_agents", 1)
                 step_done = is_done(terminated, truncated)
+                reward_arr = np.asarray(step_rewards, dtype=np.float32).reshape(-1)
+                if reward_arr.size == 0:
+                    reward_arr = np.zeros(n_agents, dtype=np.float32)
+                elif reward_arr.size == 1:
+                    reward_arr = np.full(n_agents, float(reward_arr[0]), dtype=np.float32)
+                elif reward_arr.size < n_agents:
+                    reward_arr = np.pad(reward_arr, (0, n_agents - reward_arr.size), mode="edge")
+                reward_arr = reward_arr[:n_agents]
 
                 if self._ma_mode == "joint":
                     # joint 模式: 保留 [n_agents, ...] 维度
@@ -155,7 +163,7 @@ class OnPolicyTrainer(BaseTrainer):
                             dtype=np.int64 if self._is_discrete else np.float32,
                         )
                     )
-                    rewards.append(np.asarray(step_rewards, dtype=np.float32))
+                    rewards.append(reward_arr)
                     next_states.append(np.asarray(next_obs, dtype=np.float32))
                     dones.append(np.full(n_agents, step_done, dtype=np.float32))
                     log_probs.append(np.asarray(agent_log_probs, dtype=np.float32))
@@ -177,9 +185,12 @@ class OnPolicyTrainer(BaseTrainer):
                 else:
                     # shared 模式: 按 agent 展开为单智能体样本
                     for i in range(n_agents):
+                        reward_i = float(reward_arr[i])
+                        if hasattr(self.agent, "record_transition"):
+                            self.agent.record_transition(reward_i, step_done)
                         states.append(obs[i])
                         actions.append(agent_actions[i])
-                        rewards.append(step_rewards[i])
+                        rewards.append(reward_i)
                         next_states.append(next_obs[i])
                         dones.append(step_done)
                         log_probs.append(agent_log_probs[i])

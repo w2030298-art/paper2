@@ -1,16 +1,16 @@
 {
   "schema_version": "wkstruc-ledger/v9",
-  "task_id": "paper2-v4.9-real-l2-l3-formal-closeout",
-  "state": "NEEDS_WEB",
-  "progress": {
-    "done": 5,
-    "total": 9,
-    "label": "5 / 9 steps (blocked before real L2/L3 execution)"
-  },
+    "task_id": "paper2-v5.0-single-policy-3user-mainline-a-rerun",
+    "state": "NEEDS_WEB",
+    "progress": {
+        "done": 7,
+        "total": 8,
+        "label": "7 / 8 steps (blocked at full 9x100K experiment execution)"
+    },
   "last_run": {
-    "at": "2026-05-13T13:23:04Z",
-    "agent": "codex",
-    "summary": "Completed v4.9 tooling repairs and stopped before real L2/L3 execution. Runner now expands N2 ablations, generated ablation configs are non-no-op, GAM-COMA has a non-attention critic fallback, strict result collection and multi-metric statistics are implemented, and focused/full tests pass. Real L2/L3 formal claims are blocked by the pre-existing dirty frozen-core file and CPU-only heavy-run resource profile."
+        "at": "2026-05-14T08:00:41Z",
+        "agent": "codex",
+        "summary": "Completed v5.0 code/config/VSCode/report tooling for single-policy 3-user Mainline-A. Focused tests and full pytest pass. The 9-algorithm 100K-step run is resource-blocked locally because CUDA is unavailable and the CPU-only run did not complete the first GRPO rollout in practical time; blocked statuses and reports were written."
   },
   "previous_validation": {
     "task_id": "paper2-v4.4-mainline-a-stage1-tuning",
@@ -31,36 +31,43 @@
     }
   },
   "validation": {
-    "status": "PARTIAL",
-    "commands": [
-      "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/ledger.json >/tmp/paper2_ledger_v49_start.json (passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/checkpoint.json >/tmp/paper2_checkpoint_v49_start.json (passed)",
-      "git diff --name-only -- src/environments/mec_v3/game_theory_env.py configs/system_model_mainline_a.yaml configs/pricing_dynamic_mainline_a.yaml (not empty before this patch: src/environments/mec_v3/game_theory_env.py)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_paper2_main_matrix_runner.py tests/test_paper2_scenario_execution_contract.py tests/test_paper2_ablation_execution_contract.py -q (9 passed, 1 warning: CUDA driver too old)",
-      "PATH=.tmp/stage1-venv/bin:$PATH python scripts/run_paper2_main_matrix.py --matrix configs/paper2_main_experiment_matrix.yaml --scenario-matrix configs/paper2_scenario_matrix.yaml --level L1_screening --dry-run --output results/paper2_main_matrix/v49_l1_contract_manifest.json (72 planned runs)",
-      "v49 L1 manifest metadata audit (run_count=72, missing_required=0, N2 ablation records present)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_paper2_ablation_execution_contract.py tests/test_cl_ppo_agent.py tests/test_gam_coma_agent.py tests/test_stage2_algorithm_registration.py -q (12 passed, 1 warning: CUDA driver too old)",
-      "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile scripts/run_paper2_main_matrix.py rl_algorithms/cl_ppo.py rl_algorithms/gam_coma.py (passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_paper2_result_collection.py -q (4 passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_paper2_result_collection.py tests/test_paper2_statistics_pipeline.py -q (8 passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile scripts/collect_paper2_matrix_results.py scripts/analyze_paper2_statistics.py (passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH python scripts/analyze_paper2_statistics.py --input results/paper2_main_matrix/v49_l1_contract_manifest.json --output-dir results/paper2_statistics/v49_plan --dry-run --metrics social_welfare_mean,reward_mean,constraint_violation_rate (stats_plan.json written)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_paper2_main_matrix_runner.py tests/test_paper2_scenario_execution_contract.py tests/test_paper2_ablation_execution_contract.py tests/test_paper2_result_collection.py tests/test_paper2_statistics_pipeline.py tests/test_paper2_final_artifacts.py -q (20 passed, 1 warning: CUDA driver too old)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_vscode_launch_mainline_a.py tests/test_vscode_config.py tests/test_stage2_algorithm_registration.py -q (17 passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile scripts/run_paper2_main_matrix.py scripts/collect_paper2_matrix_results.py scripts/analyze_paper2_statistics.py scripts/generate_paper2_figures.py scripts/export_paper2_final_package.py rl_algorithms/cl_ppo.py rl_algorithms/gam_coma.py (passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest -q (329 passed, 1 warning: CUDA driver too old)",
-      "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/ledger.json >/tmp/paper2_ledger_v49_final.json (passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/checkpoint.json >/tmp/paper2_checkpoint_v49_final.json (passed)",
-      "test ! -s .ai/inbox/plan.md || test ! -e .ai/inbox/plan.md (passed)",
-      "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_docs_contract.py -q (4 passed after inbox cleanup)"
-    ],
-    "summary": "Steps 1-5 completed and verified; blocked path reports were written for L2/L3 and final claim boundary. Real L2/L3 strict collection, final statistics, figures, and package were not generated because formal evidence execution is blocked in this workspace."
+        "status": "PARTIAL",
+        "commands": [
+            "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/ledger.json >/tmp/paper2_ledger_v50_start.json (passed)",
+            "test -s ref/review-report-20260514-v49.md (passed)",
+            "test -s ref/paper2_single_agent_evaluation_retraction.md (passed)",
+            "test -s ref/paper2_cl_ppo_branch_freeze.md (passed)",
+            "git diff --name-only -- src/environments/mec_v3/game_theory_env.py configs/system_model_mainline_a.yaml configs/pricing_dynamic_mainline_a.yaml (name-only output: src/environments/mec_v3/game_theory_env.py)",
+            "git diff --ignore-space-at-eol -- src/environments/mec_v3/game_theory_env.py configs/system_model_mainline_a.yaml configs/pricing_dynamic_mainline_a.yaml >/tmp/paper2_v50_frozen_core_semantic.diff (passed; 0 bytes)",
+            "runtime preflight via .tmp/stage1-venv python (torch=2.11.0+cu130, gymnasium=1.3.0, numpy=2.4.4, scipy=1.17.1, cuda_available=False, disk_free_gb=195.24)",
+            "graphify query \"single policy multi user benchmark mainline-a entrypoints\" --budget 1200 (passed; existing graph has 1218 nodes and 2620 links)",
+            "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_single_policy_multi_user_adapter.py tests/test_single_policy_multi_user_benchmark.py -q (8 passed, 1 warning: CUDA driver too old)",
+            "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile src/experiment/single_policy_multi_user.py scripts/benchmark.py scripts/experiment_manager.py (passed)",
+            "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_single_policy_3user_full17_config.py tests/test_experiment_presets.py -q (7 passed)",
+            "PATH=.tmp/stage1-venv/bin:$PATH python scripts/benchmark.py --config configs/benchmark_mainline_a_single_policy_3user_full17.yaml --dry-run --no-latest-alias (passed; 9 runs, num_agents=3, interface=single_policy_multi_user)",
+            "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .vscode/launch.json >/tmp/paper2_v50_vscode_launch.json (passed)",
+            "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_vscode_launch_mainline_a.py tests/test_vscode_config.py -q (15 passed)",
+            "PATH=.tmp/stage1-venv/bin:$PATH python scripts/benchmark.py --config configs/benchmark_mainline_a_single_policy_3user_full17.yaml --output results/benchmark_mainline_a_single_policy_3user_full17.json --no-latest-alias (resource-blocked; stopped after local CPU-only GRPO failed to complete the first rollout in practical time)",
+            "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool results/benchmark_mainline_a_single_policy_3user_full17.json >/tmp/paper2_single_policy_3user_full17.json (passed; blocked status artifact)",
+            "PATH=.tmp/stage1-venv/bin:$PATH python scripts/analyze_single_policy_3user_full17.py --input results/benchmark_mainline_a_single_policy_3user_full17.json --output-dir results --figure-dir figures/single_policy_3user_full17 --report ref/paper2_single_policy_3user_full17_report.md (passed)",
+            "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_single_policy_3user_analysis.py -q (1 passed)",
+            "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_single_policy_multi_user_adapter.py tests/test_single_policy_multi_user_benchmark.py tests/test_single_policy_3user_full17_config.py tests/test_single_policy_3user_analysis.py -q (12 passed, 1 warning: CUDA driver too old)",
+            "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_vscode_launch_mainline_a.py tests/test_vscode_config.py -q (15 passed)",
+            "PATH=.tmp/stage1-venv/bin:$PATH python -m py_compile scripts/benchmark.py scripts/experiment_manager.py scripts/analyze_single_policy_3user_full17.py src/experiment/single_policy_multi_user.py src/trainer/on_policy_trainer.py src/trainer/off_policy_trainer.py (passed)",
+            "PATH=.tmp/stage1-venv/bin:$PATH pytest tests/test_benchmark_environment_profile.py::test_benchmark_all_mainline_a_dry_run_is_parse_only tests/test_benchmark_mainline_a_config.py::test_mainline_a_n1_config_benchmark_dry_run_is_parse_only -q (2 passed)",
+            "PATH=.tmp/stage1-venv/bin:$PATH pytest -q (344 passed, 1 warning: CUDA driver too old)",
+            "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/ledger.json >/tmp/paper2_ledger_v50_final.json (passed)",
+            "PATH=.tmp/stage1-venv/bin:$PATH python -m json.tool .ai/checkpoint.json >/tmp/paper2_checkpoint_v50_final.json (passed; checkpoint unchanged because v5.0 experiment is blocked)",
+            "test ! -s .ai/inbox/plan.md || test ! -e .ai/inbox/plan.md (passed)",
+            "git diff --ignore-space-at-eol -- src/environments/mec_v3/game_theory_env.py configs/system_model_mainline_a.yaml configs/pricing_dynamic_mainline_a.yaml >/tmp/paper2_v50_frozen_core_semantic_final.diff (passed; 0 bytes)"
+        ],
+        "summary": "Code/config/report/VSCode validation passed, including full pytest. The corrected full17-equivalent experiment did not produce performance metrics in this local runtime; the result JSON records all 9 algorithms as blocked with resource errors, and CL-PPO remains frozen."
   },
   "open_items": [
     "DASHBOARD-EXTERNAL-COMPAT: dashboard 兼容性需在外部仓库环境复核 (Medium, external)",
-    "paper2-v4.9 BLOCKER: frozen Mainline-A core is dirty before this patch (`src/environments/mec_v3/game_theory_env.py`); operator must accept or restore this state before formal L2/L3 evidence claims.",
-    "paper2-v4.9 BLOCKER: local CUDA is unavailable due old NVIDIA driver; L2 has 216 planned 100K-step runs and L3 has 360 planned 200K-step runs, so CPU-only execution is not suitable for this formal closeout.",
-    "paper2-v4.9 BLOCKER: no real L2/L3 strict result collections exist; no p-value, CI, effect-size, figure, package, or paper-level superiority claim can be made from dry-run artifacts."
+    "paper2-v5.0 BLOCKER: local CUDA is unavailable due old NVIDIA driver; CPU-only execution did not complete the first GRPO 2048-step rollout in practical time, so the 9-algorithm 100K-step single-policy 3-user run needs a working GPU/updated driver or external long-run resource.",
+    "paper2-v5.0 BLOCKER: no corrected-interface performance metrics exist yet; `results/benchmark_mainline_a_single_policy_3user_full17.json` is a blocked-status artifact, not performance evidence.",
+    "paper2-v5.0 GATE: CL-PPO remains frozen until the corrected single-policy 3-user benchmark completes and human review accepts PPO as a valid baseline."
   ],
   "checkpoint_id": "checkpoint-full17-backup-figures-20260513-pass",
   "last_review_report": "Mainline-A N0/N1/N2/N3 experiment gate review: ACCEPTED_WITH_BOUNDARIES (2026-05-06)",
@@ -71,7 +78,8 @@
     "paper2-v4.6-stage1-closeout",
     "paper2-v4.7-stage2-algorithm-innovation",
     "paper2-v4.8-final-experiment-closeout",
-    "paper2-v4.9-real-l2-l3-formal-closeout"
+    "paper2-v4.9-real-l2-l3-formal-closeout",
+    "paper2-v5.0-single-policy-3user-mainline-a-rerun"
   ],
   "last_export_package": {
     "run_id": "paper2_full_17_mainline_a",

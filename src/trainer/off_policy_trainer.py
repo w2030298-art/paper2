@@ -148,6 +148,14 @@ class OffPolicyTrainer(BaseTrainer):
                 done = is_done(terminated, truncated)
 
                 n_agents = getattr(self.env, "num_agents", 1)
+                reward_arr = np.asarray(step_rewards, dtype=np.float32).reshape(-1)
+                if reward_arr.size == 0:
+                    reward_arr = np.zeros(n_agents, dtype=np.float32)
+                elif reward_arr.size == 1:
+                    reward_arr = np.full(n_agents, float(reward_arr[0]), dtype=np.float32)
+                elif reward_arr.size < n_agents:
+                    reward_arr = np.pad(reward_arr, (0, n_agents - reward_arr.size), mode="edge")
+                reward_arr = reward_arr[:n_agents]
 
                 if self._ma_mode == "joint":
                     # joint 模式: 保留 [n_agents, ...] 维度
@@ -158,7 +166,7 @@ class OffPolicyTrainer(BaseTrainer):
                             dtype=np.int64 if self._is_discrete else np.float32,
                         )
                     )
-                    rewards.append(np.asarray(step_rewards, dtype=np.float32))
+                    rewards.append(reward_arr)
                     next_states.append(np.asarray(next_obs, dtype=np.float32))
                     dones.append(np.full(n_agents, done, dtype=np.float32))
                     # global_states
@@ -181,7 +189,7 @@ class OffPolicyTrainer(BaseTrainer):
                     for i in range(n_agents):
                         states.append(obs[i])
                         actions.append(agent_actions[i])
-                        rewards.append(step_rewards[i])
+                        rewards.append(float(reward_arr[i]))
                         next_states.append(next_obs[i])
                         dones.append(done)
                         if info.get("eq_actions") is not None:

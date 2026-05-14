@@ -207,6 +207,39 @@ def test_cli_start_full17_preset_uses_full17_defaults(monkeypatch) -> None:
     assert captured["environment_profile"] == "mainline-a"
 
 
+def test_cli_start_single_policy_3user_preset_records_interface_metadata(monkeypatch) -> None:
+    captured: dict = {}
+
+    class FakeStore:
+        def exists(self, _run_id: str) -> bool:
+            return False
+
+    class FakeManager:
+        def __init__(self) -> None:
+            self.store = FakeStore()
+
+        def create_experiment(self, **kwargs):
+            captured.update(kwargs)
+
+        def start_or_resume(self, _run_id: str):
+            return None
+
+        def get_status(self, _run_id: str):
+            return {"status": "ok"}
+
+    monkeypatch.setattr(cli, "ExperimentManager", lambda: FakeManager())
+    cli.main(["start", "--preset", "single_policy_3user_full17"])
+    assert captured["run_id"] == "paper2_single_policy_3user_full17_mainline_a"
+    assert captured["algorithms"] == ["GRPO", "PPO", "SAC", "DDQN", "DDPG", "TD3", "A3C", "TRPO", "SimPO"]
+    assert captured["timesteps"] == 100000
+    assert captured["eval_episodes"] == 10
+    assert captured["metadata"] == {
+        "interface": "single_policy_multi_user",
+        "num_users": 3,
+        "shared_reward": "mean",
+    }
+
+
 def test_cli_start_preset_allows_explicit_run_id_override(monkeypatch) -> None:
     captured: dict = {}
 

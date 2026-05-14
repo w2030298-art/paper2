@@ -40,6 +40,25 @@ FULL_17_SEED = 42
 FULL_17_DEVICE = "auto"
 FULL_17_EVAL_EPISODES = 10
 
+SINGLE_POLICY_3USER_FULL17_RUN_ID = "paper2_single_policy_3user_full17_mainline_a"
+SINGLE_POLICY_3USER_FULL17_NAME = "Single-Policy 3-User Full17 Mainline-A Benchmark"
+SINGLE_POLICY_3USER_FULL17_ALGORITHMS = [
+    "GRPO",
+    "PPO",
+    "SAC",
+    "DDQN",
+    "DDPG",
+    "TD3",
+    "A3C",
+    "TRPO",
+    "SimPO",
+]
+SINGLE_POLICY_3USER_FULL17_TIMESTEPS = 100000
+SINGLE_POLICY_3USER_FULL17_SEED = 42
+SINGLE_POLICY_3USER_FULL17_DEVICE = "auto"
+SINGLE_POLICY_3USER_FULL17_EVAL_EPISODES = 10
+SINGLE_POLICY_3USER_FULL17_NUM_USERS = 3
+
 PRESETS: dict[str, dict[str, Any]] = {
     "quick": {
         "run_id": QUICK_RUN_ID,
@@ -64,5 +83,20 @@ PRESETS: dict[str, dict[str, Any]] = {
         "env": "auto",
         "environment_profile": DEFAULT_ENVIRONMENT_PROFILE,
         "output_dir": "results",
+    },
+    "single_policy_3user_full17": {
+        "run_id": SINGLE_POLICY_3USER_FULL17_RUN_ID,
+        "name": SINGLE_POLICY_3USER_FULL17_NAME,
+        "algorithms": list(SINGLE_POLICY_3USER_FULL17_ALGORITHMS),
+        "timesteps": SINGLE_POLICY_3USER_FULL17_TIMESTEPS,
+        "seed": SINGLE_POLICY_3USER_FULL17_SEED,
+        "device": SINGLE_POLICY_3USER_FULL17_DEVICE,
+        "eval_episodes": SINGLE_POLICY_3USER_FULL17_EVAL_EPISODES,
+        "env": "auto",
+        "environment_profile": DEFAULT_ENVIRONMENT_PROFILE,
+        "output_dir": "results",
+        "interface": "single_policy_multi_user",
+        "num_users": SINGLE_POLICY_3USER_FULL17_NUM_USERS,
+        "shared_reward": "mean",
     },
 }

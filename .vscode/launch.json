@@ -22,6 +22,25 @@
       ]
     },
     {
+      "name": "Single-Policy 3-User Full17 Fresh",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/benchmark.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder};${workspaceFolder}/src;${workspaceFolder}/scripts;${workspaceFolder}/rl_algorithms"
+      },
+      "args": [
+        "--config",
+        "configs/benchmark_mainline_a_single_policy_3user_full17.yaml",
+        "--output",
+        "results/benchmark_mainline_a_single_policy_3user_full17.json",
+        "--no-latest-alias"
+      ]
+    },
+    {
       "name": "Resume",
       "type": "debugpy",
       "request": "launch",

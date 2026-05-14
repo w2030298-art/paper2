@@ -6,6 +6,7 @@ from pathlib import Path
 
 EXPECTED_ENTRY_NAMES = [
     "Mainline-A Full 17 Fresh",
+    "Single-Policy 3-User Full17 Fresh",
     "Resume",
     "Status",
     "Backup Full17 Mainline-A",
@@ -68,6 +69,19 @@ def test_mainline_a_full17_entry_is_default_profile() -> None:
         "--environment-profile",
         "mainline-a",
         "--fresh",
+    ]
+
+
+def test_single_policy_3user_full17_entry_uses_direct_benchmark() -> None:
+    """The v5.0 corrected single-policy comparison should be directly launchable."""
+    configuration = _by_name("Single-Policy 3-User Full17 Fresh")
+    assert configuration["program"] == "${workspaceFolder}/scripts/benchmark.py"
+    assert configuration["args"] == [
+        "--config",
+        "configs/benchmark_mainline_a_single_policy_3user_full17.yaml",
+        "--output",
+        "results/benchmark_mainline_a_single_policy_3user_full17.json",
+        "--no-latest-alias",
     ]
 
 

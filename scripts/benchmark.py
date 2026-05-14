@@ -32,7 +32,6 @@ import numpy as np
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.utils.composite_score import CompositeScorer  # noqa: E402
 from src.experiment.environment_profiles import (  # noqa: E402
     DEFAULT_ENVIRONMENT_PROFILE,
     available_environment_profile_names,
@@ -40,6 +39,15 @@ from src.experiment.environment_profiles import (  # noqa: E402
     resolve_environment_profile,
 )
 from src.experiment.runtime_config import build_resolved_runtime_config  # noqa: E402
+from src.experiment.single_policy_multi_user import (  # noqa: E402
+    INTERFACE_NAME as SINGLE_POLICY_INTERFACE_NAME,
+    SinglePolicyMultiUserSettings,
+    annotate_result,
+    apply_env_overrides as apply_single_policy_env_overrides,
+    build_dry_run_runs as build_single_policy_dry_run_runs,
+    resolve_settings as resolve_single_policy_settings,
+    validate_algorithm_set as validate_single_policy_algorithm_set,
+)
 from src.mec_model.config_schema import (  # noqa: E402
     resolve_channel_model,
     resolve_queue_model,
@@ -477,6 +485,8 @@ def create_agent(name, env, cfg, device, game_theory_overrides: Optional[Dict[st
     raise ValueError(name)
 
 def _resolve_num_agents(algo_name: str, env_overrides: Optional[Dict[str, Any]] = None) -> int:
+    if env_overrides and env_overrides.get("force_num_agents") is not None:
+        return int(env_overrides["force_num_agents"])
     if algo_name in MULTI_AGENT_ALGOS or algo_name in HEURISTIC_ALGOS:
         if env_overrides and env_overrides.get("num_agents_multi") is not None:
             return int(env_overrides["num_agents_multi"])
@@ -721,6 +731,7 @@ def benchmark_single(
     eval_at_start: Optional[bool] = None,
     environment_profile: str = DEFAULT_ENVIRONMENT_PROFILE,
     config_path=None,
+    single_policy_settings: Optional[SinglePolicyMultiUserSettings] = None,
 ):
     """
     运行单算法评测。
@@ -866,6 +877,8 @@ def benchmark_single(
         train_timesteps=trainer.total_steps,
         eval_episodes=eval_ep,
     )
+    if single_policy_settings is not None:
+        annotate_result(result, single_policy_settings, num_agents=getattr(env, "num_agents", num_agents))
     if verbose:
         print(f"[{name}] reward={result['final_reward_mean']:.4f}+/-{result['final_reward_std']:.4f}  time={result['train_time_seconds']:.1f}s")
     return result
@@ -1005,6 +1018,8 @@ def _apply_benchmark_cli_config(args, file_cfg: Dict[str, Any]) -> None:
         args.timesteps = int(file_cfg.get("steps") or benchmark_cfg.get("steps"))
     if args.seeds == [42] and (file_cfg.get("seeds") or benchmark_cfg.get("seeds")):
         args.seeds = [int(seed) for seed in _coerce_list(file_cfg.get("seeds") or benchmark_cfg.get("seeds"))]
+    if getattr(args, "episodes", None) is None and benchmark_cfg.get("eval_episodes") is not None:
+        args.episodes = int(benchmark_cfg["eval_episodes"])
     if args.num_edge_servers is None and file_cfg.get("edges") is not None and not isinstance(file_cfg.get("edges"), list):
         args.num_edge_servers = int(file_cfg["edges"])
     if args.multi_agent_count is None and file_cfg.get("users") is not None and not isinstance(file_cfg.get("users"), list):
@@ -1025,6 +1040,19 @@ def _apply_benchmark_cli_config(args, file_cfg: Dict[str, Any]) -> None:
         args.min_eval_points = int(benchmark_cfg["min_eval_points"])
     if getattr(args, "eval_at_start", None) is None and benchmark_cfg.get("eval_at_start") is not None:
         args.eval_at_start = bool(benchmark_cfg["eval_at_start"])
+    single_policy_cfg = file_cfg.get("single_policy_multi_user", {}) or {}
+    if single_policy_cfg.get("enabled") and not getattr(args, "single_policy_multi_user", False):
+        args.single_policy_multi_user = True
+    if (
+        getattr(args, "single_policy_num_users", None) is None
+        and single_policy_cfg.get("num_users") is not None
+    ):
+        args.single_policy_num_users = int(single_policy_cfg["num_users"])
+    if (
+        getattr(args, "single_policy_shared_reward", None) is None
+        and single_policy_cfg.get("shared_reward") is not None
+    ):
+        args.single_policy_shared_reward = str(single_policy_cfg["shared_reward"])
 
 
 def _resolve_profile_env_overrides(args) -> Dict[str, Any]:
@@ -1049,12 +1077,24 @@ def _dry_run_payload(args, file_cfg: Dict[str, Any], algorithms: List[str]) -> D
     eval_interval = getattr(args, "eval_interval", None)
     min_eval_points = getattr(args, "min_eval_points", None)
     eval_at_start = getattr(args, "eval_at_start", None)
+    single_policy_settings = resolve_single_policy_settings(
+        file_cfg,
+        cli_enabled=bool(getattr(args, "single_policy_multi_user", False)),
+        cli_num_users=getattr(args, "single_policy_num_users", None),
+        cli_shared_reward=getattr(args, "single_policy_shared_reward", None),
+    )
+    validate_single_policy_algorithm_set(algorithms, single_policy_settings)
+    interface = single_policy_settings.interface if single_policy_settings.enabled else "standard"
     return {
         "dry_run": True,
+        "interface": interface,
         "environment_profile": profile.name,
         "algorithms": algorithms,
+        "runs": build_single_policy_dry_run_runs(algorithms, single_policy_settings),
         "seeds": args.seeds or _coerce_list(file_cfg.get("seeds"), [42]),
         "timesteps": args.timesteps or file_cfg.get("steps") or benchmark_cfg.get("steps"),
+        "eval_episodes": getattr(args, "episodes", None) or benchmark_cfg.get("eval_episodes"),
+        "device": getattr(args, "device", "auto") or benchmark_cfg.get("device", "auto"),
         "eval_interval": eval_interval or benchmark_cfg.get("eval_interval"),
         "min_eval_points": min_eval_points if min_eval_points is not None else benchmark_cfg.get("min_eval_points"),
         "eval_at_start": bool(eval_at_start if eval_at_start is not None else benchmark_cfg.get("eval_at_start", False)),
@@ -1069,6 +1109,12 @@ def _dry_run_payload(args, file_cfg: Dict[str, Any], algorithms: List[str]) -> D
         "resolved_system_model": system_model_cfg,
         "mobility_intensity": args.mobility_intensity,
         "config": args.config,
+        "single_policy_multi_user": {
+            "enabled": single_policy_settings.enabled,
+            "interface": single_policy_settings.interface,
+            "num_users": single_policy_settings.num_users,
+            "shared_reward": single_policy_settings.shared_reward,
+        },
     }
 
 
@@ -1080,7 +1126,8 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                  eval_interval: Optional[int] = None,
                  min_eval_points: Optional[int] = None,
                  eval_at_start: Optional[bool] = None,
-                 environment_profile: str = DEFAULT_ENVIRONMENT_PROFILE):
+                 environment_profile: str = DEFAULT_ENVIRONMENT_PROFILE,
+                 single_policy_settings: Optional[SinglePolicyMultiUserSettings] = None):
     """
     运行多算法对比评测 (GameTheory 环境唯一)。
 
@@ -1098,6 +1145,9 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
     if env_name is None:
         env_name = "auto"  # 自动选择正确环境
     algorithms = [_canonical_algorithm_name(a) for a in algorithms]
+    single_policy_settings = single_policy_settings or SinglePolicyMultiUserSettings()
+    validate_single_policy_algorithm_set(algorithms, single_policy_settings)
+    env_overrides = apply_single_policy_env_overrides(env_overrides, single_policy_settings)
 
     # 按环境分组，相同环境的算法一起评测
     if env_name == "auto":
@@ -1153,6 +1203,7 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                             eval_at_start=eval_at_start,
                             environment_profile=environment_profile,
                             config_path=cp,
+                            single_policy_settings=single_policy_settings,
                         )
                     algo_results.append(r)
                 except Exception as e:
@@ -1233,6 +1284,7 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                 if algo_errors:
                     avg["failed_seeds"] = len(algo_errors)
                     avg["errors"] = algo_errors
+                annotate_result(avg, single_policy_settings, num_agents=single_policy_settings.num_users)
                 group_results.append(avg)
                 all_results.append(avg)
             else:
@@ -1273,6 +1325,7 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
                         convergence_by_seed[str(seed_val)] = conv
                 if convergence_by_seed:
                     failed["convergence_by_seed"] = convergence_by_seed
+                annotate_result(failed, single_policy_settings, num_agents=single_policy_settings.num_users)
                 group_results.append(failed)
                 all_results.append(failed)
 
@@ -1295,6 +1348,8 @@ def run_benchmark(algorithms, env_name=None, configs_dir=None, seeds=None,
     scoring_profiles_path = Path(__file__).parent.parent / "configs" / "scoring_profiles.yaml"
     if scoring_profiles_path.exists() and all_results:
         try:
+            from src.utils.composite_score import CompositeScorer
+
             with open(scoring_profiles_path, encoding="utf-8") as f:
                 profiles_cfg = yaml.safe_load(f)
             profiles = profiles_cfg.get("profiles", {})
@@ -1371,6 +1426,18 @@ def main():
     p.add_argument("--eval-interval", type=int, default=None, help="Override checkpoint/evaluation interval in timesteps")
     p.add_argument("--min-eval-points", type=int, default=None, help="Minimum requested evaluation checkpoints per training run")
     p.add_argument("--eval-at-start", action="store_true", default=None, help="Record an evaluation checkpoint at timestep 0")
+    p.add_argument(
+        "--single-policy-multi-user",
+        action="store_true",
+        help=f"Run one shared single-agent policy across multiple users ({SINGLE_POLICY_INTERFACE_NAME})",
+    )
+    p.add_argument("--single-policy-num-users", type=int, default=None, help="User count for --single-policy-multi-user")
+    p.add_argument(
+        "--single-policy-shared-reward",
+        choices=["mean", "global"],
+        default=None,
+        help="Reward expansion rule when a shared/global reward is returned",
+    )
     p.add_argument("--seeds", type=int, nargs="+", default=[42])
     p.add_argument("--device", type=str, default="auto")
     p.add_argument("--output", type=str, default=None)  # 自动生成带时间戳的文件名
@@ -1512,6 +1579,12 @@ def main():
             queue_model=args.queue_model,
             mobility_intensity=args.mobility_intensity,
         )
+        single_policy_settings = resolve_single_policy_settings(
+            file_cfg,
+            cli_enabled=args.single_policy_multi_user,
+            cli_num_users=args.single_policy_num_users,
+            cli_shared_reward=args.single_policy_shared_reward,
+        )
 
         try:
             run_benchmark(
@@ -1531,6 +1604,7 @@ def main():
                 min_eval_points=args.min_eval_points,
                 eval_at_start=args.eval_at_start,
                 environment_profile=profile.name,
+                single_policy_settings=single_policy_settings,
             )
             logger.info("Benchmark finished")
             logger.info("Benchmark completed successfully. Results saved to: %s", args.output)
