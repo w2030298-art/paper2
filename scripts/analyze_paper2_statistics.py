@@ -74,8 +74,16 @@ def _write_csv(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> Non
         writer.writerows(rows)
 
 
+def _split_metrics(args: argparse.Namespace) -> list[str]:
+    """Resolve metric list from --metrics or --primary-metric."""
+    raw = args.metrics if args.metrics else args.primary_metric
+    metrics = [item.strip() for item in raw.split(",") if item.strip()]
+    return metrics or [args.primary_metric]
+
+
 def _write_stats_plan(payload: dict[str, Any], output_dir: Path, args: argparse.Namespace) -> None:
     """Write a manifest-only statistics plan without statistical values."""
+    metrics = _split_metrics(args)
     runs = payload.get("runs", [])
     algorithms = sorted({run.get("algorithm") for run in runs if run.get("algorithm")})
     scenarios = sorted({run.get("scenario") for run in runs if run.get("scenario")})
@@ -86,6 +94,7 @@ def _write_stats_plan(payload: dict[str, Any], output_dir: Path, args: argparse.
         "statistics_generated": False,
         "input_schema": payload.get("schema_version", "unknown"),
         "primary_metric": args.primary_metric,
+        "metrics": metrics,
         "baseline": args.baseline,
         "comparison_groups": args.comparison_groups,
         "planned_run_count": len(runs),
@@ -117,13 +126,13 @@ def _extract_metric(record: dict[str, Any], metric: str) -> float:
     )
 
 
-def _normalize_results(payload: dict[str, Any], primary_metric: str) -> list[dict[str, Any]]:
+def _normalize_results(payload: dict[str, Any], metrics: list[str]) -> list[dict[str, Any]]:
     """Normalize supported result payloads into flat statistic records."""
     raw_results = payload.get("results")
     if raw_results is None:
         raw_results = [
             run for run in payload.get("runs", [])
-            if isinstance(run, dict) and ("metrics" in run or primary_metric in run)
+            if isinstance(run, dict) and ("metrics" in run or any(metric in run for metric in metrics))
         ]
     if not isinstance(raw_results, list) or not raw_results:
         raise ValueError("No result records with metrics were found")
@@ -132,14 +141,14 @@ def _normalize_results(payload: dict[str, Any], primary_metric: str) -> list[dic
     for record in raw_results:
         if not isinstance(record, dict):
             raise ValueError("Each result record must be a JSON object")
-        normalized.append(
-            {
-                "scenario": str(record["scenario"]),
-                "algorithm": str(record["algorithm"]),
-                "seed": int(record["seed"]),
-                primary_metric: _extract_metric(record, primary_metric),
-            }
-        )
+        item = {
+            "scenario": str(record["scenario"]),
+            "algorithm": str(record["algorithm"]),
+            "seed": int(record["seed"]),
+        }
+        for metric in metrics:
+            item[metric] = _extract_metric(record, metric)
+        normalized.append(item)
     return normalized
 
 
@@ -319,16 +328,23 @@ def _pairwise_and_effect_rows(
                     "comparison_mean": f"{mean(comparison_values):.10g}" if comparison_values else "",
                 }
             )
-    _holm_bonferroni(pairwise_rows)
     return pairwise_rows, effect_rows
 
 
 def _analyze_results(payload: dict[str, Any], output_dir: Path, args: argparse.Namespace) -> None:
     """Analyze real result records and write statistics exports."""
-    records = _normalize_results(payload, args.primary_metric)
+    metrics = _split_metrics(args)
+    records = _normalize_results(payload, metrics)
     seed_issues = _validate_seed_grid(records, allow_partial=args.allow_partial)
-    summary_rows = _summary_rows(records, args.primary_metric)
-    pairwise_rows, effect_rows = _pairwise_and_effect_rows(records, args.primary_metric, args.baseline)
+    summary_rows: list[dict[str, Any]] = []
+    pairwise_rows: list[dict[str, Any]] = []
+    effect_rows: list[dict[str, Any]] = []
+    for metric in metrics:
+        summary_rows.extend(_summary_rows(records, metric))
+        metric_pairwise, metric_effects = _pairwise_and_effect_rows(records, metric, args.baseline)
+        pairwise_rows.extend(metric_pairwise)
+        effect_rows.extend(metric_effects)
+    _holm_bonferroni(pairwise_rows)
 
     _write_csv(output_dir / "summary.csv", summary_rows, SUMMARY_FIELDS)
     _write_csv(output_dir / "pairwise_tests.csv", pairwise_rows, PAIRWISE_FIELDS)
@@ -338,6 +354,7 @@ def _analyze_results(payload: dict[str, Any], output_dir: Path, args: argparse.N
         "mode": "results-present",
         "input_schema": payload.get("schema_version", "unknown"),
         "primary_metric": args.primary_metric,
+        "metrics": metrics,
         "baseline": args.baseline,
         "record_count": len(records),
         "summary_rows": len(summary_rows),
@@ -361,6 +378,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=Path("results/paper2_statistics"))
     parser.add_argument("--primary-metric", type=str, default="social_welfare_mean")
+    parser.add_argument("--metrics", type=str, default=None)
     parser.add_argument("--baseline", type=str, default="PPO")
     parser.add_argument(
         "--comparison-groups",

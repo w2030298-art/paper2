@@ -1,4 +1,4 @@
-"""Tests for the paper2 v4.8 statistics pipeline."""
+"""Tests for the paper2 v4.9 statistics pipeline."""
 
 from __future__ import annotations
 
@@ -56,7 +56,11 @@ def _write_results(path: Path, complete: bool) -> None:
                 "scenario": scenario,
                 "algorithm": algorithm,
                 "seed": seed,
-                "metrics": {"social_welfare_mean": value, "e2e_latency_mean": 2.0 - value / 10.0},
+                "metrics": {
+                    "social_welfare_mean": value,
+                    "reward_mean": value / 2.0,
+                    "e2e_latency_mean": 2.0 - value / 10.0,
+                },
             }
             for scenario, algorithm, seed, value in records
         ],
@@ -71,7 +75,17 @@ def test_dry_run_manifest_writes_stats_plan_without_fake_statistics(tmp_path: Pa
     _write_manifest(manifest)
 
     subprocess.run(
-        [sys.executable, str(ANALYZER), "--input", str(manifest), "--output-dir", str(output_dir), "--dry-run"],
+        [
+            sys.executable,
+            str(ANALYZER),
+            "--input",
+            str(manifest),
+            "--output-dir",
+            str(output_dir),
+            "--dry-run",
+            "--metrics",
+            "social_welfare_mean,reward_mean,constraint_violation_rate",
+        ],
         check=True,
         text=True,
         capture_output=True,
@@ -80,6 +94,7 @@ def test_dry_run_manifest_writes_stats_plan_without_fake_statistics(tmp_path: Pa
     plan = json.loads((output_dir / "stats_plan.json").read_text(encoding="utf-8"))
     assert plan["mode"] == "manifest-only/dry-run"
     assert plan["statistics_generated"] is False
+    assert plan["metrics"] == ["social_welfare_mean", "reward_mean", "constraint_violation_rate"]
     assert "p_value" not in json.dumps(plan)
     assert "effect_size" not in json.dumps(plan)
     assert not (output_dir / "summary.csv").exists()
@@ -142,3 +157,45 @@ def test_results_mode_writes_statistics_exports_for_complete_seed_grid(tmp_path:
         effect_rows = list(csv.DictReader(handle))
     assert effect_rows[0]["baseline"] == "PPO"
     assert effect_rows[0]["comparison"] == "CL-PPO"
+
+
+def test_results_mode_supports_multi_metric_exports(tmp_path: Path) -> None:
+    """The analyzer should export metric-qualified rows for all requested metrics."""
+    results = tmp_path / "results.json"
+    output_dir = tmp_path / "stats"
+    _write_results(results, complete=True)
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(ANALYZER),
+            "--input",
+            str(results),
+            "--output-dir",
+            str(output_dir),
+            "--baseline",
+            "PPO",
+            "--metrics",
+            "social_welfare_mean,reward_mean,e2e_latency_mean",
+        ],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+
+    report = json.loads((output_dir / "statistics_report.json").read_text(encoding="utf-8"))
+    assert report["metrics"] == ["social_welfare_mean", "reward_mean", "e2e_latency_mean"]
+    with (output_dir / "summary.csv").open(encoding="utf-8", newline="") as handle:
+        summary_rows = list(csv.DictReader(handle))
+    assert {row["metric"] for row in summary_rows} == {
+        "social_welfare_mean",
+        "reward_mean",
+        "e2e_latency_mean",
+    }
+    with (output_dir / "pairwise_tests.csv").open(encoding="utf-8", newline="") as handle:
+        pairwise_rows = list(csv.DictReader(handle))
+    assert {row["metric"] for row in pairwise_rows} == {
+        "social_welfare_mean",
+        "reward_mean",
+        "e2e_latency_mean",
+    }

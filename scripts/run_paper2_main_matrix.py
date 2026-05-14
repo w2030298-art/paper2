@@ -1,8 +1,9 @@
-"""Run or dry-run the paper2 v4.8 main experiment matrix."""
+"""Run or dry-run the paper2 v4.9 main experiment matrix."""
 
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import subprocess
 import sys
@@ -34,6 +35,11 @@ def _split_csv(value: str | None) -> list[str] | None:
 def _sanitize(value: str) -> str:
     """Return a filesystem-safe identifier segment."""
     return value.lower().replace("/", "_").replace(" ", "_").replace("-", "_")
+
+
+def _benchmark_config_name(algorithm: str) -> str:
+    """Return the algorithm config filename expected by benchmark.py."""
+    return f"{algorithm.lower()}.yaml"
 
 
 def _default_algorithms(matrix: dict[str, Any]) -> list[str]:
@@ -76,6 +82,7 @@ def _benchmark_command(
     output_path: Path,
     device: str,
     scenario_spec: dict[str, Any],
+    generated_config_dir: Path,
 ) -> list[str]:
     """Build the benchmark command for a single run."""
     profile = scenario_spec["profile"].get("environment_profile", "mainline-a")
@@ -92,6 +99,8 @@ def _benchmark_command(
         str(seed),
         "--device",
         device,
+        "--configs-dir",
+        str(generated_config_dir),
         "--output",
         str(output_path),
         "--no-latest-alias",
@@ -105,6 +114,87 @@ def _benchmark_command(
     if profile_values.get("mobility_intensity"):
         command.extend(["--mobility-intensity", str(profile_values["mobility_intensity"])])
     return command
+
+
+def _base_algorithm_config_path(algorithm: str) -> Path:
+    """Resolve the source algorithm config for generated per-run configs."""
+    config_dir = Path("configs") / "algorithms"
+    candidates = [
+        config_dir / _benchmark_config_name(algorithm),
+        config_dir / f"{_sanitize(algorithm)}.yaml",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(f"No algorithm config found for {algorithm}")
+
+
+def _deep_set(payload: dict[str, Any], path: tuple[str, ...], value: Any) -> None:
+    """Set a nested mapping value, creating intermediate mappings as needed."""
+    cursor = payload
+    for key in path[:-1]:
+        next_value = cursor.get(key)
+        if not isinstance(next_value, dict):
+            next_value = {}
+            cursor[key] = next_value
+        cursor = next_value
+    cursor[path[-1]] = value
+
+
+def _apply_ablation_config(config: dict[str, Any], algorithm: str, ablation: str) -> dict[str, Any]:
+    """Apply the pre-registered ablation switches to an algorithm config."""
+    patched = copy.deepcopy(config)
+    if algorithm == "CL-PPO":
+        if ablation == "no_constraint_signal":
+            _deep_set(patched, ("constraints", "enabled"), False)
+        elif ablation == "no_risk_critic":
+            _deep_set(patched, ("risk", "enabled"), False)
+        elif ablation == "no_safety_layer":
+            _deep_set(patched, ("safety_layer", "enabled"), False)
+    elif algorithm == "GAM-COMA":
+        if ablation == "full":
+            _deep_set(patched, ("game_theory", "use_shapley_credit"), True)
+            _deep_set(patched, ("graph_attention", "enabled"), True)
+            _deep_set(patched, ("action_masking", "enabled"), True)
+        elif ablation == "no_graph_attention":
+            _deep_set(patched, ("graph_attention", "enabled"), False)
+            _deep_set(patched, ("game_theory", "use_shapley_credit"), True)
+        elif ablation == "no_feasible_action_masking":
+            _deep_set(patched, ("action_masking", "enabled"), False)
+            _deep_set(patched, ("game_theory", "use_shapley_credit"), True)
+        elif ablation == "no_warm_start":
+            _deep_set(patched, ("game_theory", "warm_start_steps"), 0)
+            _deep_set(patched, ("game_theory", "use_shapley_credit"), True)
+        elif ablation == "no_shapley_credit":
+            _deep_set(patched, ("game_theory", "use_shapley_credit"), False)
+    return patched
+
+
+def _write_generated_config(
+    output_root: Path,
+    level: str,
+    scenario_id: str,
+    algorithm: str,
+    ablation: str,
+) -> tuple[Path, Path]:
+    """Write per-run algorithm config files and return file and directory paths."""
+    source_path = _base_algorithm_config_path(algorithm)
+    config = _load_yaml(source_path)
+    config = _apply_ablation_config(config, algorithm, ablation)
+    config_dir = (
+        output_root
+        / "generated_configs"
+        / level
+        / _sanitize(scenario_id)
+        / _sanitize(algorithm)
+        / _sanitize(ablation)
+    )
+    config_dir.mkdir(parents=True, exist_ok=True)
+    algorithm_path = config_dir / "algorithm.yaml"
+    serialized = yaml.safe_dump(config, sort_keys=False, allow_unicode=True)
+    algorithm_path.write_text(serialized, encoding="utf-8")
+    (config_dir / _benchmark_config_name(algorithm)).write_text(serialized, encoding="utf-8")
+    return algorithm_path, config_dir
 
 
 def build_manifest(
@@ -131,41 +221,65 @@ def build_manifest(
 
     for scenario_id in scenario_ids:
         scenario_spec = scenario_matrix["scenarios"][scenario_id]
+        stage = str(scenario_spec["stage"])
         allowed = set(scenario_spec["allowed_algorithms"])
         for algorithm in algorithms:
             if algorithm not in allowed:
                 continue
+            ablations = scenario_spec.get("ablations") if stage == "N2" else None
+            ablation_labels = [str(item) for item in (ablations or ["full"])]
             for seed in seeds:
-                run_id = f"{level}__{scenario_id}__{algorithm}__seed{seed}"
-                run_output = (
-                    output_root
-                    / scenario_spec["output_subdir"]
-                    / _sanitize(algorithm)
-                    / f"seed_{seed}.json"
-                )
-                command = _benchmark_command(
-                    algorithm=algorithm,
-                    seed=seed,
-                    steps=steps,
-                    output_path=run_output,
-                    device=device,
-                    scenario_spec=scenario_spec,
-                )
-                runs.append(
-                    {
-                        "run_id": run_id,
-                        "matrix_version": matrix["schema_version"],
-                        "scenario_version": scenario_matrix["schema_version"],
-                        "level": level,
-                        "algorithm": algorithm,
-                        "scenario": scenario_id,
-                        "seed": seed,
-                        "steps": steps,
-                        "command": command,
-                        "output_path": str(run_output),
-                        "claim_level": claim_level,
-                    }
-                )
+                for ablation in ablation_labels:
+                    run_id = f"{level}__{scenario_id}__{algorithm}__{ablation}__seed{seed}"
+                    run_output = (
+                        output_root
+                        / scenario_spec["output_subdir"]
+                        / _sanitize(algorithm)
+                        / _sanitize(ablation)
+                        / f"seed_{seed}.json"
+                    )
+                    generated_config_path, generated_config_dir = _write_generated_config(
+                        output_root=output_root,
+                        level=level,
+                        scenario_id=scenario_id,
+                        algorithm=algorithm,
+                        ablation=ablation,
+                    )
+                    result_kind = (
+                        "benchmark_diagnostic"
+                        if stage == "N1" and bool(scenario_spec.get("oracle_reference"))
+                        else "benchmark"
+                    )
+                    command = _benchmark_command(
+                        algorithm=algorithm,
+                        seed=seed,
+                        steps=steps,
+                        output_path=run_output,
+                        device=device,
+                        scenario_spec=scenario_spec,
+                        generated_config_dir=generated_config_dir,
+                    )
+                    runs.append(
+                        {
+                            "run_id": run_id,
+                            "matrix_version": matrix["schema_version"],
+                            "scenario_version": scenario_matrix["schema_version"],
+                            "level": level,
+                            "stage": stage,
+                            "algorithm": algorithm,
+                            "scenario": scenario_id,
+                            "seed": seed,
+                            "steps": steps,
+                            "ablation": ablation,
+                            "source_config": str(scenario_spec["profile"].get("source_config", "")),
+                            "profile": copy.deepcopy(scenario_spec["profile"]),
+                            "result_kind": result_kind,
+                            "command": command,
+                            "output_path": str(run_output),
+                            "claim_level": claim_level,
+                            "generated_config_path": str(generated_config_path),
+                        }
+                    )
 
     return {
         "schema_version": MANIFEST_SCHEMA_VERSION,
@@ -178,9 +292,29 @@ def build_manifest(
         "resume": resume,
         "source_matrix": "configs/paper2_main_experiment_matrix.yaml",
         "source_scenario_matrix": "configs/paper2_scenario_matrix.yaml",
+        "claim_boundaries": {
+            "n1_oracle_claim": "blocked_without_oracle_wrapper",
+            "dry_run_is_result": False,
+            "final_claim_requires": matrix.get("final_claim_level", "L3_formal_verification"),
+        },
         "run_count": len(runs),
         "runs": runs,
     }
+
+
+def _write_n1_oracle_gap_note() -> None:
+    """Record the local N1 oracle boundary when no oracle wrapper is available."""
+    path = Path("ref/paper2_n1_oracle_gap.md")
+    if path.exists():
+        return
+    path.write_text(
+        "# Paper2 N1 Oracle Gap\n\n"
+        "The v4.9 matrix runner marks `N1-oracle-small` records as `benchmark_diagnostic` "
+        "because no local oracle wrapper is wired into this patch. These records may support "
+        "diagnostic benchmark checks, but they must not be claimed as oracle-gap evidence until "
+        "an oracle-capable runner is added and validated.\n",
+        encoding="utf-8",
+    )
 
 
 def _write_manifest(manifest: dict[str, Any], output: Path) -> None:
@@ -245,6 +379,8 @@ def main() -> None:
         resume=args.resume,
     )
     _write_manifest(manifest, args.output)
+    if any(run["stage"] == "N1" for run in manifest["runs"]):
+        _write_n1_oracle_gap_note()
     if args.dry_run:
         print(f"DRY RUN paper2 main matrix: {manifest['run_count']} planned runs")
         print(f"Manifest saved to: {args.output}")

@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 
-from .coma import COMAAgent
+from .coma import COMAAgent, COMACritic
 from .game_theory_utils import (
     apply_shapley_reward_scaling,
     discrete_imitation_loss,
@@ -93,6 +93,10 @@ class GraphAttentionCOMACritic(nn.Module):
         return self.out(tokens)
 
 
+class CentralizedCOMACritic(COMACritic):
+    """Non-attention centralized COMA critic used by graph-attention ablations."""
+
+
 class GAMCOMAAgent(COMAAgent):
     """COMA with graph-attention critic and optional feasible-action masking."""
 
@@ -152,15 +156,23 @@ class GAMCOMAAgent(COMAAgent):
         self.action_masking_enabled = bool(self.action_masking_cfg.get("enabled", True))
         self.social_influence_enabled = bool(self.social_influence_cfg.get("enabled", False))
         self.social_influence_coeff = float(self.social_influence_cfg.get("coeff", 0.0))
-        self.critic = GraphAttentionCOMACritic(
-            global_state_dim=self.global_state_dim,
-            num_agents=num_agents,
-            state_dim=state_dim,
-            action_dim=action_dim,
-            hidden_dim=hidden_dim,
-            num_heads=int(self.graph_attention_cfg.get("num_heads", 4)),
-            dropout=float(self.graph_attention_cfg.get("dropout", 0.0)),
-        ).to(self.device)
+        if self.graph_attention_enabled:
+            self.critic = GraphAttentionCOMACritic(
+                global_state_dim=self.global_state_dim,
+                num_agents=num_agents,
+                state_dim=state_dim,
+                action_dim=action_dim,
+                hidden_dim=hidden_dim,
+                num_heads=int(self.graph_attention_cfg.get("num_heads", 4)),
+                dropout=float(self.graph_attention_cfg.get("dropout", 0.0)),
+            ).to(self.device)
+        else:
+            self.critic = CentralizedCOMACritic(
+                self.global_state_dim,
+                num_agents,
+                action_dim,
+                hidden_dim,
+            ).to(self.device)
         self.optimizer = optim.Adam(
             list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr
         )

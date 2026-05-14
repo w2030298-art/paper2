@@ -1,8 +1,8 @@
 {
   "schema_version": "wkstruc-checkpoint/v9",
-  "checkpoint_id": "checkpoint-v4.8-final-experiment-closeout-pass",
-  "created_at": "2026-05-13T07:37:02Z",
-  "ledger_task_id": "paper2-v4.8-final-experiment-closeout",
-  "notes": "v4.8 patch passed: main/scenario experiment matrices, dry-run matrix runner, statistics pipeline, final figure/export tooling, final delivery references, and VSCode entries are in place. Focused validations and full pytest passed. L2/L3 real experiment execution remains a separate operator action before paper-level claims.",
-  "artifact": "configs/paper2_main_experiment_matrix.yaml, configs/paper2_scenario_matrix.yaml, scripts/run_paper2_main_matrix.py, scripts/analyze_paper2_statistics.py, scripts/generate_paper2_figures.py, scripts/export_paper2_final_package.py, ref, .vscode/launch.json, tests"
+  "checkpoint_id": "checkpoint-full17-backup-figures-20260513-pass",
+  "created_at": "2026-05-13T12:15:32Z",
+  "ledger_task_id": "paper2-full17-backup-figures-20260513",
+  "notes": "Full17 backup figure generation passed. Output directory contains 17 per-algorithm convergence figures, robust and full-range all-algorithm comparison figures for reward, latency, comm_score, and energy, CSV metric/rank bar charts, and a figure manifest.",
+  "artifact": "scripts/plot_full17_backup_results.py, tests/test_full17_backup_plots.py, figures/paper2_full_17_mainline_a_auto_20260512_112657/"
 }
