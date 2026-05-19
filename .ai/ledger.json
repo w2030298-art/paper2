@@ -70,7 +70,7 @@
     "paper2-v5.0 GATE: CL-PPO remains frozen until the corrected single-policy 3-user benchmark completes and human review accepts PPO as a valid baseline."
   ],
   "checkpoint_id": "checkpoint-full17-backup-figures-20260513-pass",
-  "last_review_report": "Mainline-A N0/N1/N2/N3 experiment gate review: ACCEPTED_WITH_BOUNDARIES (2026-05-06)",
+  "last_review_report": "ref/mainline_a_experiment_gate_review.md",
   "consumed_inbox": [
     "system-model-overhaul-v4.3",
     "paper2-v4.4-mainline-a-stage1-tuning",
