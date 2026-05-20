@@ -8,9 +8,9 @@
                      "label":  "7 / 7 steps (v5.0 corrected 3-user GPU full benchmark, analysis, figures, inventory, final validation complete)"
                  },
     "last_run":  {
-                     "at":  "2026-05-20T06:03:32Z",
+                     "at":  "2026-05-20T06:06:33Z",
                      "agent":  "codex",
-                     "summary":  "Packaged all comparison experiment results into paper2_comparison_experiment_results_20260520.zip and prepared GitHub upload branch. Benchmark review state remains NEEDS_REVIEW; checkpoint remains unchanged."
+                     "summary":  "Uploaded the v5 GPU comparison result package changes to GitHub branch codex/v5-gpu-results-package. Draft PR creation could not be completed locally because gh is unavailable and the GitHub connector failed to initialize; use the GitHub compare URL to open the PR."
                  },
     "previous_validation":  {
                                 "task_id":  "paper2-v4.4-mainline-a-stage1-tuning",
@@ -56,12 +56,18 @@
                                         "Compress-Archive comparison artifacts into paper2_comparison_experiment_results_20260520.zip (passed; 49 archive entries)",
                                         "tar -tf paper2_comparison_experiment_results_20260520.zip (passed; archive listing readable)",
                                         "Get-FileHash -Algorithm SHA256 paper2_comparison_experiment_results_20260520.zip (passed; 28612371f5e445eeea71a0b988fcc3bad0faa94c768c075d13a5e6c2e797a407)",
-                                        "ref/paper2_comparison_results_package_inventory.md created (passed)"
+                                        "ref/paper2_comparison_results_package_inventory.md created (passed)",
+                                        "git switch -c codex/v5-gpu-results-package (passed)",
+                                        "git add explicit benchmark/package files excluding unrelated AGENTS.md (passed)",
+                                        "git commit -m \"[paper2] package v5 GPU comparison results\" (passed; 4954e6c)",
+                                        "git push -u origin codex/v5-gpu-results-package (passed)",
+                                        "git ls-remote --heads origin codex/v5-gpu-results-package (passed; remote branch at 4954e6cdd98f9f3b96ecf9ea669f4874ed87a1eb)",
+                                        "GitHub connector PR creation attempted (failed: MCP startup/handshake failed); gh --version failed because GitHub CLI is not installed"
                                     ],
-                       "summary":  "PASS: benchmark validation remains passing; comparison experiment result package was created and hash-verified for GitHub upload. Full pytest from the benchmark closeout remains 344 passed."
+                       "summary":  "PASS: benchmark/package validations passed and changes were pushed to GitHub branch codex/v5-gpu-results-package. PR creation remains manual because gh is unavailable and the GitHub connector failed to initialize."
                    },
     "open_items":  [
-                       "DASHBOARD-EXTERNAL-COMPAT: dashboard 闂佺绻掗崢褔顢欓幇鏉跨畱鐟滄柨銆掗崼鏇炴嵍闁靛鍎哄Ο鍡涙⒑椤斿搫濡虹紒顔哄妽閹棃骞樼捄铏圭暰婵犫拃鍐ㄦ殭妞わ附鐓″?(Medium, external)",
+                       "DASHBOARD-EXTERNAL-COMPAT: dashboard 闂備胶顭堢换鎺楀储瑜旈、娆撳箛閺夎法鐣遍悷婊勬煥閵嗘帡宕奸弴鐐村祶闂侀潧顭堥崕鍝勎熼崱娑欌拺妞ゆ柨鎼俊铏圭磼椤斿搫濡介柟顖涙楠炴鎹勯搹鍦毎濠电姭鎷冮崘銊︽濡炪倧闄勯悡鈥愁嚕?(Medium, external)",
                        "paper2-v5.0 GATE: CL-PPO remains frozen until human review explicitly accepts PPO as a valid corrected-interface baseline."
                    ],
     "checkpoint_id":  "checkpoint-full17-backup-figures-20260513-pass",
@@ -143,5 +149,14 @@
                                "log":  "logs/benchmark_20260519_154138.log",
                                "status":  "9/9 algorithms ok on cuda",
                                "checkpoint_updated":  false
+                           },
+    "last_github_upload":  {
+                               "remote":  "origin",
+                               "repository":  "https://github.com/w2030298-art/paper2.git",
+                               "branch":  "codex/v5-gpu-results-package",
+                               "commit":  "4954e6cdd98f9f3b96ecf9ea669f4874ed87a1eb",
+                               "pr_create_url":  "https://github.com/w2030298-art/paper2/pull/new/codex/v5-gpu-results-package",
+                               "pr_created":  false,
+                               "pr_blocker":  "GitHub CLI gh is not installed; GitHub connector failed to initialize against chatgpt.com backend-api/wham/apps."
                            }
 }
