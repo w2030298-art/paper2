@@ -8,9 +8,9 @@
                      "label":  "7 / 7 steps (v5.0 corrected 3-user GPU full benchmark, analysis, figures, inventory, final validation complete)"
                  },
     "last_run":  {
-                     "at":  "2026-05-20T06:13:58Z",
+                     "at":  "2026-05-20T06:15:15Z",
                      "agent":  "codex",
-                     "summary":  "Merged v5 GPU comparison result package branch toward direct main push. Preserved origin/main last_review_report path fix; benchmark review state remains NEEDS_REVIEW and checkpoint remains unchanged."
+                     "summary":  "Directly pushed the v5 GPU comparison result package to origin/main. The package zip and inventories are now on main; checkpoint remains unchanged and CL-PPO remains frozen pending human review."
                  },
     "previous_validation":  {
                                 "task_id":  "paper2-v4.4-mainline-a-stage1-tuning",
@@ -67,12 +67,15 @@
                                         "git stash push -m \"preserve local AGENTS before direct main push\" -- AGENTS.md (passed)",
                                         "git switch main (passed)",
                                         "git pull --ff-only origin main (passed; incorporated origin/main ledger last_review_report fix)",
-                                        "git merge --no-ff codex/v5-gpu-results-package (conflict only in .ai/ledger.json; resolved by preserving v5 package state and origin/main last_review_report fix)"
+                                        "git merge --no-ff codex/v5-gpu-results-package (conflict only in .ai/ledger.json; resolved by preserving v5 package state and origin/main last_review_report fix)",
+                                        "git commit --no-edit (passed; merge commit a705afb)",
+                                        "git push origin main (passed; origin/main updated from 3b824ae to a705afb)",
+                                        "ledger direct-main push completion update prepared (this commit)"
                                     ],
-                       "summary":  "PASS: benchmark/package validations passed; direct main merge is being completed with origin/main ledger path fix preserved."
+                       "summary":  "PASS: benchmark/package validations passed and v5 GPU comparison result package has been pushed directly to origin/main."
                    },
     "open_items":  [
-                       "DASHBOARD-EXTERNAL-COMPAT: dashboard 兼容性需在外部仓库环境复核 (Medium, external)",
+                       "DASHBOARD-EXTERNAL-COMPAT: dashboard 鍏煎鎬ч渶鍦ㄥ閮ㄤ粨搴撶幆澧冨鏍?(Medium, external)",
                        "paper2-v5.0 GATE: CL-PPO remains frozen until human review explicitly accepts PPO as a valid corrected-interface baseline."
                    ],
     "checkpoint_id":  "checkpoint-full17-backup-figures-20260513-pass",
@@ -158,10 +161,11 @@
     "last_github_upload":  {
                                "remote":  "origin",
                                "repository":  "https://github.com/w2030298-art/paper2.git",
-                               "branch":  "codex/v5-gpu-results-package",
-                               "commit":  "4954e6cdd98f9f3b96ecf9ea669f4874ed87a1eb",
-                               "pr_create_url":  "https://github.com/w2030298-art/paper2/pull/new/codex/v5-gpu-results-package",
-                               "pr_created":  false,
-                               "pr_blocker":  "GitHub CLI gh is not installed; GitHub connector failed to initialize against chatgpt.com backend-api/wham/apps."
+                               "branch":  "main",
+                               "merge_commit":  "a705afb",
+                               "push_completed":  true,
+                               "package":  "paper2_comparison_experiment_results_20260520.zip",
+                               "package_sha256":  "28612371f5e445eeea71a0b988fcc3bad0faa94c768c075d13a5e6c2e797a407",
+                               "note":  "Feature branch codex/v5-gpu-results-package was merged directly into main per user request."
                            }
 }
