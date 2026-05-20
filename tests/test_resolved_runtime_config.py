@@ -45,7 +45,7 @@ class DummyAgent:
 
 def test_sha256_file_returns_digest_and_none_for_missing(tmp_path: Path) -> None:
     config = tmp_path / "config.yaml"
-    config.write_text("algorithm: PPO\n", encoding="utf-8")
+    config.write_bytes(b"algorithm: PPO\n")
 
     assert sha256_file(config) == "f8a6c0c936f4ba5b37eb5c556664dace23f9203d36221da0efa67dc91b957947"
     assert sha256_file(tmp_path / "missing.yaml") is None

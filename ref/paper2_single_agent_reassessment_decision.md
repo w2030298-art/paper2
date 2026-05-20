@@ -1,8 +1,8 @@
 # Single-Agent Reassessment Decision
 
-Decision: `KEEP_CL_PPO_FROZEN`
+Decision: `PENDING_HUMAN_REVIEW`
 
-Reason: PPO does not have a usable corrected-interface record.
+Reason: PPO has a corrected-interface record, but CL-PPO still needs human review before restart.
 
 Boundary: old 1-agent full17 results remain retracted as research evidence for the 3-user Mainline-A game. No statistical significance claim is made from this single-seed engineering comparison.
 
